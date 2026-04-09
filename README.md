@@ -102,15 +102,14 @@ All roles can view parts, search, and print labels. Editors and Admins can add, 
 
 ## Categories & Custom Fields
 
-The app ships with three categories — **Engine**, **Cylinder Head**, and **Transmission** — each with pre-configured field sets. All categories are fully editable:
+The app ships with three categories — **Engine**, **Cylinder Head**, and **Transmission** — each with pre-configured field sets. All categories are fully editable and deletable.
 
-- **Rename, recolor, or delete** any category (requires removing parts from the category first)
-- **Add custom categories** with any name and color
+- **Rename, recolor, or delete** any category (requires removing parts from it first)
+- **Add custom categories** with any name and color — new categories come pre-populated with default fields (SKU, Location, Fitment Vehicle, Sold, Sold Date, Notes) that you can rearrange or remove
 - **Define fields** per category: Text, Textarea, Toggle (yes/no), or Radio (multiple choice with custom options)
 - **Control visibility**: Check "Card" to show on card view, "Table" to show as a table column
-- **Drag to reorder** fields — the order in the category editor is the order in forms, detail views, and labels
-
-Shared fields (SKU, Location, Fitment Vehicle, Sold, Sold Date, Notes, Images) are available on all categories automatically.
+- **Drag to reorder** any field — the order in the category editor is the order in forms, detail views, and labels. This includes the default fields — put SKU at the bottom if you want, or move Notes to the middle
+- **Images** are always available on every category and don't need to be added as a field
 
 ## Product Numbers & Labels
 

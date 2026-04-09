@@ -1052,7 +1052,7 @@ body {
                     <label class="form-label" style="margin:0;">Custom Fields</label>
                     <button class="btn btn-ghost btn-sm" onclick="addCatField()">+ Add Field</button>
                 </div>
-                <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">Drag rows to reorder. All categories automatically include SKU, Location, Fitment Vehicle, Sold, Sold Date, Notes, and Images.</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">Drag rows to reorder. Add your own fields or rearrange the defaults. Images are always available on all categories.</div>
                 <div id="catFieldsList"></div>
             </div>
         </div>
@@ -1824,6 +1824,19 @@ function openCategoryForm(cat) {
     if (cat && cat.fields) {
         for (const f of cat.fields) {
             addCatField(f.field_label, f.field_key, f.field_type, f.radio_options || '', f.show_on_card, f.show_in_table, false);
+        }
+    } else {
+        // New category — pre-populate with default shared fields
+        const defaults = [
+            ['SKU', 'sku', 'text', '', 0, 1],
+            ['Location', 'location', 'text', '', 1, 1],
+            ['Fitment Vehicle', 'fitment_vehicle', 'text', '', 1, 1],
+            ['Sold', 'sold', 'toggle', '', 0, 1],
+            ['Sold Date', 'sold_date', 'text', '', 0, 0],
+            ['Notes', 'notes', 'textarea', '', 0, 0],
+        ];
+        for (const [label, key, type, opts, card, table] of defaults) {
+            addCatField(label, key, type, opts, card, table, false);
         }
     }
 
