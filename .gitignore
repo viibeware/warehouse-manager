@@ -1,0 +1,9 @@
+*.db
+.secret_key
+.migration_lock
+uploads/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env

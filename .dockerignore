@@ -1,0 +1,9 @@
+*.db
+.secret_key
+uploads/
+.env
+__pycache__
+*.pyc
+.git
+setup.sh
+README.md

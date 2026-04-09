@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse Manager</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ══════════════════════════════════════════ */
+/*  THEME VARIABLES                          */
+/* ══════════════════════════════════════════ */
+:root {
+    --font: 'DM Sans', -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+    --transition: 0.2s ease;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --accent: #4a8eff;
+    --accent-hover: #6ba1ff;
+    --accent-dim: rgba(74, 142, 255, 0.12);
+    --engine: #f59e0b;
+    --engine-dim: rgba(245, 158, 11, 0.12);
+    --head: #10b981;
+    --head-dim: rgba(16, 185, 129, 0.12);
+    --transmission: #a78bfa;
+    --transmission-dim: rgba(167, 139, 250, 0.12);
+    --danger: #ef4444;
+    --danger-hover: #f87171;
+    --yes: #10b981;
+    --no: #ef4444;
+    --sidebar-w: 240px;
+}
+
+/* ── DARK THEME (default) ── */
+[data-theme="dark"] {
+    --bg-primary: #0f1114;
+    --bg-secondary: #181b20;
+    --bg-card: #1e2128;
+    --bg-card-hover: #252930;
+    --bg-input: #14171b;
+    --bg-sidebar: #13161a;
+    --border: #2a2e36;
+    --border-focus: #4a8eff;
+    --text-primary: #e8eaed;
+    --text-secondary: #a0a6b1;
+    --text-muted: #7a8190;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* ── LIGHT THEME ── */
+[data-theme="light"] {
+    --bg-primary: #f3f4f6;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f9fafb;
+    --bg-input: #f3f4f6;
+    --bg-sidebar: #ffffff;
+    --border: #e0e2e6;
+    --border-focus: #4a8eff;
+    --text-primary: #1a1d23;
+    --text-secondary: #4b5563;
+    --text-muted: #6b7280;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+}
+
+html { font-size: 1.2rem; }
+body {
+    font-family: var(--font); background: var(--bg-primary); color: var(--text-primary);
+    line-height: 1.5; min-height: 100vh; display: flex;
+}
+
+/* ══════════════════════════════════════════ */
+/*  SIDEBAR                                  */
+/* ══════════════════════════════════════════ */
+.sidebar {
+    width: var(--sidebar-w); min-height: 100vh; background: var(--bg-sidebar);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; z-index: 100;
+    transition: transform 0.25s ease;
+}
+.sidebar-logo {
+    padding: 1.25rem 1rem; display: flex; align-items: flex-start; gap: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.sidebar-logo img { width: 44px; height: 44px; border-radius: 6px; margin-top: 1px; }
+.sidebar-logo-text {
+    display: flex; flex-direction: column;
+}
+.sidebar-logo-name {
+    font-family: 'Inter', -apple-system, sans-serif; font-weight: 800; font-size: 0.95rem;
+    color: var(--text-primary); line-height: 1.1; letter-spacing: -0.02em;
+}
+.sidebar-logo-version {
+    font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted);
+    letter-spacing: 0.03em; margin-top: 2px;
+}
+.sidebar-nav { flex: 1; padding: 0.75rem 0.5rem; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-section-label {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+    padding: 0.75rem 0.75rem 0.35rem;
+}
+.nav-item {
+    display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem;
+    border-radius: var(--radius); color: var(--text-secondary); font-size: 0.85rem;
+    font-weight: 500; cursor: pointer; transition: all var(--transition);
+    border: none; background: none; width: 100%; text-align: left; font-family: var(--font);
+}
+.nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+.nav-item svg { flex-shrink: 0; }
+.nav-item .nav-count {
+    margin-left: auto; font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted);
+}
+.sidebar-footer {
+    padding: 0.5rem; border-top: 1px solid var(--border);
+}
+.sidebar-user-bar {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+}
+.user-avatar {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.65rem; font-weight: 700; color: var(--accent);
+    flex-shrink: 0;
+}
+.sidebar-user-info { flex: 1; min-width: 0; }
+.sidebar-user-name { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user-role {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+}
+.danger-nav { color: var(--text-muted) !important; }
+.danger-nav:hover { color: var(--danger) !important; background: rgba(239,68,68,0.08) !important; }
+
+/* ══════════════════════════════════════════ */
+/*  MAIN AREA                                */
+/* ══════════════════════════════════════════ */
+.main-wrapper {
+    flex: 1; margin-left: var(--sidebar-w); min-height: 100vh;
+    display: flex; flex-direction: column;
+}
+.toolbar {
+    padding: 1rem 1.5rem; display: flex; gap: 0.75rem; align-items: center;
+    flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+    position: sticky; top: 0; z-index: 50;
+}
+.search-box { flex: 1; min-width: 200px; position: relative; }
+.search-box svg {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); pointer-events: none;
+}
+.search-box input {
+    width: 100%; padding: 9px 14px 9px 38px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-primary); font-family: var(--font); font-size: 0.88rem;
+    outline: none; transition: border var(--transition);
+}
+.search-box input:focus { border-color: var(--border-focus); }
+.search-box input::placeholder { color: var(--text-muted); }
+
+.sort-label {
+    font-family: var(--mono); font-size: 0.65rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); white-space: nowrap;
+}
+.sort-select {
+    padding: 7px 26px 7px 10px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary); font-family: var(--font);
+    font-size: 0.82rem; outline: none; cursor: pointer; transition: border var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a8190' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+}
+.sort-select:focus { border-color: var(--border-focus); }
+.sort-select option { background: var(--bg-secondary); }
+.sort-dir-btn {
+    width: 32px; height: 32px; border: 1px solid var(--border); background: var(--bg-input);
+    border-radius: var(--radius); color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all var(--transition);
+}
+.sort-dir-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sort-dir-btn svg { transition: transform 0.2s ease; }
+.sort-dir-btn.desc svg { transform: rotate(180deg); }
+
+.view-toggle {
+    display: flex; gap: 2px; background: var(--bg-input);
+    border-radius: var(--radius); border: 1px solid var(--border); padding: 2px;
+}
+.view-toggle-btn {
+    padding: 6px 9px; border: none; background: transparent;
+    color: var(--text-muted); border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all var(--transition);
+}
+.view-toggle-btn:hover { color: var(--text-secondary); background: var(--bg-card); }
+.view-toggle-btn.active { background: var(--accent); color: #fff; }
+
+.btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px;
+    border: none; border-radius: var(--radius); font-family: var(--font);
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: all var(--transition); white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: var(--danger-hover); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.btn-sm { padding: 7px 14px; font-size: 0.78rem; }
+
+/* ══════════════════════════════════════════ */
+/*  CONTENT AREA                             */
+/* ══════════════════════════════════════════ */
+.main-content { padding: 1.25rem 1.5rem 3rem; flex: 1; }
+
+/* ── CARD GRID ── */
+.parts-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;
+}
+.part-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    transition: all var(--transition); cursor: pointer;
+}
+.part-card:hover {
+    border-color: var(--text-muted); background: var(--bg-card-hover);
+    transform: translateY(-2px); box-shadow: var(--shadow);
+}
+.card-image {
+    width: 100%; height: 170px; background: var(--bg-input);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; position: relative;
+}
+.card-image img { width: 100%; height: 100%; object-fit: cover; }
+.card-image .placeholder-icon { color: var(--text-muted); opacity: 0.4; }
+.card-badge {
+    position: absolute; top: 10px; left: 10px; padding: 3px 10px;
+    border-radius: 20px; font-family: var(--mono); font-size: 0.65rem;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.card-badge.engine { background: rgba(245,158,11,0.85); color: #000; }
+.card-badge.head { background: rgba(16,185,129,0.85); color: #000; }
+.card-badge.transmission { background: rgba(167,139,250,0.85); color: #000; }
+.card-body { padding: 0.85rem 1rem; }
+.card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 0.75rem; }
+.meta-item { font-size: 0.78rem; color: var(--text-secondary); }
+.meta-label {
+    color: var(--text-muted); font-family: var(--mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+.meta-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-toggles { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
+.toggle-pill {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    padding: 2px 7px; border-radius: 10px; letter-spacing: 0.03em;
+}
+.toggle-pill.yes { background: rgba(16,185,129,0.15); color: var(--yes); }
+.toggle-pill.no { background: rgba(239,68,68,0.12); color: var(--no); }
+
+/* ── SOLD ── */
+.card-sold-overlay {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; z-index: 1;
+}
+.card-sold-banner {
+    position: absolute; top: 12px; right: -30px;
+    background: var(--danger); color: #fff;
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 40px; transform: rotate(35deg);
+    box-shadow: 0 2px 6px rgba(239,68,68,0.4);
+}
+.part-card.is-sold { opacity: 0.7; }
+.part-card.is-sold:hover { opacity: 0.85; }
+
+/* ── RADIO PILLS ── */
+.radio-pill {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    padding: 2px 7px; border-radius: 10px; letter-spacing: 0.03em;
+}
+.radio-pill.val-yes { background: rgba(16,185,129,0.15); color: var(--yes); }
+.radio-pill.val-no { background: rgba(239,68,68,0.12); color: var(--danger); }
+.radio-pill.val-untested { background: rgba(245,158,11,0.15); color: var(--engine); }
+
+/* ── TABLE VIEW ── */
+.parts-table-wrap {
+    border: 1px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto;
+}
+.parts-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 700px; }
+.parts-table th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--bg-secondary); padding: 9px 11px; text-align: left;
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.parts-table td {
+    padding: 7px 11px; border-bottom: 1px solid var(--border);
+    color: var(--text-secondary); vertical-align: middle;
+}
+.parts-table tr { cursor: pointer; transition: background var(--transition); }
+.parts-table tbody tr:hover td { background: var(--bg-card-hover); }
+.parts-table .row-sold td { background: rgba(255,50,50,0.10); }
+.parts-table .row-sold:hover td { background: rgba(255,50,50,0.18); }
+.parts-table .sold-tag {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+    color: #ff4444; letter-spacing: 0.06em;
+    background: rgba(255,50,50,0.12); padding: 2px 8px; border-radius: 8px;
+}
+.parts-table .table-badge {
+    display: inline-block; padding: 2px 7px; border-radius: 10px;
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+.parts-table .table-badge.engine { background: var(--engine-dim); color: var(--engine); }
+.parts-table .table-badge.head { background: var(--head-dim); color: var(--head); }
+.parts-table .table-badge.transmission { background: var(--transmission-dim); color: var(--transmission); }
+.parts-table .table-toggle-yes { color: var(--yes); font-weight: 600; }
+.parts-table .table-toggle-no { color: var(--text-muted); }
+.parts-table .table-img {
+    width: 34px; height: 34px; border-radius: 4px; object-fit: cover;
+    border: 1px solid var(--border); vertical-align: middle;
+}
+.parts-table .cb-cell { width: 36px; text-align: center; padding-left: 10px; }
+.parts-table .cb-cell input[type="checkbox"] {
+    width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; vertical-align: middle;
+}
+.parts-table tr.row-selected td { background: var(--accent-dim); }
+.parts-table tr.row-selected.row-sold td { background: rgba(255,50,50,0.18); }
+
+.bulk-bar {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.65rem 1rem; margin-bottom: 0.75rem;
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: var(--radius); animation: slideIn 0.2s ease;
+}
+.bulk-bar-count { font-family: var(--mono); font-size: 0.82rem; color: var(--text-primary); font-weight: 600; }
+.bulk-bar-actions { display: flex; gap: 0.5rem; }
+
+/* ── EMPTY / LOADING / PAGINATION ── */
+.empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+.empty-state svg { margin-bottom: 0.75rem; opacity: 0.3; }
+.empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
+.empty-state p { font-size: 0.85rem; }
+.loading-spinner { display: flex; justify-content: center; padding: 3rem; }
+.spinner {
+    width: 30px; height: 30px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 0.4rem; margin-top: 1.5rem; }
+.pagination button {
+    padding: 7px 12px; border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-secondary); border-radius: var(--radius);
+    font-family: var(--mono); font-size: 0.78rem; cursor: pointer; transition: all var(--transition);
+}
+.pagination button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pagination button:disabled { opacity: 0.3; cursor: default; }
+.pagination button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pagination .page-info { font-size: 0.78rem; color: var(--text-muted); font-family: var(--mono); }
+
+/* ══════════════════════════════════════════ */
+/*  MODALS                                   */
+/* ══════════════════════════════════════════ */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); z-index: 200;
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+}
+.modal-overlay.active { opacity: 1; pointer-events: all; }
+.modal {
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); width: 100%; max-width: 640px;
+    max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+    transform: translateY(20px); transition: transform 0.25s ease;
+}
+.modal-overlay.active .modal { transform: translateY(0); }
+.modal.wide { max-width: 820px; }
+.modal-header {
+    padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header h2 { font-size: 1rem; font-weight: 600; }
+.modal-close {
+    width: 30px; height: 30px; border: none; background: var(--bg-input);
+    color: var(--text-secondary); border-radius: var(--radius); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition); font-size: 1rem;
+}
+.modal-close:hover { background: var(--danger); color: #fff; }
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.5rem;
+}
+
+/* ── FORM ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.form-group.full-width { grid-column: 1 / -1; }
+.form-label {
+    font-family: var(--mono); font-size: 0.65rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);
+}
+.form-input, .form-select, .form-textarea {
+    padding: 8px 11px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary);
+    font-family: var(--font); font-size: 0.85rem; outline: none;
+    transition: border var(--transition);
+}
+.form-textarea { resize: vertical; min-height: 65px; }
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
+.form-select { cursor: pointer; }
+.form-select option { background: var(--bg-secondary); }
+.form-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── TOGGLE ── */
+.toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 11px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.toggle-switch { position: relative; width: 42px; height: 22px; display: inline-block; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+    position: absolute; inset: 0; background: #333; border-radius: 11px;
+    cursor: pointer; transition: background 0.25s;
+}
+.toggle-track::before {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    left: 3px; top: 3px; background: #888; border-radius: 50%;
+    transition: transform 0.25s, background 0.25s;
+}
+.toggle-switch input:checked + .toggle-track { background: rgba(16,185,129,0.3); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); background: var(--yes); }
+.toggle-label-text { font-size: 0.82rem; color: var(--text-secondary); }
+
+/* ── RADIO GROUP ── */
+.radio-group {
+    display: flex; gap: 4px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;
+}
+.radio-option {
+    flex: 1; text-align: center; padding: 7px 10px;
+    font-family: var(--font); font-size: 0.82rem; font-weight: 500;
+    color: var(--text-secondary); background: transparent;
+    border: none; border-radius: 6px; cursor: pointer; transition: all var(--transition);
+}
+.radio-option:hover { color: var(--text-primary); background: var(--bg-card); }
+.radio-option.selected { background: var(--accent); color: #fff; }
+.radio-option.selected-yes { background: var(--yes); color: #fff; }
+.radio-option.selected-no { background: var(--danger); color: #fff; }
+.radio-option.selected-untested { background: var(--engine); color: #000; }
+
+/* ── FILE UPLOAD ── */
+.file-upload {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 1rem; text-align: center; cursor: pointer;
+    transition: all var(--transition); position: relative;
+}
+.file-upload:hover { border-color: var(--accent); background: var(--accent-dim); }
+.file-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-upload-text { font-size: 0.82rem; color: var(--text-secondary); }
+.file-upload-text strong { color: var(--accent); }
+.category-prompt { text-align: center; padding: 1.5rem 1rem; color: var(--text-muted); }
+
+/* ── IMAGE GALLERY ── */
+.detail-gallery { margin-top: 1rem; }
+.detail-gallery-main {
+    width: 100%; max-height: 300px; object-fit: contain;
+    border-radius: var(--radius); background: var(--bg-input); cursor: pointer; transition: opacity 0.15s;
+}
+.detail-gallery-main:hover { opacity: 0.85; }
+.detail-gallery-thumbs { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
+.detail-gallery-thumb {
+    width: 52px; height: 52px; border-radius: 6px; object-fit: cover;
+    border: 2px solid transparent; cursor: pointer; transition: all 0.15s; background: var(--bg-input);
+}
+.detail-gallery-thumb:hover { border-color: var(--text-muted); }
+.detail-gallery-thumb.active { border-color: var(--accent); }
+
+.form-image-list { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.form-image-item { position: relative; width: 58px; height: 58px; }
+.form-image-item img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);
+}
+.form-image-remove {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--danger); color: #fff; border: none; font-size: 0.65rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* ── DETAIL ── */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+.detail-label {
+    font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;
+}
+.detail-value { font-size: 0.9rem; color: var(--text-primary); word-break: break-word; }
+.detail-value a { color: var(--accent); text-decoration: none; }
+.detail-value a:hover { text-decoration: underline; }
+.detail-actions {
+    display: flex; gap: 0.5rem; margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px solid var(--border);
+}
+.detail-toggle {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 12px;
+}
+.detail-toggle.yes { background: rgba(16,185,129,0.15); color: var(--yes); }
+.detail-toggle.no { background: rgba(239,68,68,0.12); color: var(--no); }
+.detail-toggle.sold-yes { background: rgba(255,50,50,0.15); color: #ff4444; font-weight: 700; }
+.detail-toggle.sold-no { background: transparent; color: var(--text-primary); font-weight: 400; }
+
+/* ── LIGHTBOX ── */
+.lightbox-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+}
+.lightbox-overlay.active { opacity: 1; pointer-events: all; }
+.lightbox-img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: var(--radius); }
+.lightbox-close {
+    position: absolute; top: 18px; right: 22px; width: 38px; height: 38px;
+    border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 50%;
+    cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+}
+.lightbox-close:hover { background: rgba(255,255,255,0.25); }
+.lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; border: none; background: rgba(255,255,255,0.1);
+    color: #fff; border-radius: 50%; cursor: pointer; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+}
+.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
+.lightbox-nav.prev { left: 18px; }
+.lightbox-nav.next { right: 18px; }
+.lightbox-counter {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 0.78rem; color: rgba(255,255,255,0.6);
+}
+
+/* ── ADMIN TABLE ── */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.admin-table th {
+    text-align: left; padding: 9px 11px; font-family: var(--mono); font-size: 0.65rem;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.admin-table td { padding: 9px 11px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+.admin-table tr:hover td { background: var(--bg-card); }
+.admin-table .username-cell { color: var(--text-primary); font-weight: 500; }
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.status-dot.active { background: var(--yes); }
+.status-dot.inactive { background: var(--danger); }
+.table-actions { display: flex; gap: 0.35rem; }
+.table-btn {
+    padding: 4px 9px; border: 1px solid var(--border); background: var(--bg-input);
+    color: var(--text-secondary); border-radius: 6px; font-size: 0.75rem;
+    cursor: pointer; transition: all var(--transition); font-family: var(--font);
+}
+.table-btn:hover { border-color: var(--accent); color: var(--accent); }
+.table-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.self-badge {
+    font-family: var(--mono); font-size: 0.58rem; background: var(--accent-dim);
+    color: var(--accent); padding: 1px 5px; border-radius: 8px; margin-left: 5px;
+}
+.role-badge {
+    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.role-badge.admin { background: var(--engine-dim); color: var(--engine); }
+.role-badge.editor { background: var(--head-dim); color: var(--head); }
+.role-badge.viewer { background: var(--accent-dim); color: var(--accent); }
+
+/* ── IMPORT WIZARD ── */
+.import-steps { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.import-step {
+    flex: 1; text-align: center; padding: 9px 6px;
+    font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.import-step.active { color: var(--accent); border-bottom-color: var(--accent); }
+.import-step.done { color: var(--yes); border-bottom-color: var(--yes); }
+.import-step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg-input); border: 1px solid var(--border);
+    font-size: 0.6rem; margin-right: 4px; vertical-align: middle;
+}
+.import-step.active .import-step-num { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.import-step.done .import-step-num { background: rgba(16,185,129,0.15); border-color: var(--yes); color: var(--yes); }
+.import-mapping-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.4rem 0.65rem; align-items: center; }
+.import-mapping-grid .map-header {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+    padding-bottom: 0.2rem; border-bottom: 1px solid var(--border);
+}
+.map-arrow { color: var(--text-muted); text-align: center; }
+.map-field-label { font-size: 0.82rem; color: var(--text-primary); }
+.map-select {
+    padding: 6px 9px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-primary); font-family: var(--font);
+    font-size: 0.8rem; outline: none; width: 100%; cursor: pointer;
+}
+.map-select:focus { border-color: var(--border-focus); }
+.preview-table-wrap { max-height: 350px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.preview-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 500px; }
+.preview-table th {
+    position: sticky; top: 0; z-index: 2; background: var(--bg-card); padding: 7px 9px; text-align: left;
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+.preview-table td {
+    padding: 5px 9px; border-bottom: 1px solid var(--border); color: var(--text-secondary);
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.preview-table tr:hover td { background: var(--bg-card); }
+.preview-toggle-yes { color: var(--yes); font-weight: 600; }
+.preview-toggle-no { color: var(--text-muted); }
+.import-summary {
+    display: flex; gap: 0.85rem; align-items: center; padding: 0.85rem;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.85rem;
+}
+.import-summary-num { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.import-summary-text { font-size: 0.85rem; color: var(--text-secondary); }
+.import-warnings {
+    margin-top: 0.6rem; padding: 0.6rem 0.85rem;
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+    border-radius: var(--radius); font-size: 0.78rem; color: var(--engine); max-height: 110px; overflow-y: auto;
+}
+.import-warnings div { padding: 2px 0; }
+.import-result { text-align: center; padding: 1.5rem 1rem; }
+.import-result-icon {
+    width: 50px; height: 50px; border-radius: 50%; margin: 0 auto 0.85rem;
+    display: flex; align-items: center; justify-content: center; background: rgba(16,185,129,0.12);
+}
+.import-result h3 { font-size: 1.1rem; margin-bottom: 0.2rem; }
+.import-result p { font-size: 0.85rem; color: var(--text-secondary); }
+
+/* ── SETTINGS ── */
+.settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.85rem 0; border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 0.88rem; color: var(--text-primary); }
+.settings-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── CATEGORY FIELD ROWS ── */
+.cat-field-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.6rem; margin-bottom: 4px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); cursor: grab; transition: border-color 0.15s;
+}
+.cat-field-row:active { cursor: grabbing; }
+.cat-field-row.dragging { opacity: 0.5; border-color: var(--accent); }
+.cat-field-row.drag-over { border-color: var(--accent); border-style: dashed; }
+.cat-field-drag {
+    color: var(--text-muted); flex-shrink: 0; cursor: grab; display: flex; align-items: center;
+}
+.cat-field-inputs { flex: 1; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.cat-field-inputs input, .cat-field-inputs select {
+    padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-primary); font-family: var(--font);
+    font-size: 0.78rem; outline: none;
+}
+.cat-field-inputs input:focus, .cat-field-inputs select:focus { border-color: var(--border-focus); }
+.cat-field-inputs input.field-label { flex: 1; min-width: 100px; }
+.cat-field-inputs select.field-type { width: 90px; }
+.cat-field-inputs input.field-radio-opts { flex: 1; min-width: 120px; }
+.cat-field-check { display: flex; align-items: center; gap: 3px; font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+.cat-field-check input { width: 13px; height: 13px; accent-color: var(--accent); }
+.cat-field-remove {
+    width: 22px; height: 22px; border-radius: 50%; border: none;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; transition: all 0.15s; flex-shrink: 0;
+}
+.cat-field-remove:hover { background: rgba(239,68,68,0.15); color: var(--danger); }
+.cat-manager-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border);
+}
+.cat-manager-item:last-child { border-bottom: none; }
+.cat-manager-swatch {
+    width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
+}
+.cat-manager-name { flex: 1; font-weight: 500; font-size: 0.88rem; }
+.cat-manager-count { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
+.cat-manager-badge {
+    font-family: var(--mono); font-size: 0.58rem; color: var(--text-muted);
+    background: var(--bg-card); padding: 1px 6px; border-radius: 8px;
+}
+
+/* ── TOAST ── */
+.toast-container {
+    position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 300;
+    display: flex; flex-direction: column; gap: 0.4rem;
+}
+.toast {
+    padding: 0.65rem 1rem; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary); font-size: 0.82rem;
+    box-shadow: var(--shadow-lg); animation: slideIn 0.3s ease;
+    display: flex; align-items: center; gap: 0.4rem;
+}
+.toast.success { border-left: 3px solid var(--yes); }
+.toast.error { border-left: 3px solid var(--danger); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } }
+
+/* ── MOBILE ── */
+.sidebar-toggle { display: none; }
+@media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main-wrapper { margin-left: 0; }
+    .sidebar-toggle {
+        display: flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; border: 1px solid var(--border); background: var(--bg-input);
+        border-radius: var(--radius); color: var(--text-secondary); cursor: pointer;
+    }
+    .parts-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+        <img src="/static/logo.svg" alt="WM">
+        <div class="sidebar-logo-text">
+            <div class="sidebar-logo-name">Warehouse<br>Manager</div>
+            <div class="sidebar-logo-version" id="sidebarVersion"></div>
+        </div>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Inventory</div>
+        <button class="nav-item active" data-category="" onclick="setFilter(this)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            All Parts <span class="nav-count" id="countAll"></span>
+        </button>
+        <div id="sidebarCategoryNav"><!-- dynamic --></div>
+
+        <div class="sidebar-section-label" id="actionsLabel" style="display:none;">Actions</div>
+        <button class="nav-item" id="navAddPart" style="display:none;" onclick="openAddModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Part
+        </button>
+
+        <div style="flex:1;"></div>
+
+        <button class="nav-item" onclick="openSettingsModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+        </button>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+            <div class="user-avatar" id="userAvatar"></div>
+            <div class="sidebar-user-info">
+                <div class="sidebar-user-name" id="userName"></div>
+                <div class="sidebar-user-role" id="userRole"></div>
+            </div>
+        </div>
+        <a class="nav-item danger-nav" href="/logout">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+        </a>
+    </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main-wrapper">
+    <div class="toolbar">
+        <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="searchInput" placeholder="Search by SKU, fitment, number…" autocomplete="off">
+        </div>
+        <span class="sort-label">Sort</span>
+        <select class="sort-select" id="sortSelect" onchange="onSortChange()">
+            <option value="updated_at">Recent</option>
+            <option value="sku" selected>SKU</option>
+            <option value="location">Location</option>
+            <option value="fitment_vehicle">Fitment</option>
+        </select>
+        <button class="sort-dir-btn" id="sortDirBtn" onclick="toggleSortDir()" title="Toggle sort direction">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </button>
+        <div class="view-toggle">
+            <button class="view-toggle-btn" id="viewCards" onclick="setView('cards')" title="Card view">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </button>
+            <button class="view-toggle-btn active" id="viewTable" onclick="setView('table')" title="Table view">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+        </div>
+    </div>
+    <div class="main-content">
+        <div id="loadingSpinner" class="loading-spinner" style="display:none;"><div class="spinner"></div></div>
+        <div id="partsGrid" class="parts-grid" style="display:none;"></div>
+        <div id="bulkBar" style="display:none;"></div>
+        <div id="partsTable"></div>
+        <div id="emptyState" class="empty-state" style="display:none;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <h3 id="emptyTitle">No parts found</h3>
+            <p id="emptyText">Add your first part to get started</p>
+        </div>
+        <div id="pagination" class="pagination"></div>
+    </div>
+</div>
+
+<!-- ═══ ADD/EDIT PART MODAL ═══ -->
+<div class="modal-overlay" id="formModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="formModalTitle">Add Part</h2>
+            <button class="modal-close" onclick="closeModal('formModal')">&times;</button>
+        </div>
+        <div class="modal-body"><div id="formContent"></div></div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('formModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="savePart()" id="formSaveBtn">Save Part</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ DETAIL MODAL ═══ -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="detailModalTitle">Part Details</h2>
+            <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="detailModalBody"></div>
+    </div>
+</div>
+
+<!-- ═══ CHANGE PASSWORD MODAL ═══ -->
+<div class="modal-overlay" id="pwModal">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <h2>Change Password</h2>
+            <button class="modal-close" onclick="closeModal('pwModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid" style="grid-template-columns:1fr;">
+                <div class="form-group">
+                    <label class="form-label">Current Password</label>
+                    <input class="form-input" type="password" id="pwCurrent" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input class="form-input" type="password" id="pwNew" autocomplete="new-password">
+                    <span class="form-hint">Minimum 4 characters</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input class="form-input" type="password" id="pwConfirm" autocomplete="new-password">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('pwModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ SETTINGS MODAL ═══ -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+            <h2>Settings</h2>
+            <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="settings-row">
+                <div>
+                    <div class="settings-label">Light Mode</div>
+                    <div class="settings-desc">Switch between dark and light themes</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="settingsLightMode" onchange="toggleTheme(this.checked)">
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div>
+                    <div class="settings-label">Change Password</div>
+                    <div class="settings-desc">Update your account password</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openChangePasswordModal();">Change</button>
+            </div>
+            <div class="settings-row" id="settingsManageUsers" style="display:none;">
+                <div>
+                    <div class="settings-label">Manage Users</div>
+                    <div class="settings-desc">Create, edit, and remove user accounts</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openAdminPanel();">Manage</button>
+            </div>
+            <div class="settings-row" id="settingsCategories" style="display:none;">
+                <div>
+                    <div class="settings-label">Manage Categories</div>
+                    <div class="settings-desc">Add or edit parts categories and their field sets</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
+            </div>
+            <div class="settings-row" id="settingsImport" style="display:none;">
+                <div>
+                    <div class="settings-label">Import Data</div>
+                    <div class="settings-desc">Import parts from Excel (.xlsx) or CSV files</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openImportModal();">Import</button>
+            </div>
+            <div class="settings-row" id="settingsExport" style="display:none;">
+                <div>
+                    <div class="settings-label">Export Data</div>
+                    <div class="settings-desc">Download entire inventory as CSV</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="exportCSV();">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ ADMIN PANEL MODAL ═══ -->
+<div class="modal-overlay" id="adminModal">
+    <div class="modal wide">
+        <div class="modal-header">
+            <h2>User Management</h2>
+            <button class="modal-close" onclick="closeModal('adminModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
+                <span style="font-size:0.82rem;color:var(--text-muted);" id="adminUserCount"></span>
+                <button class="btn btn-primary btn-sm" onclick="openUserForm(null)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add User
+                </button>
+            </div>
+            <div id="adminUserTable"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ USER FORM MODAL ═══ -->
+<div class="modal-overlay" id="userFormModal" style="z-index:210;">
+    <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+            <h2 id="userFormTitle">Add User</h2>
+            <button class="modal-close" onclick="closeModal('userFormModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid" style="grid-template-columns:1fr;">
+                <input type="hidden" id="ufId">
+                <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="ufUsername" autocomplete="off"></div>
+                <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" type="text" id="ufDisplayName"></div>
+                <div class="form-group"><label class="form-label">Role</label>
+                    <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select>
+                </div>
+                <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">Minimum 4 characters</span></div>
+                <div class="form-group" id="ufActiveGroup" style="display:none;">
+                    <label class="form-label">Account Status</label>
+                    <div class="toggle-row"><span class="toggle-label-text" id="ufActiveText">Active</span><label class="toggle-switch"><input type="checkbox" id="ufActive" checked onchange="document.getElementById('ufActiveText').textContent=this.checked?'Active':'Disabled'"><span class="toggle-track"></span></label></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('userFormModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveUser()" id="ufSaveBtn">Create User</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ IMPORT MODAL ═══ -->
+<div class="modal-overlay" id="importModal">
+    <div class="modal wide">
+        <div class="modal-header">
+            <h2>Import Data</h2>
+            <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="import-steps" id="importSteps">
+                <div class="import-step active" data-step="1"><span class="import-step-num">1</span>Upload</div>
+                <div class="import-step" data-step="2"><span class="import-step-num">2</span>Map Fields</div>
+                <div class="import-step" data-step="3"><span class="import-step-num">3</span>Preview</div>
+                <div class="import-step" data-step="4"><span class="import-step-num">4</span>Import</div>
+            </div>
+            <div id="importStepContent"></div>
+        </div>
+        <div class="modal-footer" id="importFooter"></div>
+    </div>
+</div>
+
+<!-- ═══ CATEGORY MANAGER MODAL ═══ -->
+<div class="modal-overlay" id="catManagerModal">
+    <div class="modal wide">
+        <div class="modal-header">
+            <h2>Manage Categories</h2>
+            <button class="modal-close" onclick="closeModal('catManagerModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
+                <span style="font-size:0.82rem;color:var(--text-muted);" id="catManagerCount"></span>
+                <button class="btn btn-primary btn-sm" onclick="openCategoryForm(null)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Category
+                </button>
+            </div>
+            <div id="catManagerList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ CATEGORY FORM MODAL ═══ -->
+<div class="modal-overlay" id="catFormModal" style="z-index:210;">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2 id="catFormTitle">Add Category</h2>
+            <button class="modal-close" onclick="closeModal('catFormModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                <input type="hidden" id="catFormSlug">
+                <div class="form-group">
+                    <label class="form-label">Category Name</label>
+                    <input class="form-input" type="text" id="catFormName" placeholder="e.g. Carburetors">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input class="form-input" type="color" id="catFormColor" value="#4a8eff" style="height:38px;padding:3px 6px;cursor:pointer;">
+                </div>
+            </div>
+            <div style="margin-top:1rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                    <label class="form-label" style="margin:0;">Custom Fields</label>
+                    <button class="btn btn-ghost btn-sm" onclick="addCatField()">+ Add Field</button>
+                </div>
+                <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">Drag rows to reorder. All categories automatically include SKU, Location, Fitment Vehicle, Sold, Sold Date, Notes, and Images.</div>
+                <div id="catFieldsList"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('catFormModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveCategory()" id="catFormSaveBtn">Create Category</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ LIGHTBOX ═══ -->
+<div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <button class="lightbox-nav prev" onclick="lightboxNav(-1); event.stopPropagation();">‹</button>
+    <img class="lightbox-img" id="lightboxImg" src="" alt="">
+    <button class="lightbox-nav next" onclick="lightboxNav(1); event.stopPropagation();">›</button>
+    <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  FIELD DEFINITIONS
+// ══════════════════════════════════════════
+const FIELDS = {
+    head: [
+        { key: 'sku', label: 'SKU', type: 'text' },
+        { key: 'head_old_number', label: 'Old SKU', type: 'text' },
+        { key: 'location', label: 'Location', type: 'text' },
+        { key: 'head_engine', label: 'Engine', type: 'text' },
+        { key: 'head_part', label: 'Part', type: 'text' },
+        { key: 'foundry_number', label: 'Foundry Number', type: 'text' },
+        { key: 'foundry', label: 'Foundry', type: 'text' },
+        { key: 'head_number', label: 'Head Number', type: 'text' },
+        { key: 'head_type', label: 'Type', type: 'text' },
+        { key: 'fitment_vehicle', label: 'Fitment Vehicle', type: 'text' },
+        { key: 'sold', label: 'Sold', type: 'toggle' },
+        { key: 'sold_date', label: 'Sold Date', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'textarea', full: true },
+    ],
+    engine: [
+        { key: 'sku', label: 'SKU', type: 'text' },
+        { key: 'location', label: 'Location', type: 'text' },
+        { key: 'engine_turns', label: 'Turns', type: 'radio', options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+            { value: 'untested', label: 'Untested' }
+        ] },
+        { key: 'engine_name', label: 'Engine', type: 'text' },
+        { key: 'engine_head', label: 'Head', type: 'text' },
+        { key: 'engine_litre', label: 'Litre', type: 'text' },
+        { key: 'engine_date_stamp', label: 'Date Stamp', type: 'text' },
+        { key: 'fitment_vehicle', label: 'Fitment Vehicle', type: 'text' },
+        { key: 'sold', label: 'Sold', type: 'toggle' },
+        { key: 'sold_date', label: 'Sold Date', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'textarea', full: true },
+    ],
+    transmission: [
+        { key: 'sku', label: 'SKU', type: 'text' },
+        { key: 'location', label: 'Location', type: 'text' },
+        { key: 'trans_spins', label: 'Spins', type: 'radio', options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+            { value: 'untested', label: 'Untested' }
+        ] },
+        { key: 'trans_shifts', label: 'Shifts', type: 'radio', options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+            { value: 'untested', label: 'Untested' }
+        ] },
+        { key: 'trans_date_code', label: 'Date Code', type: 'text' },
+        { key: 'trans_stamped_numbers', label: 'Stamped Numbers', type: 'text' },
+        { key: 'fitment_vehicle', label: 'Fitment Vehicle', type: 'text' },
+        { key: 'sold', label: 'Sold', type: 'toggle' },
+        { key: 'sold_date', label: 'Sold Date', type: 'text' },
+        { key: 'notes', label: 'Notes', type: 'textarea', full: true },
+    ]
+};
+const CARD_FIELDS = {
+    head: [{ key:'location',label:'Location' },{ key:'head_engine',label:'Engine' },{ key:'head_number',label:'Head #' },{ key:'fitment_vehicle',label:'Fitment' }],
+    engine: [{ key:'location',label:'Location' },{ key:'engine_name',label:'Engine' },{ key:'engine_litre',label:'Litre' },{ key:'fitment_vehicle',label:'Fitment' }],
+    transmission: [{ key:'location',label:'Location' },{ key:'trans_date_code',label:'Date Code' },{ key:'trans_stamped_numbers',label:'Stamped #' },{ key:'fitment_vehicle',label:'Fitment' }],
+};
+const TOGGLE_FIELDS = {
+    head: [{ key:'sold',label:'Sold' }],
+    engine: [{ key:'sold',label:'Sold' }],
+    transmission: [{ key:'sold',label:'Sold' }],
+};
+const RADIO_CARD_FIELDS = {
+    head: [],
+    engine: [{ key:'engine_turns',label:'Turns' }],
+    transmission: [{ key:'trans_spins',label:'Spins' },{ key:'trans_shifts',label:'Shifts' }],
+};
+const RADIO_DISPLAY = {
+    'yes': 'Yes', 'no': 'No', 'untested': 'Untested',
+};
+const TABLE_COLS = {
+    head: [{ key:'sku',label:'SKU' },{ key:'head_old_number',label:'Old SKU' },{ key:'location',label:'Location' },{ key:'head_engine',label:'Engine' },{ key:'head_number',label:'Head #' },{ key:'foundry',label:'Foundry' },{ key:'fitment_vehicle',label:'Fitment' },{ key:'sold',label:'Sold',toggle:true }],
+    engine: [{ key:'sku',label:'SKU' },{ key:'location',label:'Location' },{ key:'engine_name',label:'Engine' },{ key:'engine_litre',label:'Litre' },{ key:'engine_date_stamp',label:'Date' },{ key:'fitment_vehicle',label:'Fitment' },{ key:'engine_turns',label:'Turns',radio:true },{ key:'sold',label:'Sold',toggle:true }],
+    transmission: [{ key:'sku',label:'SKU' },{ key:'location',label:'Location' },{ key:'trans_stamped_numbers',label:'Stamped #' },{ key:'trans_date_code',label:'Date Code' },{ key:'fitment_vehicle',label:'Fitment' },{ key:'trans_spins',label:'Spins',radio:true },{ key:'trans_shifts',label:'Shifts',radio:true },{ key:'sold',label:'Sold',toggle:true }],
+    all: [{ key:'sku',label:'SKU' },{ key:'location',label:'Location' },{ key:'fitment_vehicle',label:'Fitment' },{ key:'sold',label:'Sold',toggle:true }],
+};
+function getTitle(p) { return p.sku || 'No SKU'; }
+const CAT_LABELS = { engine:'Engine', head:'Cylinder Head', transmission:'Transmission' };
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let currentCategory = '', currentSearch = '', currentPage = 1, debounceTimer = null;
+let currentSortBy = 'sku', currentSortDir = 'asc';
+let currentView = 'table'; // default to table
+let editingPart = null;
+let selectedRows = new Set();
+let currentUserData = null;
+let categoriesData = []; // loaded from API
+
+// ══════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════
+function applyTheme(light) {
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+    localStorage.setItem('wm-theme', light ? 'light' : 'dark');
+}
+function toggleTheme(checked) { applyTheme(checked); }
+function initTheme() {
+    const saved = localStorage.getItem('wm-theme');
+    const isLight = saved === 'light';
+    applyTheme(isLight);
+    const cb = document.getElementById('settingsLightMode');
+    if (cb) cb.checked = isLight;
+}
+function openSettingsModal() {
+    const cb = document.getElementById('settingsLightMode');
+    if (cb) cb.checked = document.documentElement.getAttribute('data-theme') === 'light';
+    openModal('settingsModal');
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    initTheme();
+    await loadCurrentUser();
+    await loadCategories();
+    loadParts();
+    loadStats();
+});
+document.getElementById('searchInput').addEventListener('input', (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => { currentSearch = e.target.value; currentPage = 1; loadParts(); }, 250);
+});
+
+// ══════════════════════════════════════════
+//  AUTH / USER MENU
+// ══════════════════════════════════════════
+async function loadCurrentUser() {
+    try {
+        const res = await fetch('/api/auth/me');
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        currentUserData = await res.json();
+        document.getElementById('userAvatar').textContent = currentUserData.display_name.substring(0,2).toUpperCase();
+        document.getElementById('userName').textContent = currentUserData.display_name;
+        document.getElementById('userRole').textContent = currentUserData.role;
+        document.getElementById('sidebarVersion').textContent = `v${currentUserData.version || '?'}`;
+        if (currentUserData.can_edit) {
+            document.getElementById('navAddPart').style.display = '';
+            document.getElementById('actionsLabel').style.display = '';
+            document.getElementById('settingsImport').style.display = '';
+            document.getElementById('settingsExport').style.display = '';
+        }
+        if (currentUserData.role === 'admin') {
+            document.getElementById('settingsManageUsers').style.display = '';
+            document.getElementById('settingsCategories').style.display = '';
+        }
+    } catch { window.location.href = '/login'; }
+}
+
+// ══════════════════════════════════════════
+//  CHANGE PASSWORD
+// ══════════════════════════════════════════
+function openChangePasswordModal() {
+    document.getElementById('pwCurrent').value = '';
+    document.getElementById('pwNew').value = '';
+    document.getElementById('pwConfirm').value = '';
+    openModal('pwModal');
+}
+async function changePassword() {
+    const cur = document.getElementById('pwCurrent').value;
+    const nw = document.getElementById('pwNew').value;
+    const conf = document.getElementById('pwConfirm').value;
+    if (!cur || !nw) { showToast('Fill in all fields', 'error'); return; }
+    if (nw !== conf) { showToast('Passwords do not match', 'error'); return; }
+    if (nw.length < 4) { showToast('Password must be at least 4 characters', 'error'); return; }
+    try {
+        const res = await fetch('/api/auth/change-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: cur, new_password: nw })
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('pwModal'); showToast('Password updated', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  ADMIN PANEL
+// ══════════════════════════════════════════
+async function openAdminPanel() { openModal('adminModal'); await loadUsers(); }
+async function loadUsers() {
+    try {
+        const users = await (await fetch('/api/users')).json();
+        document.getElementById('adminUserCount').textContent = `${users.length} user${users.length!==1?'s':''}`;
+        const isSelf = (id) => currentUserData && currentUserData.id === id;
+        document.getElementById('adminUserTable').innerHTML = `
+            <table class="admin-table"><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
+            ${users.map(u => `<tr>
+                <td><span class="username-cell">${esc(u.display_name || u.username)}</span>
+                    ${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">@${esc(u.username)}</span>` : ''}
+                    ${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</td>
+                <td><span class="role-badge ${u.role}">${u.role}</span></td>
+                <td><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</td>
+                <td style="font-family:var(--mono);font-size:0.72rem;color:var(--text-muted);">${u.created_at?u.created_at.split(' ')[0]:''}</td>
+                <td><div class="table-actions" style="justify-content:flex-end;">
+                    <button class="table-btn" onclick='openUserForm(${JSON.stringify(u)})'>Edit</button>
+                    ${!isSelf(u.id)?`<button class="table-btn danger" onclick="deleteUser(${u.id},'${esc(u.username)}')">Delete</button>`:''}</div></td>
+            </tr>`).join('')}</tbody></table>`;
+    } catch { showToast('Failed to load users', 'error'); }
+}
+function openUserForm(user) {
+    document.getElementById('ufId').value = user ? user.id : '';
+    document.getElementById('ufUsername').value = user ? user.username : '';
+    document.getElementById('ufDisplayName').value = user ? (user.display_name || '') : '';
+    document.getElementById('ufRole').value = user ? user.role : 'viewer';
+    document.getElementById('ufPassword').value = '';
+    document.getElementById('ufActive').checked = user ? !!user.active : true;
+    document.getElementById('ufActiveText').textContent = (!user || user.active) ? 'Active' : 'Disabled';
+    if (user) {
+        document.getElementById('userFormTitle').textContent = 'Edit User';
+        document.getElementById('ufSaveBtn').textContent = 'Save Changes';
+        document.getElementById('ufPasswordLabel').textContent = 'New Password (optional)';
+        document.getElementById('ufPasswordHint').textContent = 'Leave blank to keep current password';
+        document.getElementById('ufActiveGroup').style.display = '';
+    } else {
+        document.getElementById('userFormTitle').textContent = 'Add User';
+        document.getElementById('ufSaveBtn').textContent = 'Create User';
+        document.getElementById('ufPasswordLabel').textContent = 'Password';
+        document.getElementById('ufPasswordHint').textContent = 'Minimum 4 characters';
+        document.getElementById('ufActiveGroup').style.display = 'none';
+    }
+    openModal('userFormModal');
+}
+async function saveUser() {
+    const id = document.getElementById('ufId').value;
+    const body = { username: document.getElementById('ufUsername').value.trim(), display_name: document.getElementById('ufDisplayName').value.trim(), role: document.getElementById('ufRole').value, active: document.getElementById('ufActive').checked ? 1 : 0 };
+    const pw = document.getElementById('ufPassword').value;
+    if (!body.username) { showToast('Username is required', 'error'); return; }
+    if (!id && !pw) { showToast('Password is required for new users', 'error'); return; }
+    if (pw) { if (pw.length < 4) { showToast('Password must be at least 4 characters', 'error'); return; } body.password = pw; }
+    try {
+        const res = await fetch(id ? `/api/users/${id}` : '/api/users', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('userFormModal'); showToast(id ? 'User updated' : 'User created', 'success'); loadUsers();
+    } catch { showToast('Connection error', 'error'); }
+}
+async function deleteUser(id, username) {
+    if (!confirm(`Delete user "${username}"?`)) return;
+    try { const res = await fetch(`/api/users/${id}`, { method: 'DELETE' }); const data = await res.json(); if (!res.ok) { showToast(data.error, 'error'); return; } showToast('User deleted', 'success'); loadUsers(); } catch { showToast('Connection error', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  PARTS — LOAD / RENDER
+// ══════════════════════════════════════════
+async function loadParts() {
+    const grid = document.getElementById('partsGrid');
+    const table = document.getElementById('partsTable');
+    const empty = document.getElementById('emptyState');
+    const spinner = document.getElementById('loadingSpinner');
+    const pag = document.getElementById('pagination');
+    const bulk = document.getElementById('bulkBar');
+    spinner.style.display = 'flex'; grid.innerHTML = ''; table.innerHTML = ''; empty.style.display = 'none'; pag.innerHTML = '';
+    grid.style.display = 'none'; table.style.display = 'none'; bulk.style.display = 'none';
+    selectedRows.clear();
+    const perPage = currentView === 'table' ? 200 : 100;
+    try {
+        const params = new URLSearchParams({ category:currentCategory, search:currentSearch, page:currentPage, per_page:perPage, sort_by:currentSortBy, sort_dir:currentSortDir });
+        const data = await (await fetch(`/api/parts?${params}`)).json();
+        spinner.style.display = 'none';
+        if (!data.parts.length) {
+            empty.style.display = 'block';
+            document.getElementById('emptyTitle').textContent = currentSearch ? 'No results found' : 'No parts yet';
+            document.getElementById('emptyText').textContent = currentSearch ? `Nothing matches "${currentSearch}"` : 'Add your first part to get started';
+            return;
+        }
+        if (currentView === 'cards') { grid.style.display = ''; grid.innerHTML = data.parts.map(renderCard).join(''); }
+        else { table.style.display = ''; table.innerHTML = renderTable(data.parts); }
+        renderPagination(data);
+    } catch { spinner.style.display = 'none'; showToast('Failed to load parts', 'error'); }
+}
+async function loadCategories() {
+    try {
+        categoriesData = await (await fetch('/api/categories')).json();
+        renderSidebarCategories();
+    } catch { console.error('Failed to load categories'); }
+}
+
+function renderSidebarCategories() {
+    const container = document.getElementById('sidebarCategoryNav');
+    if (!container) return;
+    const builtinIcons = {
+        engine: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="1"/><path d="M9 10V6h6v4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="9" y1="4" x2="15" y2="4"/><line x1="3" y1="14" x2="5" y2="14"/><line x1="19" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="5" y2="18"/><line x1="19" y1="18" x2="21" y2="18"/></svg>',
+        head: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
+        transmission: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/><path d="M6 12h6V6"/><path d="M12 12h0v6"/></svg>',
+    };
+    const defaultIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
+
+    let h = '';
+    for (const cat of categoriesData) {
+        const icon = builtinIcons[cat.slug] || defaultIcon;
+        const active = currentCategory === cat.slug ? ' active' : '';
+        h += `<button class="nav-item${active}" data-category="${cat.slug}" onclick="setFilter(this)">
+            ${icon} ${esc(cat.name)} <span class="nav-count" id="count_${cat.slug}"></span>
+        </button>`;
+    }
+    container.innerHTML = h;
+}
+
+function getCatLabel(slug) {
+    const cat = categoriesData.find(c => c.slug === slug);
+    return cat ? cat.name : slug;
+}
+
+function getCatColor(slug) {
+    const cat = categoriesData.find(c => c.slug === slug);
+    return cat ? cat.color : '#4a8eff';
+}
+
+function getCatFields(slug) {
+    const cat = categoriesData.find(c => c.slug === slug);
+    if (!cat || !cat.fields) return [];
+    return cat.fields.map(f => ({
+        key: f.field_key,
+        label: f.field_label,
+        type: f.field_type,
+        options: f.field_type === 'radio' && f.radio_options
+            ? f.radio_options.split(',').map(o => ({ value: o.trim().toLowerCase(), label: o.trim() }))
+            : undefined,
+        show_on_card: !!f.show_on_card,
+        show_in_table: !!f.show_in_table,
+        full: f.field_type === 'textarea',
+    }));
+}
+
+function getTableCols(slug) {
+    if (!slug) {
+        // "All" view - show basic shared columns
+        return [{ key: 'sku', label: 'SKU' }, { key: 'location', label: 'Location' }, { key: 'fitment_vehicle', label: 'Fitment' }, { key: 'sold', label: 'Sold', toggle: true }];
+    }
+    const cat = categoriesData.find(c => c.slug === slug);
+    if (!cat) return [{ key: 'sku', label: 'SKU' }, { key: 'sold', label: 'Sold', toggle: true }];
+    const cols = [];
+    for (const f of (cat.fields || [])) {
+        if (f.show_in_table) {
+            cols.push({ key: f.field_key, label: f.field_label, radio: f.field_type === 'radio', toggle: f.field_type === 'toggle' });
+        }
+    }
+    return cols;
+}
+
+async function loadStats() {
+    try {
+        const s = await (await fetch('/api/stats')).json();
+        document.getElementById('countAll').textContent = s.total || 0;
+        for (const cat of categoriesData) {
+            const el = document.getElementById(`count_${cat.slug}`);
+            if (el) el.textContent = s[cat.slug] || 0;
+        }
+    } catch {}
+}
+
+function renderCard(p) {
+    const cat = p.category, title = getTitle(p), isSold = !!p.sold;
+    const catLabel = getCatLabel(cat), catColor = getCatColor(cat);
+    const img = p.image_filename ? `<img src="/uploads/${p.image_filename}" alt="${esc(title)}" loading="lazy">` : `<svg class="placeholder-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    const soldOverlay = isSold ? `<div class="card-sold-overlay"><div class="card-sold-banner">SOLD</div></div>` : '';
+    const cd = _parseCustomData(p);
+    const allFields = getCatFields(cat);
+    const cardFields = allFields.filter(f => f.show_on_card && f.key !== 'sold' && f.key !== 'sold_date' && f.key !== 'notes');
+    const meta = cardFields.filter(f => f.type === 'text' || f.type === 'textarea').map(f => {
+        const val = cd[f.key] || p[f.key] || '';
+        return val ? `<div class="meta-item"><div class="meta-label">${f.label}</div><div class="meta-value">${esc(val)}</div></div>` : '';
+    }).join('');
+    const pills = cardFields.filter(f => f.type === 'radio' || f.type === 'toggle').map(f => {
+        const val = cd[f.key] || p[f.key] || '';
+        if (f.type === 'radio') {
+            const v = val || 'untested';
+            return `<span class="radio-pill val-${v}">${f.label}: ${RADIO_DISPLAY[v]||v}</span>`;
+        } else {
+            const on = !!(val && val !== '0');
+            return `<span class="toggle-pill ${on?'yes':'no'}">${f.label}: ${on?'Yes':'No'}</span>`;
+        }
+    }).join('');
+    return `<div class="part-card${isSold?' is-sold':''}" onclick="openDetail(${p.id})"><div class="card-image">${img}${soldOverlay}<span class="card-badge" style="background:${catColor};color:#000;">${esc(catLabel)}</span></div><div class="card-body"><div class="card-title">${esc(title)}</div><div class="card-meta">${meta}</div>${pills?`<div class="card-toggles">${pills}</div>`:''}</div></div>`;
+}
+
+function _parseCustomData(p) {
+    if (!p.custom_data) return {};
+    try { return JSON.parse(p.custom_data); } catch { return {}; }
+}
+
+function renderTable(parts) {
+    const cat = currentCategory, cols = getTableCols(cat) || TABLE_COLS['all'], showType = !cat;
+    const canEdit = currentUserData && currentUserData.can_edit;
+    let h = `<div class="parts-table-wrap"><table class="parts-table"><thead><tr>`;
+    if (canEdit) h += `<th class="cb-cell"><input type="checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>`;
+    h += `<th>WM #</th><th>${cols[0].label}</th>`;
+    if (showType) h += `<th>Type</th>`;
+    for (let i=1;i<cols.length;i++) h += `<th>${cols[i].label}</th>`;
+    h += `</tr></thead><tbody>`;
+    for (const p of parts) {
+        const isSold = !!p.sold;
+        h += `<tr class="${isSold?'row-sold':''}" data-id="${p.id}">`;
+        if (canEdit) h += `<td class="cb-cell"><input type="checkbox" value="${p.id}" onchange="toggleRowSelect(this,${p.id})" onclick="event.stopPropagation()"></td>`;
+        h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
+        h += `<td onclick="openDetail(${p.id})">${esc(p[cols[0].key]||'')}</td>`;
+        if (showType) h += `<td onclick="openDetail(${p.id})"><span class="table-badge" style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};">${esc(getCatLabel(p.category))}</span></td>`;
+        for (let i=1;i<cols.length;i++) {
+            const c=cols[i]; let cell='';
+            const cd = _parseCustomData(p);
+            const val = cd[c.key] || p[c.key] || '';
+            if (c.key==='sold') cell = isSold ? '<span class="sold-tag">SOLD</span>' : '';
+            else if (c.radio) { const v=val||'untested'; cell=`<span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span>`; }
+            else if (c.toggle) { const on=!!(val && val !== '0'); cell=`<span class="${on?'table-toggle-yes':'table-toggle-no'}">${on?'Yes':'No'}</span>`; }
+            else cell = esc(val);
+            h += `<td onclick="openDetail(${p.id})">${cell}</td>`;
+        }
+        h += `</tr>`;
+    }
+    h += `</tbody></table></div>`; return h;
+}
+
+function toggleSelectAll(cb) { document.querySelectorAll('.parts-table tbody input[type="checkbox"]').forEach(c=>{c.checked=cb.checked;const id=parseInt(c.value);const row=c.closest('tr');if(cb.checked){selectedRows.add(id);row.classList.add('row-selected');}else{selectedRows.delete(id);row.classList.remove('row-selected');}}); updateBulkBar(); }
+function toggleRowSelect(cb,id) { const row=cb.closest('tr');if(cb.checked){selectedRows.add(id);row.classList.add('row-selected');}else{selectedRows.delete(id);row.classList.remove('row-selected');} const all=document.querySelectorAll('.parts-table tbody input[type="checkbox"]');const hdr=document.querySelector('.parts-table thead input[type="checkbox"]');if(hdr)hdr.checked=[...all].every(c=>c.checked)&&all.length>0; updateBulkBar(); }
+function updateBulkBar() { const bar=document.getElementById('bulkBar');if(!selectedRows.size){bar.style.display='none';return;}bar.style.display='';bar.innerHTML=`<div class="bulk-bar"><div class="bulk-bar-count">${selectedRows.size} selected</div><div class="bulk-bar-actions"><button class="btn btn-ghost btn-sm" onclick="printBatchLabels()">Print Labels</button><button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete Selected</button><button class="btn btn-ghost btn-sm" onclick="clearSelection()">Cancel</button></div></div>`; }
+function clearSelection() { selectedRows.clear();document.querySelectorAll('.parts-table input[type="checkbox"]').forEach(c=>c.checked=false);document.querySelectorAll('.parts-table tr.row-selected').forEach(r=>r.classList.remove('row-selected'));updateBulkBar(); }
+async function bulkDelete() { const count=selectedRows.size;if(!confirm(`Delete ${count} part${count!==1?'s':''}?`))return;const ids=[...selectedRows];let d=0,f=0;for(const id of ids){try{const r=await fetch(`/api/parts/${id}`,{method:'DELETE'});if(r.ok)d++;else f++;}catch{f++;}}selectedRows.clear();showToast(`${d} deleted${f?`, ${f} failed`:''}`,f?'error':'success');loadParts();loadStats(); }
+
+function renderPagination(d) { if(d.pages<=1)return;const p=document.getElementById('pagination');let h=`<button ${d.page<=1?'disabled':''} onclick="goPage(${d.page-1})">‹ Prev</button>`;for(let i=Math.max(1,d.page-2);i<=Math.min(d.pages,d.page+2);i++)h+=`<button class="${i===d.page?'active':''}" onclick="goPage(${i})">${i}</button>`;h+=`<span class="page-info">${d.total} parts</span><button ${d.page>=d.pages?'disabled':''} onclick="goPage(${d.page+1})">Next ›</button>`;p.innerHTML=h; }
+function goPage(p) { currentPage=p; loadParts(); }
+function setFilter(btn) {
+    document.querySelectorAll('.nav-item[data-category]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); currentCategory=btn.dataset.category; currentPage=1; loadParts();
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+}
+function setView(mode) { currentView=mode;currentPage=1;selectedRows.clear();document.getElementById('viewCards').classList.toggle('active',mode==='cards');document.getElementById('viewTable').classList.toggle('active',mode==='table');loadParts(); }
+function onSortChange() { currentSortBy=document.getElementById('sortSelect').value;currentSortDir=currentSortBy==='updated_at'?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
+function toggleSortDir() { currentSortDir=currentSortDir==='asc'?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
+
+// ══════════════════════════════════════════
+//  PARTS — FORM
+// ══════════════════════════════════════════
+function buildForm(category, data) {
+    // Dynamic category options
+    let catOpts = '<option value="">Select type…</option>';
+    for (const c of categoriesData) {
+        catOpts += `<option value="${c.slug}" ${category===c.slug?'selected':''}>${esc(c.name)}</option>`;
+    }
+    let catSelect = `<div class="form-group full-width"><label class="form-label">Category</label><select class="form-select" id="formCategory" onchange="onCategoryChange()" required>${catOpts}</select></div>`;
+    if (!category) return `<div class="form-grid">${catSelect}</div><div class="category-prompt" id="categoryFields"><p>Select a category to see its fields</p></div>`;
+
+    const fields = getCatFields(category);
+    const sharedKeys = new Set(['sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes']);
+    const cd = data ? _parseCustomData(data) : {};
+
+    let h = `<div class="form-grid">${catSelect}<div class="form-group full-width" id="categoryFields"><div class="form-grid">`;
+    for (const f of fields) {
+        const isShared = sharedKeys.has(f.key);
+        const val = isShared ? (data ? (data[f.key]??'') : '') : (cd[f.key] || '');
+        const fieldId = isShared ? f.key : `custom_${f.key}`;
+        const fc = f.full ? ' full-width' : '';
+        if (f.type==='radio' && f.options) {
+            const lastOpt = f.options[f.options.length-1]?.value || '';
+            const curVal = isShared ? (data ? (data[f.key] || lastOpt) : lastOpt) : (cd[f.key] || lastOpt);
+            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><input type="hidden" id="field_${fieldId}" value="${curVal}"><div class="radio-group">`;
+            for (const opt of f.options) { const sc = curVal===opt.value ? ` selected selected-${opt.value}` : ''; h += `<button type="button" class="radio-option${sc}" onclick="selectRadio('${fieldId}','${opt.value}',this)">${opt.label}</button>`; }
+            h += `</div></div>`;
+        } else if (f.type==='toggle') {
+            const ck = isShared ? (data ? !!data[f.key] : false) : !!(cd[f.key] && cd[f.key] !== '0');
+            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><div class="toggle-row"><span class="toggle-label-text" id="toggleText_${fieldId}">${ck?'Yes':'No'}</span><label class="toggle-switch"><input type="checkbox" id="field_${fieldId}" ${ck?'checked':''} onchange="document.getElementById('toggleText_${fieldId}').textContent=this.checked?'Yes':'No'"><span class="toggle-track"></span></label></div></div>`;
+        } else if (f.type==='textarea') {
+            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><textarea class="form-textarea" id="field_${fieldId}" rows="3">${esc(val)}</textarea></div>`;
+        } else {
+            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"></div>`;
+        }
+    }
+    const existingImages = (data && data.images) ? data.images : [];
+    let ei = '';
+    if (existingImages.length) { ei = `<div class="form-image-list" id="formExistingImages">`; for (const img of existingImages) { ei += `<div class="form-image-item" id="formImg_${img.id}"><img src="/uploads/${img.filename}" alt=""><button type="button" class="form-image-remove" onclick="removeExistingImage(${data.id},${img.id})" title="Remove">✕</button></div>`; } ei += `</div>`; }
+    h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload" style="margin-top:${existingImages.length?'0.4rem':'0'};"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="font-size:0.72rem;color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
+    h += `</div></div></div>`; return h;
+}
+function selectRadio(key, value, btn) { document.getElementById(`field_${key}`).value=value; btn.parentElement.querySelectorAll('.radio-option').forEach(b=>{b.className='radio-option';}); btn.classList.add('selected',`selected-${value}`); }
+function onCategoryChange() { const cat=document.getElementById('formCategory').value; if(!cat){document.getElementById('categoryFields').innerHTML=`<div class="category-prompt"><p>Select a category to see its fields</p></div>`;return;} document.getElementById('formContent').innerHTML=buildForm(cat,editingPart&&editingPart.category===cat?editingPart:null); }
+function openAddModal() { editingPart=null;document.getElementById('formModalTitle').textContent='Add Part';document.getElementById('formSaveBtn').textContent='Save Part';document.getElementById('formContent').innerHTML=buildForm('',null);openModal('formModal'); }
+function openEditModal(part) { editingPart=part;document.getElementById('formModalTitle').textContent='Edit Part';document.getElementById('formSaveBtn').textContent='Update Part';document.getElementById('formContent').innerHTML=buildForm(part.category,part);openModal('formModal'); }
+function previewMultiImages(input) { const c=document.getElementById('formNewPreviews');c.innerHTML='';if(!input.files)return;for(const f of input.files){const r=new FileReader();r.onload=(e)=>{const d=document.createElement('div');d.className='form-image-item';d.innerHTML=`<img src="${e.target.result}">`;c.appendChild(d);};r.readAsDataURL(f);} }
+async function removeExistingImage(partId,imgId) { if(!confirm('Remove this image?'))return;try{const r=await fetch(`/api/parts/${partId}/images/${imgId}`,{method:'DELETE'});if(!r.ok)throw 0;const el=document.getElementById(`formImg_${imgId}`);if(el)el.remove();if(editingPart&&editingPart.images)editingPart.images=editingPart.images.filter(i=>i.id!==imgId);showToast('Image removed','success');}catch{showToast('Failed to remove image','error');} }
+async function savePart() {
+    const category=document.getElementById('formCategory').value;
+    if(!category){showToast('Please select a category','error');return;}
+    const fd=new FormData();fd.append('category',category);
+    const sharedKeys = new Set(['sku','location','fitment_vehicle','sold','sold_date','notes']);
+    const fields = getCatFields(category);
+
+    for (const f of fields) {
+        const isShared = sharedKeys.has(f.key);
+        const fieldId = isShared ? f.key : `custom_${f.key}`;
+        const el = document.getElementById(`field_${fieldId}`);
+        if (!el) continue;
+        const val = f.type === 'toggle' ? (el.checked ? '1' : '0') : el.value;
+        fd.append(isShared ? f.key : `custom_${f.key}`, val);
+    }
+
+    const imgInput=document.getElementById('formImages');
+    if(imgInput&&imgInput.files.length>0)for(const file of imgInput.files)fd.append('images',file);
+    const isEdit=editingPart&&editingPart.id;
+    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');loadParts();loadStats();}catch{showToast('Failed to save part','error');}
+}
+
+// ══════════════════════════════════════════
+//  DETAIL + GALLERY + LIGHTBOX
+// ══════════════════════════════════════════
+let lightboxImages = [], lightboxIndex = 0;
+
+async function openDetail(id) {
+    try {
+        const p = await (await fetch(`/api/parts/${id}`)).json();
+        const cat=p.category, title=getTitle(p);
+        const fields = getCatFields(cat);
+        const catLabel = getCatLabel(cat), catColor = getCatColor(cat);
+        const cd = _parseCustomData(p);
+        const sharedKeys = new Set(['sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes']);
+        document.getElementById('detailModalTitle').innerHTML = `<span class="card-badge" style="position:static;margin-right:8px;background:${catColor};color:#000;">${esc(catLabel)}</span> ${esc(title)}`;
+        let h = '';
+
+        // Product number header
+        if (p.product_number) {
+            h += `<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.85rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
+                <img src="/api/parts/${p.id}/qr.png" alt="QR" style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);">
+                <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--text-primary);letter-spacing:0.02em;">${esc(p.product_number)}</div>
+            </div>`;
+        }
+
+        // Fields
+        h += '<div class="detail-grid">';
+        for (const f of fields) {
+            const isShared = sharedKeys.has(f.key);
+            const val = isShared ? p[f.key] : (cd[f.key] || p[f.key] || '');
+            if (f.type==='radio' && f.options) {
+                const v = val || f.options[f.options.length-1]?.value || '';
+                h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span></div></div>`;
+            }
+            else if (f.type==='toggle') {
+                const on = isShared ? !!p[f.key] : !!(val && val !== '0');
+                if(f.key==='sold'){h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="detail-toggle ${on?'sold-yes':'sold-no'}">${on?'SOLD':'No'}</span></div></div>`;}
+                else{h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="detail-toggle ${on?'yes':'no'}">${on?'✓ Yes':'✕ No'}</span></div></div>`;}
+            }
+            else if (f.type==='textarea') { if(val) h+=`<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">${f.label}</div><div class="detail-value" style="white-space:pre-wrap;">${esc(val)}</div></div>`; }
+            else { if(val) h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value">${esc(val)}</div></div>`; }
+        }
+        h += '</div>';
+
+        // Actions
+        window._detailPart = p;
+        if (currentUserData && currentUserData.can_edit) {
+            h += `<div class="detail-actions">
+                <button class="btn btn-primary btn-sm" onclick="closeModal('detailModal');openEditModal(window._detailPart)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="printLabel(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Label</button>
+                <button class="btn btn-danger btn-sm" onclick="deletePart(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+            </div>`;
+        } else {
+            // Viewers can still print
+            h += `<div class="detail-actions">
+                <button class="btn btn-ghost btn-sm" onclick="printLabel(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Label</button>
+            </div>`;
+        }
+
+        // Image gallery at bottom
+        const images = p.images || [];
+        lightboxImages = images.length ? images.map(img => `/uploads/${img.filename}`) : (p.image_filename ? [`/uploads/${p.image_filename}`] : []);
+        if (images.length === 1) {
+            h += `<div class="detail-gallery"><img class="detail-gallery-main" src="/uploads/${images[0].filename}" alt="${esc(title)}" onclick="openLightbox(0)"></div>`;
+        } else if (images.length > 1) {
+            h += `<div class="detail-gallery"><img class="detail-gallery-main" id="detailMainImg" src="/uploads/${images[0].filename}" alt="${esc(title)}" onclick="openLightbox(0)"><div class="detail-gallery-thumbs">`;
+            images.forEach((img,i) => { h += `<img class="detail-gallery-thumb ${i===0?'active':''}" src="/uploads/${img.filename}" onclick="switchGalleryImage(${i})" data-idx="${i}">`; });
+            h += `</div></div>`;
+        } else if (p.image_filename) {
+            h += `<div class="detail-gallery"><img class="detail-gallery-main" src="/uploads/${p.image_filename}" alt="${esc(title)}" onclick="openLightbox(0)"></div>`;
+        }
+
+        document.getElementById('detailModalBody').innerHTML = h;
+        openModal('detailModal');
+    } catch { showToast('Failed to load details','error'); }
+}
+
+function switchGalleryImage(idx) { const m=document.getElementById('detailMainImg');if(!m||!lightboxImages[idx])return;m.src=lightboxImages[idx];m.onclick=()=>openLightbox(idx);document.querySelectorAll('.detail-gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===idx)); }
+function openLightbox(idx) { if(!lightboxImages.length)return;lightboxIndex=idx;const lb=document.getElementById('lightbox');document.getElementById('lightboxImg').src=lightboxImages[idx];updateLightboxCounter();lb.classList.add('active');lb.querySelectorAll('.lightbox-nav').forEach(b=>b.style.display=lightboxImages.length>1?'':'none');lb.querySelector('.lightbox-counter').style.display=lightboxImages.length>1?'':'none'; }
+function closeLightbox(e) { if(e&&e.target!==e.currentTarget)return;document.getElementById('lightbox').classList.remove('active'); }
+function lightboxNav(dir) { lightboxIndex=(lightboxIndex+dir+lightboxImages.length)%lightboxImages.length;document.getElementById('lightboxImg').src=lightboxImages[lightboxIndex];updateLightboxCounter(); }
+function updateLightboxCounter() { document.getElementById('lightboxCounter').textContent=`${lightboxIndex+1} / ${lightboxImages.length}`; }
+document.addEventListener('keydown',(e)=>{const lb=document.getElementById('lightbox');if(lb.classList.contains('active')){if(e.key==='Escape'){lb.classList.remove('active');e.stopPropagation();}else if(e.key==='ArrowLeft')lightboxNav(-1);else if(e.key==='ArrowRight')lightboxNav(1);}});
+
+async function deletePart(id) { if(!confirm('Delete this part?'))return;try{await fetch(`/api/parts/${id}`,{method:'DELETE'});closeModal('detailModal');showToast('Part deleted','success');loadParts();loadStats();}catch{showToast('Failed','error');} }
+
+function printLabel(id) {
+    window.open(`/api/parts/${id}/label.pdf`, '_blank');
+}
+
+async function printBatchLabels() {
+    if (!selectedRows.size) return;
+    const ids = [...selectedRows];
+    try {
+        const res = await fetch('/api/labels/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch { showToast('Failed to generate labels', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  IMPORT WIZARD
+// ══════════════════════════════════════════
+let importState = {};
+function resetImportState() { importState={step:1,tempFile:'',sheets:[],selectedSheet:'',headers:[],sampleRows:[],category:'',mapping:{},headerRow:0,preview:null}; }
+function openImportModal() { resetImportState();openModal('importModal');setImportStep(1); }
+function updateStepIndicators(n) { document.querySelectorAll('#importSteps .import-step').forEach(el=>{const s=parseInt(el.dataset.step);el.classList.toggle('active',s===n);el.classList.toggle('done',s<n);}); }
+function setImportStep(n) { importState.step=n;updateStepIndicators(n);renderImportStep(); }
+function renderImportStep() {
+    const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),step=importState.step;
+    if (step===1) {
+        let impCatOpts = '<option value="">Select type…</option>';
+        for (const c of categoriesData) impCatOpts += `<option value="${c.slug}">${esc(c.name)}</option>`;
+        content.innerHTML=`<div class="form-grid" style="grid-template-columns:1fr;"><div class="form-group"><label class="form-label">File</label><div class="file-upload" style="padding:1.5rem;"><input type="file" id="importFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="onImportFileSelect(this)"><div class="file-upload-text" id="importFileText"><strong>Click to select</strong> or drag your file here<br><span style="font-size:0.72rem;color:var(--text-muted);">.xlsx, .xls, .xlsm, or .csv</span></div></div></div><div class="form-group"><label class="form-label">Import As Category</label><select class="form-select" id="importCategory">${impCatOpts}</select></div></div><div id="importUploadStatus" style="margin-top:0.85rem;"></div>`;
+        footer.innerHTML=`<button class="btn btn-ghost" onclick="closeModal('importModal')">Cancel</button><button class="btn btn-primary" id="importNextBtn" onclick="importStepUpload()" disabled>Upload & Continue</button>`;
+    } else if (step===2) { renderMappingStep(); }
+    else if (step===3) { content.innerHTML=`<div class="loading-spinner"><div class="spinner"></div></div>`;footer.innerHTML='';runDryRun(); }
+}
+function onImportFileSelect(input) { const btn=document.getElementById('importNextBtn'),t=document.getElementById('importFileText');if(input.files&&input.files[0]){t.innerHTML=`<strong>${esc(input.files[0].name)}</strong><br><span style="font-size:0.72rem;color:var(--text-muted);">${(input.files[0].size/1024).toFixed(1)} KB</span>`;btn.disabled=false;}else btn.disabled=true; }
+async function importStepUpload() {
+    const fileInput=document.getElementById('importFile'),catSelect=document.getElementById('importCategory');
+    if(!fileInput.files.length){showToast('Select a file','error');return;} if(!catSelect.value){showToast('Select a category','error');return;}
+    importState.category=catSelect.value;const fd=new FormData();fd.append('file',fileInput.files[0]);
+    document.getElementById('importUploadStatus').innerHTML=`<div class="loading-spinner" style="padding:0.85rem;"><div class="spinner"></div></div>`;document.getElementById('importNextBtn').disabled=true;
+    try{const r=await fetch('/api/import/upload',{method:'POST',body:fd});const data=await r.json();if(!r.ok){showToast(data.error||'Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.tempFile=data.temp_file;importState.sheets=data.sheets;if(!data.sheets.length){showToast('No data found','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.selectedSheet=data.sheets[0].name;importState.headers=data.sheets[0].headers;importState.sampleRows=data.sheets[0].sample_rows;setImportStep(2);}catch{showToast('Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;}
+}
+function renderMappingStep() {
+    const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),cat=importState.category,catLabel=getCatLabel(cat);
+    let sheetHtml='';if(importState.sheets.length>1){sheetHtml=`<div style="margin-bottom:0.85rem;"><div class="form-group"><label class="form-label">Sheet</label><select class="form-select" onchange="onSheetChange(this.value)">`;for(const s of importState.sheets)sheetHtml+=`<option value="${esc(s.name)}" ${s.name===importState.selectedSheet?'selected':''}>${esc(s.name)}</option>`;sheetHtml+=`</select></div></div>`;}
+    let headerRowHtml=`<div class="form-group" style="margin-bottom:0.85rem;"><label class="form-label">Header Row</label><select class="form-select" id="importHeaderRow" onchange="onHeaderRowChange(parseInt(this.value))" style="max-width:200px;">`;const allR=[importState.headers,...importState.sampleRows];for(let i=0;i<Math.min(allR.length,10);i++){const pv=allR[i].slice(0,3).filter(c=>c).join(', ');headerRowHtml+=`<option value="${i}" ${i===importState.headerRow?'selected':''}>Row ${i+1}: ${esc(pv.substring(0,40))}${pv.length>40?'…':''}</option>`;}headerRowHtml+=`</select></div>`;
+    const sharedKeys = new Set(['sku','location','fitment_vehicle','sold','sold_date','notes']);
+    const catFields = getCatFields(cat);
+    const fields = catFields.map(f => {
+        const isShared = sharedKeys.has(f.key);
+        return { ...f, key: isShared ? f.key : `custom_${f.key}` };
+    });
+    const headers=importState.headers;let colOpts=`<option value="-1">— Skip —</option>`;headers.forEach((h,i)=>{colOpts+=`<option value="${i}">${esc(h||`Column ${i+1}`)}</option>`;});
+    let mapHtml=`<div class="import-mapping-grid"><div class="map-header">${esc(catLabel)} Field</div><div class="map-header"></div><div class="map-header">Excel Column</div>`;
+    for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${f.label}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:0.65rem;color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${f.key}" onchange="importState.mapping['${f.key}']=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
+    const nf=fields.find(f=>f.key==='notes');if(nf){const nm=importState.mapping['notes']!==undefined?importState.mapping['notes']:autoMatchColumn(nf,headers);importState.mapping['notes']=nm;mapHtml+=`<div class="map-field-label">Notes</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="notes" onchange="importState.mapping['notes']=parseInt(this.value)">${colOpts.replace(`value="${nm}"`,'value="'+nm+'" selected')}</select>`;}
+    mapHtml+=`</div>`;
+    let sampleHtml='';if(importState.sampleRows.length){sampleHtml=`<div style="margin-top:1rem;"><span class="form-label">Sample Data</span><div class="preview-table-wrap" style="margin-top:0.3rem;max-height:160px;"><table class="preview-table"><thead><tr>`;headers.forEach(h=>{sampleHtml+=`<th>${esc(h||'—')}</th>`;});sampleHtml+=`</tr></thead><tbody>`;importState.sampleRows.slice(0,5).forEach(row=>{sampleHtml+=`<tr>`;row.forEach(c=>{sampleHtml+=`<td>${esc(c)}</td>`;});sampleHtml+=`</tr>`;});sampleHtml+=`</tbody></table></div></div>`;}
+    content.innerHTML=sheetHtml+headerRowHtml+mapHtml+sampleHtml;
+    footer.innerHTML=`<button class="btn btn-ghost" onclick="setImportStep(1)">← Back</button><button class="btn btn-primary" onclick="setImportStep(3)">Dry Run Preview</button>`;
+}
+function autoMatchColumn(field,headers) { const label=field.label.toLowerCase(),key=field.key.toLowerCase().replace(/^(head_|engine_|trans_)/,'');for(let i=0;i<headers.length;i++){const h=headers[i].toLowerCase().trim();if(h===label||h===key||h===field.key)return i;if(label.includes(h)&&h.length>2)return i;if(h.includes(label)&&label.length>2)return i;if(h.includes(key)&&key.length>2)return i;}return -1; }
+function onSheetChange(name) { const s=importState.sheets.find(s=>s.name===name);if(s){importState.selectedSheet=name;importState.headers=s.headers;importState.sampleRows=s.sample_rows;importState.headerRow=0;importState.mapping={};renderMappingStep();} }
+function onHeaderRowChange(idx) { const s=importState.sheets.find(s=>s.name===importState.selectedSheet);if(!s)return;const allR=[s.headers,...s.sample_rows];importState.headerRow=idx;importState.headers=allR[idx]||[];importState.sampleRows=allR.slice(idx+1);importState.mapping={};renderMappingStep(); }
+async function runDryRun() {
+    document.querySelectorAll('.map-select').forEach(sel=>{importState.mapping[sel.dataset.field]=parseInt(sel.value);});
+    const mapped=Object.entries(importState.mapping).filter(([k,v])=>v>=0);if(!mapped.length){showToast('Map at least one field','error');setImportStep(2);return;}
+    try{const r=await fetch('/api/import/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow})});const data=await r.json();if(!r.ok){showToast(data.error||'Preview failed','error');setImportStep(2);return;}importState.preview=data;renderPreview(data);}catch{showToast('Preview failed','error');setImportStep(2);}
+}
+function renderPreview(data) {
+    const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),catLabel=getCatLabel(importState.category);
+    let html=`<div class="import-summary"><div class="import-summary-num">${data.total}</div><div class="import-summary-text">${catLabel} record${data.total!==1?'s':''} ready to import</div></div>`;
+    if(data.warnings&&data.warnings.length)html+=`<div class="import-warnings"><strong style="display:block;margin-bottom:3px;">⚠ ${data.warnings.length} warning${data.warnings.length!==1?'s':''}:</strong>${data.warnings.slice(0,20).map(w=>`<div>${esc(w)}</div>`).join('')}${data.warnings.length>20?`<div style="color:var(--text-muted);">…and ${data.warnings.length-20} more</div>`:''}</div>`;
+    if(data.preview.length){
+        const fields=data.fields,labels=data.field_labels;const radioFields=new Set(['engine_turns','trans_spins','trans_shifts']);const toggleFields=new Set(['sold']);
+        html+=`<div class="preview-table-wrap" style="margin-top:0.85rem;"><table class="preview-table"><thead><tr><th style="width:45px;">Row</th>`;for(const f of fields)if(data.preview.some(r=>r[f]!==undefined&&r[f]!==''))html+=`<th>${esc(labels[f]||f)}</th>`;html+=`</tr></thead><tbody>`;
+        for(const row of data.preview.slice(0,50)){html+=`<tr><td style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">${row._row_num||''}</td>`;for(const f of fields){if(!data.preview.some(r=>r[f]!==undefined&&r[f]!==''))continue;const val=row[f];if(radioFields.has(f)){const v=val||'untested';html+=`<td><span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span></td>`;}else if(toggleFields.has(f)){html+=`<td class="${val?'preview-toggle-yes':'preview-toggle-no'}">${val?'Yes':'No'}</td>`;}else html+=`<td>${esc(val||'')}</td>`;}html+=`</tr>`;}
+        html+=`</tbody></table></div>`;if(data.preview.length>50)html+=`<div style="text-align:center;padding:0.4rem;font-size:0.78rem;color:var(--text-muted);">Showing 50 of ${data.total}</div>`;
+    }else html+=`<div class="empty-state" style="padding:1.5rem;"><h3>No rows to import</h3><p>Check your mapping</p></div>`;
+    content.innerHTML=html;footer.innerHTML=`<button class="btn btn-ghost" onclick="setImportStep(2)">← Back</button>${data.total>0?`<button class="btn btn-primary" onclick="executeImport()">Import ${data.total} Record${data.total!==1?'s':''}</button>`:''}`;
+}
+async function executeImport() {
+    const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter');
+    content.innerHTML=`<div style="text-align:center;padding:1.5rem;"><div class="spinner" style="margin:0 auto 0.85rem;"></div><div style="color:var(--text-secondary);">Importing…</div></div>`;footer.innerHTML='';
+    try{const r=await fetch('/api/import/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow})});const data=await r.json();if(!r.ok){showToast(data.error||'Import failed','error');setImportStep(3);return;}setImportStep(4);
+    let errH='';if(data.errors&&data.errors.length)errH=`<div class="import-warnings" style="text-align:left;margin-top:0.85rem;"><strong>Some rows had issues:</strong>${data.errors.map(e=>`<div>${esc(e)}</div>`).join('')}</div>`;
+    content.innerHTML=`<div class="import-result"><div class="import-result-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--yes)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div><h3>Import Complete</h3><p>${data.inserted} record${data.inserted!==1?'s':''} imported</p>${errH}</div>`;
+    footer.innerHTML=`<button class="btn btn-primary" onclick="closeModal('importModal');loadParts();loadStats();">Done</button>`;}catch{showToast('Import failed','error');setImportStep(3);}
+}
+
+// ══════════════════════════════════════════
+//  CATEGORY MANAGER
+// ══════════════════════════════════════════
+async function openCategoryManager() {
+    openModal('catManagerModal');
+    await loadCategoryManager();
+}
+
+async function loadCategoryManager() {
+    try {
+        const cats = await (await fetch('/api/categories')).json();
+        document.getElementById('catManagerCount').textContent = `${cats.length} categor${cats.length !== 1 ? 'ies' : 'y'}`;
+        let h = '';
+        for (const cat of cats) {
+            h += `<div class="cat-manager-item">
+                <div class="cat-manager-swatch" style="background:${cat.color};"></div>
+                <div class="cat-manager-name">${esc(cat.name)}</div>
+                <span class="cat-manager-count">${(cat.fields || []).length} fields</span>
+                <div class="table-actions">
+                    <button class="table-btn" onclick='openCategoryForm(${JSON.stringify(cat)})'>Edit</button>
+                    <button class="table-btn danger" onclick="deleteCategory('${cat.slug}','${esc(cat.name)}')">Delete</button>
+                </div>
+            </div>`;
+        }
+        document.getElementById('catManagerList').innerHTML = h || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);">No categories yet</div>';
+    } catch { showToast('Failed to load categories', 'error'); }
+}
+
+async function deleteCategory(slug, name) {
+    if (!confirm(`Delete category "${name}"? All parts in this category must be removed first.`)) return;
+    try {
+        const res = await fetch(`/api/categories/${slug}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast('Category deleted', 'success');
+        await loadCategoryManager();
+        await loadCategories();
+        loadStats();
+    } catch { showToast('Failed to delete category', 'error'); }
+}
+
+let catFormFieldCounter = 0;
+
+function openCategoryForm(cat) {
+    catFormFieldCounter = 0;
+    const isEdit = !!cat;
+    document.getElementById('catFormSlug').value = cat ? cat.slug : '';
+    document.getElementById('catFormName').value = cat ? cat.name : '';
+    document.getElementById('catFormColor').value = cat ? cat.color : '#4a8eff';
+    document.getElementById('catFormTitle').textContent = isEdit ? 'Edit Category' : 'Add Category';
+    document.getElementById('catFormSaveBtn').textContent = isEdit ? 'Save Changes' : 'Create Category';
+    document.getElementById('catFormName').disabled = false;
+    document.getElementById('catFormSaveBtn').style.display = '';
+
+    const list = document.getElementById('catFieldsList');
+    list.innerHTML = '';
+
+    if (cat && cat.fields) {
+        for (const f of cat.fields) {
+            addCatField(f.field_label, f.field_key, f.field_type, f.radio_options || '', f.show_on_card, f.show_in_table, false);
+        }
+    }
+
+    openModal('catFormModal');
+}
+
+function addCatField(label, key, type, radioOpts, showCard, showTable, readonly) {
+    label = label || '';
+    key = key || '';
+    type = type || 'text';
+    radioOpts = radioOpts || '';
+    const idx = catFormFieldCounter++;
+    const disabled = readonly ? 'disabled' : '';
+    const list = document.getElementById('catFieldsList');
+    const row = document.createElement('div');
+    row.className = 'cat-field-row';
+    row.draggable = !readonly;
+    row.dataset.idx = idx;
+    row.innerHTML = `
+        <div class="cat-field-drag" title="Drag to reorder">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+        </div>
+        <div class="cat-field-inputs">
+            <input type="text" class="field-label" placeholder="Label" value="${esc(label)}" data-role="label" ${disabled}>
+            <input type="text" style="width:90px;" placeholder="key" value="${esc(key)}" data-role="key" ${disabled}>
+            <select class="field-type" data-role="type" onchange="toggleRadioOpts(this)" ${disabled}>
+                <option value="text" ${type==='text'?'selected':''}>Text</option>
+                <option value="textarea" ${type==='textarea'?'selected':''}>Textarea</option>
+                <option value="toggle" ${type==='toggle'?'selected':''}>Toggle</option>
+                <option value="radio" ${type==='radio'?'selected':''}>Radio</option>
+            </select>
+            <input type="text" class="field-radio-opts" placeholder="Options (comma-sep)" value="${esc(radioOpts)}" data-role="radio_options" style="display:${type==='radio'?'':'none'};" ${disabled}>
+            <label class="cat-field-check"><input type="checkbox" data-role="show_card" ${showCard?'checked':''} ${disabled}> Card</label>
+            <label class="cat-field-check"><input type="checkbox" data-role="show_table" ${showTable?'checked':''} ${disabled}> Table</label>
+        </div>
+        ${readonly ? '' : '<button class="cat-field-remove" onclick="this.closest(\'.cat-field-row\').remove()">✕</button>'}
+    `;
+
+    if (!readonly) {
+        row.addEventListener('dragstart', onFieldDragStart);
+        row.addEventListener('dragover', onFieldDragOver);
+        row.addEventListener('dragenter', onFieldDragEnter);
+        row.addEventListener('dragleave', onFieldDragLeave);
+        row.addEventListener('drop', onFieldDrop);
+        row.addEventListener('dragend', onFieldDragEnd);
+    }
+
+    list.appendChild(row);
+}
+
+function toggleRadioOpts(sel) {
+    const row = sel.closest('.cat-field-row');
+    const radioInput = row.querySelector('[data-role="radio_options"]');
+    radioInput.style.display = sel.value === 'radio' ? '' : 'none';
+}
+
+// Auto-generate key from label
+document.addEventListener('input', (e) => {
+    if (e.target.matches('.cat-field-row [data-role="label"]')) {
+        const row = e.target.closest('.cat-field-row');
+        const keyInput = row.querySelector('[data-role="key"]');
+        if (!keyInput.disabled && (!keyInput.dataset.edited || keyInput.dataset.edited === 'false')) {
+            keyInput.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        }
+    }
+    if (e.target.matches('.cat-field-row [data-role="key"]')) {
+        e.target.dataset.edited = 'true';
+    }
+});
+
+// ── Drag-and-drop reordering ──
+let draggedFieldRow = null;
+
+function onFieldDragStart(e) {
+    draggedFieldRow = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+function onFieldDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+function onFieldDragEnter(e) {
+    e.preventDefault();
+    if (this !== draggedFieldRow) this.classList.add('drag-over');
+}
+function onFieldDragLeave() { this.classList.remove('drag-over'); }
+function onFieldDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    if (this === draggedFieldRow) return;
+    const list = document.getElementById('catFieldsList');
+    const rows = [...list.children];
+    const fromIdx = rows.indexOf(draggedFieldRow);
+    const toIdx = rows.indexOf(this);
+    if (fromIdx < toIdx) {
+        list.insertBefore(draggedFieldRow, this.nextSibling);
+    } else {
+        list.insertBefore(draggedFieldRow, this);
+    }
+}
+function onFieldDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.cat-field-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+    draggedFieldRow = null;
+}
+
+async function saveCategory() {
+    const slug = document.getElementById('catFormSlug').value;
+    const name = document.getElementById('catFormName').value.trim();
+    const color = document.getElementById('catFormColor').value;
+
+    if (!name) { showToast('Name is required', 'error'); return; }
+
+    // Gather fields
+    const fieldRows = document.querySelectorAll('#catFieldsList .cat-field-row');
+    const fields = [];
+    for (const row of fieldRows) {
+        const label = row.querySelector('[data-role="label"]').value.trim();
+        const key = row.querySelector('[data-role="key"]').value.trim();
+        const type = row.querySelector('[data-role="type"]').value;
+        const radioOpts = row.querySelector('[data-role="radio_options"]').value.trim();
+        const showCard = row.querySelector('[data-role="show_card"]').checked;
+        const showTable = row.querySelector('[data-role="show_table"]').checked;
+        if (!label || !key) continue;
+        fields.push({ field_label: label, field_key: key, field_type: type, radio_options: radioOpts, show_on_card: showCard ? 1 : 0, show_in_table: showTable ? 1 : 0 });
+    }
+
+    const body = { name, color, fields };
+    const url = slug ? `/api/categories/${slug}` : '/api/categories';
+    const method = slug ? 'PUT' : 'POST';
+
+    try {
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('catFormModal');
+        showToast(slug ? 'Category updated' : 'Category created', 'success');
+        await loadCategoryManager();
+        await loadCategories();
+        loadStats();
+    } catch { showToast('Failed to save category', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════
+async function exportCSV() {
+    closeModal('settingsModal');
+    showToast('Preparing export…', 'success');
+    try {
+        const res = await fetch('/api/export/csv');
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const d = new Date().toISOString().split('T')[0];
+        a.download = `warehouse-export-${d}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Export downloaded', 'success');
+    } catch { showToast('Export failed', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════
+function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o => { o.addEventListener('click', (e) => { if(e.target===o) o.classList.remove('active'); }); });
+document.addEventListener('keydown', (e) => {
+    if(e.key==='Escape') {
+        if (document.getElementById('lightbox').classList.contains('active')) return;
+        document.querySelectorAll('.modal-overlay.active').forEach(m=>m.classList.remove('active'));
+    }
+});
+</script>
+</body>
+</html>

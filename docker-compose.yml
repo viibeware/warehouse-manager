@@ -1,0 +1,15 @@
+services:
+  warehouse-manager:
+    build: .
+    container_name: warehouse-manager
+    restart: unless-stopped
+    ports:
+      - "${WM_PORT:-5059}:5000"
+    volumes:
+      - wm-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WM_DATA_DIR=/data
+
+volumes:
+  wm-data:
