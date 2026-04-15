@@ -219,6 +219,56 @@ warehouse-manager/
     └── login.html          # Login page
 ```
 
+## Changelog
+
+### v0.1.35
+- **Settings moved to sidebar footer** — Replaced the full-width Settings nav item with a compact gear icon beside the user profile
+- **Bulk delete progress** — Deleting many rows now shows a blocking spinner with live "Deleting X of Y…" progress; requests run 8-at-a-time for faster completion
+
+### v0.1.34
+- **Fixed import dropping non-shared fields** — Imports were silently ignoring every mapped field except SKU, Location, Fitment, Sold, Sold Date, and Notes. Server now strips the `custom_` UI prefix before validating the mapping, so Engine/Head/Transmission-specific fields (including `[HC]` headChart values) actually land in the database
+
+### v0.1.33
+- **headChart import parser** — Import flow auto-detects the `headChart` HTML block in Welsh product exports and offers a toggle to extract Engine #, Head #, Block Part #, Litre, Vehicle, Date Stamp, and Mileage as virtual columns (`[HC] …`) in the column-mapping step
+- **Clean Description** — A `[HC] Clean Description` virtual column strips the headChart div, makeoffer block, and `<img>` tags so it maps cleanly to Notes
+- **Smarter auto-match** — Engine category imports pre-select the HC virtual columns for the corresponding DB fields
+
+### v0.1.32
+- **WM numbers reformatted** — 5-digit format: WM00001 through WM99999, then WM100000+ on overflow. All existing parts renumbered sequentially
+- **Card view flags** — Flag icon in the top-right corner of each card, click to toggle
+- **Detail view flags** — Flag toggle button in the product detail modal next to the WM number
+- **Flag sync** — Toggling a flag in any view (table, card, detail modal) instantly updates all other views without a page reload
+
+### v0.1.31
+- **Flagging** — Click the flag icon in the table to mark/unmark parts instantly (auto-saves). Sort by flagged to see all flagged items first
+- **Posted to Web** — New toggle field added to all categories, visible in the table view
+- **Sort by Sold** — Sort the table by sold status to group sold/unsold parts
+- **Sort by Flagged** — Sort by flag status to surface flagged items
+- **Head category cleanup** — Removed Old SKU and Head Number from the default table columns for cleaner display
+- **Icon picker** — Choose from 24 icons when creating or editing categories (engine, wrench, gear, truck, battery, etc.)
+- **Flagged in export** — CSV export includes a Flagged column
+
+### v0.1.30
+- **WM numbers reformatted** — Removed dash: `WM-1000000` → `WM1000000`
+- **Sort by WM#** — New sort option in the toolbar dropdown
+- **QR codes updated** — Reflect the new dashless product number format
+
+### v0.1.29
+- **Default fields on new categories** — Creating a category pre-populates SKU, Location, Fitment Vehicle, Sold, Sold Date, Notes as editable/reorderable fields
+- **Category editor shows all fields** — Including shared fields, fully draggable
+
+### v0.1.28
+- **Custom categories** — Admin-defined categories with drag-to-reorder custom fields
+- **Product numbers** — Auto-assigned WM numbers starting at WM1000000
+- **QR codes** — Per-part QR code displayed in detail view
+- **Label printing** — 4"×1" Zebra-compatible PDF labels with QR code and two-column field layout
+- **Batch labels** — Select multiple parts and print all labels at once
+- **Docker deployment** — Full Dockerfile, docker-compose.yml, and .env configuration
+- **Categories fully editable** — Engines, Heads, and Transmissions are no longer hardcoded; all categories can be renamed, edited, or deleted
+- **Dynamic sidebar** — Category navigation built from the database with custom icons and part counts
+- **Unified data model** — All category fields stored in `custom_data` JSON; no more builtin vs custom distinction
+- **File-locked migrations** — Prevents race conditions under Gunicorn multi-worker
+
 ## License
 
 MIT

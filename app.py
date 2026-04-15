@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '0.1.29'
+APP_VERSION = '0.1.35'
 
 app = Flask(__name__)
 
@@ -511,6 +511,51 @@ def migrate_v11(conn):
             )
 
 
+def migrate_v12(conn):
+    """Remove dash from product numbers: WM-1000000 becomes WM1000000."""
+    conn.execute("UPDATE parts SET product_number = REPLACE(product_number, 'WM-', 'WM') WHERE product_number LIKE 'WM-%'")
+
+
+def migrate_v13(conn):
+    """Add flagged column, update head category fields, add Posted to Web to all categories."""
+    # Add flagged column
+    try:
+        conn.execute("ALTER TABLE parts ADD COLUMN flagged INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_parts_flagged ON parts(flagged)")
+
+    # Update head category: remove Old SKU and Head Number from table view
+    conn.execute("UPDATE category_fields SET show_in_table = 0 WHERE category_slug = 'head' AND field_key = 'head_old_number'")
+    conn.execute("UPDATE category_fields SET show_in_table = 0 WHERE category_slug = 'head' AND field_key = 'head_number'")
+
+    # Add "Posted to Web" field to all existing categories if not already present
+    cats = conn.execute("SELECT slug FROM categories").fetchall()
+    for cat in cats:
+        slug = cat['slug']
+        existing = conn.execute("SELECT id FROM category_fields WHERE category_slug = ? AND field_key = 'posted_to_web'", (slug,)).fetchone()
+        if not existing:
+            # Insert before sold field
+            sold_order = conn.execute("SELECT sort_order FROM category_fields WHERE category_slug = ? AND field_key = 'sold'", (slug,)).fetchone()
+            order = (sold_order['sort_order'] if sold_order else 99) - 1
+            conn.execute(
+                "INSERT INTO category_fields (category_slug, field_key, field_label, field_type, radio_options, show_on_card, show_in_table, sort_order) VALUES (?, 'posted_to_web', 'Posted to Web', 'toggle', '', 0, 1, ?)",
+                (slug, order)
+            )
+
+
+def migrate_v14(conn):
+    """Reassign product numbers to 5-digit format starting at WM00001."""
+    rows = conn.execute("SELECT id FROM parts ORDER BY id").fetchall()
+    for i, row in enumerate(rows):
+        num = i + 1
+        if num < 100000:
+            pn = f"WM{num:05d}"
+        else:
+            pn = f"WM{num}"
+        conn.execute("UPDATE parts SET product_number = ? WHERE id = ?", (pn, row['id']))
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -526,7 +571,10 @@ MIGRATIONS = [
     (9, migrate_v9),
     (10, migrate_v10),
     (11, migrate_v11),
-    # (12, migrate_v12),  ← your next change goes here
+    (12, migrate_v12),
+    (13, migrate_v13),
+    (14, migrate_v14),
+    # (15, migrate_v15),  ← your next change goes here
 ]
 
 
@@ -581,12 +629,12 @@ ALL_SEARCH_COLS = list(set(col for cols in SEARCH_COLS.values() for col in cols)
 
 ALL_FIELDS = [
     'category','sku','location','fitment_vehicle','notes','image_filename',
-    'sold','sold_date',
+    'sold','sold_date','flagged',
     'head_engine','head_part','foundry_number','foundry','head_number','head_type','head_old_number',
     'engine_name','engine_head','engine_litre','engine_date_stamp','engine_turns',
     'trans_gear_condition','trans_spins','trans_shifts','trans_date_code','trans_stamped_numbers',
 ]
-INT_FIELDS = {'sold'}
+INT_FIELDS = {'sold', 'flagged'}
 RADIO_FIELDS = {'engine_turns', 'trans_spins', 'trans_shifts'}
 
 # Importable fields per category (used by import system)
@@ -675,15 +723,19 @@ def enrich_part_with_images(conn, part_dict):
 
 def assign_product_number(conn):
     """Get the next available product number and return it."""
-    row = conn.execute("SELECT product_number FROM parts WHERE product_number LIKE 'WM-%' ORDER BY CAST(SUBSTR(product_number, 4) AS INTEGER) DESC LIMIT 1").fetchone()
+    row = conn.execute("SELECT product_number FROM parts WHERE product_number LIKE 'WM%' AND product_number != '' ORDER BY CAST(REPLACE(REPLACE(product_number, 'WM-', ''), 'WM', '') AS INTEGER) DESC LIMIT 1").fetchone()
     if row and row['product_number']:
         try:
-            next_num = int(row['product_number'].replace('WM-', '')) + 1
+            num_str = row['product_number'].replace('WM-', '').replace('WM', '')
+            next_num = int(num_str) + 1
         except ValueError:
-            next_num = 1000000
+            next_num = 1
     else:
-        next_num = 1000000
-    return f"WM-{next_num}"
+        next_num = 1
+    # Pad to 5 digits, but allow overflow past 99999 naturally
+    if next_num < 100000:
+        return f"WM{next_num:05d}"
+    return f"WM{next_num}"
 
 def form_val(key, default=''):
     val = request.form.get(key, default)
@@ -945,16 +997,16 @@ def get_parts():
     where = "WHERE " + " AND ".join(conds) if conds else ""
 
     # Sorting
-    SORT_ALLOWED = {'sku', 'location', 'fitment_vehicle', 'updated_at'}
-    sort_by = request.args.get('sort_by', 'updated_at')
+    SORT_ALLOWED = {'sku', 'location', 'fitment_vehicle', 'updated_at', 'product_number', 'sold', 'flagged'}
+    sort_by = request.args.get('sort_by', 'sku')
     sort_dir = request.args.get('sort_dir', 'desc').lower()
     if sort_by not in SORT_ALLOWED:
-        sort_by = 'updated_at'
+        sort_by = 'sku'
     if sort_dir not in ('asc', 'desc'):
         sort_dir = 'desc'
     reverse = sort_dir == 'desc'
 
-    if sort_by in ('sku', 'location', 'fitment_vehicle'):
+    if sort_by in ('sku', 'location', 'fitment_vehicle', 'product_number'):
         rows = conn.execute(f"SELECT * FROM parts {where}", params).fetchall()
         parts = [dict(r) for r in rows]
         parts.sort(key=lambda p: _natural_sort_key(p.get(sort_by, '')), reverse=reverse)
@@ -1013,7 +1065,7 @@ def create_part():
     import json as json_mod
 
     # Shared fields go in SQL columns; category-specific fields go in custom_data
-    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes'}
+    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged'}
     fields = [fld for fld in ALL_FIELDS if fld != 'image_filename']
     vals = [form_val(fld) for fld in fields] + ['']
 
@@ -1091,7 +1143,7 @@ def update_part(pid):
 
     # Handle custom_data - all categories use it now
     import json as json_mod
-    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes'}
+    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged'}
     cat_fields = conn.execute(
         "SELECT field_key FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
     ).fetchall()
@@ -1162,6 +1214,21 @@ def delete_part(pid):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+@app.route('/api/parts/<int:pid>/flag', methods=['POST'])
+@login_required
+def toggle_flag(pid):
+    conn = get_db()
+    row = conn.execute("SELECT flagged FROM parts WHERE id = ?", (pid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    new_val = 0 if row['flagged'] else 1
+    conn.execute("UPDATE parts SET flagged = ? WHERE id = ?", (new_val, pid))
+    conn.commit()
+    conn.close()
+    return jsonify({'flagged': new_val})
 
 
 @app.route('/api/stats', methods=['GET'])
@@ -1302,8 +1369,94 @@ def delete_category(slug):
 #  IMPORT API
 # ══════════════════════════════════════════
 
-def _read_file_rows(temp_path, sheet_name=None):
-    """Read all rows from a CSV or Excel file. Returns list of string lists."""
+# headChart fields found in Welsh export Description HTML.
+# Order is fixed — used to build virtual column headers/rows.
+HC_KEYS = ['Engine #', 'Head #', 'Block Part #', 'Litre', 'Vehicle', 'Date Stamp', 'Mileage']
+HC_VIRTUAL_HEADERS = [f'[HC] {k}' for k in HC_KEYS] + ['[HC] Clean Description']
+
+
+def _parse_head_chart(html):
+    """Extract hC-Name/hC-Data pairs from a headChart div. Returns {key: value}."""
+    if not html or 'headChart' not in html:
+        return {}
+    pairs = re.findall(
+        r'hC-Name"[^>]*>\s*([^<]+?)\s*</div>\s*<div\s+class="hC-Data"[^>]*>\s*([^<]*?)\s*</div>',
+        html, re.IGNORECASE | re.DOTALL,
+    )
+    out = {}
+    for name, value in pairs:
+        key = name.strip().rstrip(':').strip()
+        out[key] = re.sub(r'\s+', ' ', value).strip()
+    return out
+
+
+def _strip_balanced_div(html, class_name):
+    """Remove <div class="class_name">...</div> including nested divs."""
+    pat = re.compile(r'<div\s+class="' + re.escape(class_name) + r'"[^>]*>', re.IGNORECASE)
+    while True:
+        m = pat.search(html)
+        if not m:
+            return html
+        start = m.start()
+        depth = 1
+        i = m.end()
+        tag_re = re.compile(r'<(/?)div\b[^>]*>', re.IGNORECASE)
+        while depth > 0:
+            tm = tag_re.search(html, i)
+            if not tm:
+                return html[:start]  # unbalanced — drop tail
+            depth += -1 if tm.group(1) else 1
+            i = tm.end()
+        html = html[:start] + html[i:]
+
+
+def _clean_description(html):
+    """Strip headChart div, makeoffer block, images, and HTML tags from a description."""
+    if not html:
+        return ''
+    s = _strip_balanced_div(html, 'headChart')
+    s = _strip_balanced_div(s, 'makeoffer')
+    s = re.sub(r'<img\b[^>]*>', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'<br\s*/?>', '\n', s, flags=re.IGNORECASE)
+    s = re.sub(r'</p>\s*<p[^>]*>', '\n\n', s, flags=re.IGNORECASE)
+    s = re.sub(r'<[^>]+>', '', s)
+    s = re.sub(r'[ \t]+', ' ', s)
+    s = re.sub(r'\n{3,}', '\n\n', s)
+    return s.strip()
+
+
+def _detect_head_chart_col(all_rows, header_row=0):
+    """Find index of the column whose data cells contain 'headChart'. Returns -1 if none."""
+    if len(all_rows) <= header_row + 1:
+        return -1
+    width = len(all_rows[header_row])
+    for col in range(width):
+        for r in all_rows[header_row + 1: header_row + 200]:
+            if col < len(r) and 'headChart' in (r[col] or ''):
+                return col
+    return -1
+
+
+def _apply_head_chart(all_rows, hc_col, header_row=0):
+    """Append virtual HC columns to every row. Mutates and returns all_rows."""
+    if hc_col is None or hc_col < 0 or not all_rows:
+        return all_rows
+    for i, row in enumerate(all_rows):
+        if i == header_row:
+            row.extend(HC_VIRTUAL_HEADERS)
+        elif i < header_row:
+            row.extend([''] * len(HC_VIRTUAL_HEADERS))
+        else:
+            html = row[hc_col] if hc_col < len(row) else ''
+            parsed = _parse_head_chart(html)
+            row.extend([parsed.get(k, '') for k in HC_KEYS])
+            row.append(_clean_description(html))
+    return all_rows
+
+
+def _read_file_rows(temp_path, sheet_name=None, hc_col=None, header_row=0):
+    """Read all rows from a CSV or Excel file. Returns list of string lists.
+    If hc_col is a non-negative int, append virtual HC columns parsed from that column."""
     import csv as csv_module
     ext = temp_path.rsplit('.', 1)[-1].lower()
     all_rows = []
@@ -1318,6 +1471,8 @@ def _read_file_rows(temp_path, sheet_name=None):
         for row in ws.iter_rows(values_only=True):
             all_rows.append([str(c) if c is not None else '' for c in row])
         wb.close()
+    if hc_col is not None and hc_col >= 0:
+        _apply_head_chart(all_rows, hc_col, header_row)
     return all_rows
 
 @app.route('/api/import/fields', methods=['GET'])
@@ -1353,6 +1508,23 @@ def import_upload():
     try:
         result = {'temp_file': temp_name, 'sheets': []}
 
+        def _detect_and_pack(name, rows_data):
+            hc_col = _detect_head_chart_col(rows_data, header_row=0)
+            sheet = {
+                'name': name,
+                'headers': rows_data[0],
+                'sample_rows': rows_data[1:],
+                'col_count': len(rows_data[0]),
+                'headchart_col': hc_col,
+                'headchart_keys': HC_VIRTUAL_HEADERS if hc_col >= 0 else [],
+            }
+            if hc_col >= 0:
+                _apply_head_chart(rows_data, hc_col, 0)
+                sheet['headers'] = rows_data[0]
+                sheet['sample_rows'] = rows_data[1:]
+                sheet['col_count'] = len(rows_data[0])
+            return sheet
+
         if ext == 'csv':
             with open(temp_path, 'r', encoding='utf-8-sig', errors='replace') as f:
                 reader = csv_module.reader(f)
@@ -1362,12 +1534,7 @@ def import_upload():
                     if len(rows_data) > 25:
                         break
             if rows_data:
-                result['sheets'].append({
-                    'name': 'CSV',
-                    'headers': rows_data[0],
-                    'sample_rows': rows_data[1:],
-                    'col_count': len(rows_data[0]),
-                })
+                result['sheets'].append(_detect_and_pack('CSV', rows_data))
         else:
             from openpyxl import load_workbook
             wb = load_workbook(temp_path, read_only=True, data_only=True)
@@ -1380,12 +1547,7 @@ def import_upload():
                         break
                 if not rows_data:
                     continue
-                result['sheets'].append({
-                    'name': sheet_name,
-                    'headers': rows_data[0],
-                    'sample_rows': rows_data[1:],
-                    'col_count': len(rows_data[0]),
-                })
+                result['sheets'].append(_detect_and_pack(sheet_name, rows_data))
             wb.close()
 
         return jsonify(result)
@@ -1405,6 +1567,15 @@ def import_preview():
     category = data.get('category', '')
     mapping = data.get('mapping', {})
     header_row = data.get('header_row', 0)
+    hc_col = data.get('headchart_col', -1)
+    try:
+        hc_col = int(hc_col)
+    except (TypeError, ValueError):
+        hc_col = -1
+
+    # UI prefixes non-shared field keys with 'custom_' for form collision avoidance;
+    # IMPORT_FIELDS uses bare keys, so normalize here.
+    mapping = {(k[7:] if k.startswith('custom_') else k): v for k, v in mapping.items()}
 
     if category not in IMPORT_FIELDS:
         return jsonify({'error': 'Invalid category'}), 400
@@ -1414,7 +1585,7 @@ def import_preview():
         return jsonify({'error': 'Uploaded file not found. Please re-upload.'}), 404
 
     try:
-        all_rows = _read_file_rows(temp_path, sheet_name)
+        all_rows = _read_file_rows(temp_path, sheet_name, hc_col=hc_col, header_row=header_row)
     except Exception as e:
         return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
 
@@ -1480,6 +1651,13 @@ def import_execute():
     category = data.get('category', '')
     mapping = data.get('mapping', {})
     header_row = data.get('header_row', 0)
+    hc_col = data.get('headchart_col', -1)
+    try:
+        hc_col = int(hc_col)
+    except (TypeError, ValueError):
+        hc_col = -1
+
+    mapping = {(k[7:] if k.startswith('custom_') else k): v for k, v in mapping.items()}
 
     if category not in IMPORT_FIELDS:
         return jsonify({'error': 'Invalid category'}), 400
@@ -1489,7 +1667,7 @@ def import_execute():
         return jsonify({'error': 'Uploaded file not found. Please re-upload.'}), 404
 
     try:
-        all_rows = _read_file_rows(temp_path, sheet_name)
+        all_rows = _read_file_rows(temp_path, sheet_name, hc_col=hc_col, header_row=header_row)
     except Exception as e:
         return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
 
@@ -1594,6 +1772,7 @@ def export_csv():
         ('sku', 'SKU'),
         ('location', 'Location'),
         ('fitment_vehicle', 'Fitment Vehicle'),
+        ('flagged', 'Flagged'),
         ('sold', 'Sold'),
         ('sold_date', 'Sold Date'),
         ('notes', 'Notes'),
@@ -1617,6 +1796,8 @@ def export_csv():
                 csv_row.append(r.get(key, '') or '')
             elif key == 'sold':
                 csv_row.append('Yes' if r.get('sold') else 'No')
+            elif key == 'flagged':
+                csv_row.append('Yes' if r.get('flagged') else 'No')
             else:
                 # Custom data field — check custom_data first, then legacy SQL column
                 val = cd.get(key, '') or r.get(key, '') or ''

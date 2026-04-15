@@ -125,6 +125,13 @@ body {
     display: flex; align-items: center; gap: 0.5rem;
     padding: 0.5rem 0.6rem;
 }
+.sidebar-icon-btn {
+    width: 28px; height: 28px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-muted);
+    border-radius: 6px; cursor: pointer; padding: 0;
+}
+.sidebar-icon-btn:hover { color: var(--accent); background: var(--hover-bg, rgba(255,255,255,0.05)); }
 .user-avatar {
     width: 30px; height: 30px; border-radius: 50%; background: var(--accent-dim);
     display: flex; align-items: center; justify-content: center;
@@ -648,6 +655,22 @@ body {
 .import-result p { font-size: 0.85rem; color: var(--text-secondary); }
 
 /* ── SETTINGS ── */
+/* ── SETTINGS TABS ── */
+.settings-tabs {
+    display: flex; border-bottom: 1px solid var(--border); margin: -1.25rem -1.25rem 1rem;
+    padding: 0 1.25rem;
+}
+.settings-tab {
+    padding: 0.7rem 1rem; font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: all var(--transition);
+}
+.settings-tab:hover { color: var(--text-secondary); }
+.settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.settings-tab-content { display: none; }
+.settings-tab-content.active { display: block; }
+
 .settings-row {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.85rem 0; border-bottom: 1px solid var(--border);
@@ -655,6 +678,65 @@ body {
 .settings-row:last-child { border-bottom: none; }
 .settings-label { font-size: 0.88rem; color: var(--text-primary); }
 .settings-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+.about-header {
+    display: flex; align-items: flex-start; gap: 0.85rem; margin-bottom: 1.25rem;
+    padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+}
+.about-header img { width: 48px; height: 48px; border-radius: 8px; margin-top: 2px; }
+.about-header-text h3 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1rem; line-height: 1.15; }
+.about-header-text .about-version {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;
+}
+.about-section-title {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted); margin: 1rem 0 0.5rem;
+}
+.changelog-entry { margin-bottom: 1rem; }
+.changelog-version {
+    font-family: var(--mono); font-size: 0.78rem; font-weight: 700; color: var(--accent); margin-bottom: 0.25rem;
+}
+.changelog-list { list-style: none; padding: 0; }
+.changelog-list li {
+    font-size: 0.78rem; color: var(--text-secondary); padding: 0.15rem 0 0.15rem 0.85rem;
+    position: relative;
+}
+.changelog-list li::before {
+    content: ''; position: absolute; left: 0; top: 0.55rem;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted);
+}
+.changelog-list strong { color: var(--text-primary); }
+
+/* ── FLAG ── */
+.flag-btn {
+    background: none; border: none; cursor: pointer; padding: 2px;
+    color: var(--text-muted); transition: color 0.15s; display: flex; align-items: center;
+}
+.flag-btn:hover { color: var(--engine); }
+.flag-btn.flagged { color: var(--engine); }
+.flag-btn.card-flag {
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center;
+    padding: 0;
+}
+.flag-btn.card-flag:hover { background: rgba(0,0,0,0.65); }
+.flag-btn.card-flag.flagged { background: rgba(245,158,11,0.25); }
+
+/* ── ICON PICKER ── */
+.icon-picker {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 6px;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+    max-height: 120px; overflow-y: auto;
+}
+.icon-pick {
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; border: 2px solid transparent; cursor: pointer;
+    color: var(--text-secondary); transition: all 0.15s; background: transparent;
+}
+.icon-pick:hover { background: var(--bg-card); color: var(--text-primary); }
+.icon-pick.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.icon-pick svg { width: 18px; height: 18px; }
 
 /* ── CATEGORY FIELD ROWS ── */
 .cat-field-row {
@@ -762,10 +844,6 @@ body {
 
         <div style="flex:1;"></div>
 
-        <button class="nav-item" onclick="openSettingsModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Settings
-        </button>
     </nav>
     <div class="sidebar-footer">
         <div class="sidebar-user-bar">
@@ -774,6 +852,9 @@ body {
                 <div class="sidebar-user-name" id="userName"></div>
                 <div class="sidebar-user-role" id="userRole"></div>
             </div>
+            <button class="sidebar-icon-btn" onclick="openSettingsModal()" title="Settings" aria-label="Settings">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
         </div>
         <a class="nav-item danger-nav" href="/logout">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -796,8 +877,11 @@ body {
         <select class="sort-select" id="sortSelect" onchange="onSortChange()">
             <option value="updated_at">Recent</option>
             <option value="sku" selected>SKU</option>
+            <option value="product_number">WM#</option>
             <option value="location">Location</option>
             <option value="fitment_vehicle">Fitment</option>
+            <option value="sold">Sold</option>
+            <option value="flagged">Flagged</option>
         </select>
         <button class="sort-dir-btn" id="sortDirBtn" onclick="toggleSortDir()" title="Toggle sort direction">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
@@ -884,56 +968,149 @@ body {
 
 <!-- ═══ SETTINGS MODAL ═══ -->
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal" style="max-width:440px;">
+    <div class="modal" style="max-width:500px;">
         <div class="modal-header">
             <h2>Settings</h2>
             <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
         </div>
-        <div class="modal-body">
-            <div class="settings-row">
-                <div>
-                    <div class="settings-label">Light Mode</div>
-                    <div class="settings-desc">Switch between dark and light themes</div>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="settingsLightMode" onchange="toggleTheme(this.checked)">
-                    <span class="toggle-track"></span>
-                </label>
+        <div class="modal-body" style="min-height:420px;">
+            <div class="settings-tabs">
+                <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
+                <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Admin</button>
+                <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
+                <button class="settings-tab" onclick="switchSettingsTab('about', this)">About</button>
             </div>
-            <div class="settings-row">
-                <div>
-                    <div class="settings-label">Change Password</div>
-                    <div class="settings-desc">Update your account password</div>
+
+            <!-- General Tab -->
+            <div class="settings-tab-content active" id="settingsTabGeneral">
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Light Mode</div>
+                        <div class="settings-desc">Switch between dark and light themes</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingsLightMode" onchange="toggleTheme(this.checked)">
+                        <span class="toggle-track"></span>
+                    </label>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openChangePasswordModal();">Change</button>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Change Password</div>
+                        <div class="settings-desc">Update your account password</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openChangePasswordModal();">Change</button>
+                </div>
             </div>
-            <div class="settings-row" id="settingsManageUsers" style="display:none;">
-                <div>
-                    <div class="settings-label">Manage Users</div>
-                    <div class="settings-desc">Create, edit, and remove user accounts</div>
+
+            <!-- Admin Tab -->
+            <div class="settings-tab-content" id="settingsTabAdmin">
+                <div class="settings-row" id="settingsManageUsers">
+                    <div>
+                        <div class="settings-label">Manage Users</div>
+                        <div class="settings-desc">Create, edit, and remove user accounts</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openAdminPanel();">Manage</button>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openAdminPanel();">Manage</button>
+                <div class="settings-row" id="settingsCategories">
+                    <div>
+                        <div class="settings-label">Manage Categories</div>
+                        <div class="settings-desc">Add or edit parts categories and their field sets</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
+                </div>
             </div>
-            <div class="settings-row" id="settingsCategories" style="display:none;">
-                <div>
-                    <div class="settings-label">Manage Categories</div>
-                    <div class="settings-desc">Add or edit parts categories and their field sets</div>
+
+            <!-- Data Tab -->
+            <div class="settings-tab-content" id="settingsTabData">
+                <div class="settings-row" id="settingsImport">
+                    <div>
+                        <div class="settings-label">Import Data</div>
+                        <div class="settings-desc">Import parts from Excel (.xlsx) or CSV files</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openImportModal();">Import</button>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
+                <div class="settings-row" id="settingsExport">
+                    <div>
+                        <div class="settings-label">Export Data</div>
+                        <div class="settings-desc">Download entire inventory as CSV</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="exportCSV();">Export</button>
+                </div>
             </div>
-            <div class="settings-row" id="settingsImport" style="display:none;">
-                <div>
-                    <div class="settings-label">Import Data</div>
-                    <div class="settings-desc">Import parts from Excel (.xlsx) or CSV files</div>
+
+            <!-- About Tab -->
+            <div class="settings-tab-content" id="settingsTabAbout">
+                <div class="about-header">
+                    <img src="/static/logo.svg" alt="WM">
+                    <div class="about-header-text">
+                        <h3>Warehouse<br>Manager</h3>
+                        <div class="about-version" id="aboutVersion"></div>
+                    </div>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openImportModal();">Import</button>
-            </div>
-            <div class="settings-row" id="settingsExport" style="display:none;">
-                <div>
-                    <div class="settings-label">Export Data</div>
-                    <div class="settings-desc">Download entire inventory as CSV</div>
+                <div class="about-section-title">Changelog</div>
+                <div style="max-height:280px;overflow-y:auto;">
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.1.32</div>
+                        <ul class="changelog-list">
+                            <li><strong>WM numbers</strong> — Reformatted to 5-digit: WM00001–WM99999, then WM100000+</li>
+                            <li><strong>Card flags</strong> — Flag icon now appears on card view (top-right corner)</li>
+                            <li><strong>Detail flags</strong> — Flag toggle in the product detail modal header</li>
+                            <li><strong>Flag sync</strong> — Toggling a flag in any view instantly updates all other views</li>
+                            <li><strong>Retroactive renumber</strong> — All existing parts renumbered sequentially</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.1.31</div>
+                        <ul class="changelog-list">
+                            <li><strong>Flagging</strong> — Click flag icon in table to mark parts, sort by flagged</li>
+                            <li><strong>Posted to Web</strong> — New toggle field on all categories</li>
+                            <li><strong>Sort by Sold / Flagged</strong> — New sort options in toolbar</li>
+                            <li><strong>Icon picker</strong> — 24 icons to choose from for categories</li>
+                            <li><strong>Tabbed Settings</strong> — General, Admin, Data, and About tabs with consistent height</li>
+                            <li><strong>About tab</strong> — Version info and full changelog</li>
+                            <li><strong>Head category</strong> — Removed Old SKU and Head Number from default table view</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.1.30</div>
+                        <ul class="changelog-list">
+                            <li><strong>WM numbers</strong> — Removed dash: WM-1000000 → WM1000000</li>
+                            <li><strong>Sort by WM#</strong> — New sort option in toolbar</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.1.29</div>
+                        <ul class="changelog-list">
+                            <li><strong>Default fields</strong> — New categories pre-populated with shared fields</li>
+                            <li><strong>Full field editing</strong> — All fields visible and reorderable</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.1.28</div>
+                        <ul class="changelog-list">
+                            <li><strong>Custom categories</strong> — Admin-defined with drag-to-reorder fields</li>
+                            <li><strong>Product numbers</strong> — Auto-assigned WM numbers</li>
+                            <li><strong>QR codes</strong> — Per-part QR in detail view and labels</li>
+                            <li><strong>Label printing</strong> — 4"×1" Zebra-compatible PDF labels</li>
+                            <li><strong>Docker deployment</strong> — Full containerized setup</li>
+                            <li><strong>Dynamic sidebar</strong> — Categories from database with icons</li>
+                            <li><strong>Unified data model</strong> — All fields in custom_data JSON</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">Earlier</div>
+                        <ul class="changelog-list">
+                            <li>Multi-image gallery with lightbox</li>
+                            <li>Light/dark mode</li>
+                            <li>Role-based access (Admin, Editor, Viewer)</li>
+                            <li>Excel/CSV import with 4-step wizard</li>
+                            <li>CSV export</li>
+                            <li>Radio fields for Turns/Spins/Shifts</li>
+                            <li>Sidebar layout with search and sorting</li>
+                            <li>Sold tracking with red highlights</li>
+                        </ul>
+                    </div>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="exportCSV();">Export</button>
             </div>
         </div>
     </div>
@@ -1038,6 +1215,7 @@ body {
         <div class="modal-body">
             <div class="form-grid" style="grid-template-columns:1fr 1fr;">
                 <input type="hidden" id="catFormSlug">
+                <input type="hidden" id="catFormIcon" value="">
                 <div class="form-group">
                     <label class="form-label">Category Name</label>
                     <input class="form-input" type="text" id="catFormName" placeholder="e.g. Carburetors">
@@ -1045,6 +1223,10 @@ body {
                 <div class="form-group">
                     <label class="form-label">Color</label>
                     <input class="form-input" type="color" id="catFormColor" value="#4a8eff" style="height:38px;padding:3px 6px;cursor:pointer;">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Icon</label>
+                    <div class="icon-picker" id="catIconPicker"></div>
                 </div>
             </div>
             <div style="margin-top:1rem;">
@@ -1188,7 +1370,20 @@ function initTheme() {
 function openSettingsModal() {
     const cb = document.getElementById('settingsLightMode');
     if (cb) cb.checked = document.documentElement.getAttribute('data-theme') === 'light';
+    const av = document.getElementById('aboutVersion');
+    if (av && currentUserData) av.textContent = `v${currentUserData.version || '?'}`;
+    // Reset to General tab
+    switchSettingsTab('general', document.querySelector('.settings-tab'));
     openModal('settingsModal');
+}
+
+function switchSettingsTab(tab, btn) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const tabMap = { general: 'settingsTabGeneral', admin: 'settingsTabAdmin', data: 'settingsTabData', about: 'settingsTabAbout' };
+    const el = document.getElementById(tabMap[tab]);
+    if (el) el.classList.add('active');
 }
 
 // ══════════════════════════════════════════
@@ -1221,12 +1416,10 @@ async function loadCurrentUser() {
         if (currentUserData.can_edit) {
             document.getElementById('navAddPart').style.display = '';
             document.getElementById('actionsLabel').style.display = '';
-            document.getElementById('settingsImport').style.display = '';
-            document.getElementById('settingsExport').style.display = '';
+            document.getElementById('settingsDataTab').style.display = '';
         }
         if (currentUserData.role === 'admin') {
-            document.getElementById('settingsManageUsers').style.display = '';
-            document.getElementById('settingsCategories').style.display = '';
+            document.getElementById('settingsAdminTab').style.display = '';
         }
     } catch { window.location.href = '/login'; }
 }
@@ -1363,19 +1556,14 @@ async function loadCategories() {
 function renderSidebarCategories() {
     const container = document.getElementById('sidebarCategoryNav');
     if (!container) return;
-    const builtinIcons = {
-        engine: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="1"/><path d="M9 10V6h6v4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="9" y1="4" x2="15" y2="4"/><line x1="3" y1="14" x2="5" y2="14"/><line x1="19" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="5" y2="18"/><line x1="19" y1="18" x2="21" y2="18"/></svg>',
-        head: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
-        transmission: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/><path d="M6 12h6V6"/><path d="M12 12h0v6"/></svg>',
-    };
-    const defaultIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
 
     let h = '';
     for (const cat of categoriesData) {
-        const icon = builtinIcons[cat.slug] || defaultIcon;
+        const iconKey = cat.icon || 'tag';
+        const iconSvg = ICON_LIB[iconKey] ? `<span style="display:inline-flex;width:16px;height:16px;flex-shrink:0;">${ICON_LIB[iconKey]}</span>` : `<span style="display:inline-flex;width:16px;height:16px;flex-shrink:0;">${ICON_LIB['tag']}</span>`;
         const active = currentCategory === cat.slug ? ' active' : '';
         h += `<button class="nav-item${active}" data-category="${cat.slug}" onclick="setFilter(this)">
-            ${icon} ${esc(cat.name)} <span class="nav-count" id="count_${cat.slug}"></span>
+            ${iconSvg} ${esc(cat.name)} <span class="nav-count" id="count_${cat.slug}"></span>
         </button>`;
     }
     container.innerHTML = h;
@@ -1435,7 +1623,7 @@ async function loadStats() {
 }
 
 function renderCard(p) {
-    const cat = p.category, title = getTitle(p), isSold = !!p.sold;
+    const cat = p.category, title = getTitle(p), isSold = !!p.sold, isFlagged = !!p.flagged;
     const catLabel = getCatLabel(cat), catColor = getCatColor(cat);
     const img = p.image_filename ? `<img src="/uploads/${p.image_filename}" alt="${esc(title)}" loading="lazy">` : `<svg class="placeholder-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
     const soldOverlay = isSold ? `<div class="card-sold-overlay"><div class="card-sold-banner">SOLD</div></div>` : '';
@@ -1456,7 +1644,8 @@ function renderCard(p) {
             return `<span class="toggle-pill ${on?'yes':'no'}">${f.label}: ${on?'Yes':'No'}</span>`;
         }
     }).join('');
-    return `<div class="part-card${isSold?' is-sold':''}" onclick="openDetail(${p.id})"><div class="card-image">${img}${soldOverlay}<span class="card-badge" style="background:${catColor};color:#000;">${esc(catLabel)}</span></div><div class="card-body"><div class="card-title">${esc(title)}</div><div class="card-meta">${meta}</div>${pills?`<div class="card-toggles">${pills}</div>`:''}</div></div>`;
+    const flagBtn = `<button class="flag-btn card-flag${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button>`;
+    return `<div class="part-card${isSold?' is-sold':''}" onclick="openDetail(${p.id})"><div class="card-image">${img}${soldOverlay}<span class="card-badge" style="background:${catColor};color:#000;">${esc(catLabel)}</span>${flagBtn}</div><div class="card-body"><div class="card-title">${esc(title)}</div><div class="card-meta">${meta}</div>${pills?`<div class="card-toggles">${pills}</div>`:''}</div></div>`;
 }
 
 function _parseCustomData(p) {
@@ -1469,14 +1658,17 @@ function renderTable(parts) {
     const canEdit = currentUserData && currentUserData.can_edit;
     let h = `<div class="parts-table-wrap"><table class="parts-table"><thead><tr>`;
     if (canEdit) h += `<th class="cb-cell"><input type="checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>`;
+    h += `<th style="width:28px;" title="Flag"></th>`;
     h += `<th>WM #</th><th>${cols[0].label}</th>`;
     if (showType) h += `<th>Type</th>`;
     for (let i=1;i<cols.length;i++) h += `<th>${cols[i].label}</th>`;
     h += `</tr></thead><tbody>`;
     for (const p of parts) {
         const isSold = !!p.sold;
+        const isFlagged = !!p.flagged;
         h += `<tr class="${isSold?'row-sold':''}" data-id="${p.id}">`;
         if (canEdit) h += `<td class="cb-cell"><input type="checkbox" value="${p.id}" onchange="toggleRowSelect(this,${p.id})" onclick="event.stopPropagation()"></td>`;
+        h += `<td style="text-align:center;"><button class="flag-btn${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button></td>`;
         h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
         h += `<td onclick="openDetail(${p.id})">${esc(p[cols[0].key]||'')}</td>`;
         if (showType) h += `<td onclick="openDetail(${p.id})"><span class="table-badge" style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};">${esc(getCatLabel(p.category))}</span></td>`;
@@ -1499,7 +1691,30 @@ function toggleSelectAll(cb) { document.querySelectorAll('.parts-table tbody inp
 function toggleRowSelect(cb,id) { const row=cb.closest('tr');if(cb.checked){selectedRows.add(id);row.classList.add('row-selected');}else{selectedRows.delete(id);row.classList.remove('row-selected');} const all=document.querySelectorAll('.parts-table tbody input[type="checkbox"]');const hdr=document.querySelector('.parts-table thead input[type="checkbox"]');if(hdr)hdr.checked=[...all].every(c=>c.checked)&&all.length>0; updateBulkBar(); }
 function updateBulkBar() { const bar=document.getElementById('bulkBar');if(!selectedRows.size){bar.style.display='none';return;}bar.style.display='';bar.innerHTML=`<div class="bulk-bar"><div class="bulk-bar-count">${selectedRows.size} selected</div><div class="bulk-bar-actions"><button class="btn btn-ghost btn-sm" onclick="printBatchLabels()">Print Labels</button><button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete Selected</button><button class="btn btn-ghost btn-sm" onclick="clearSelection()">Cancel</button></div></div>`; }
 function clearSelection() { selectedRows.clear();document.querySelectorAll('.parts-table input[type="checkbox"]').forEach(c=>c.checked=false);document.querySelectorAll('.parts-table tr.row-selected').forEach(r=>r.classList.remove('row-selected'));updateBulkBar(); }
-async function bulkDelete() { const count=selectedRows.size;if(!confirm(`Delete ${count} part${count!==1?'s':''}?`))return;const ids=[...selectedRows];let d=0,f=0;for(const id of ids){try{const r=await fetch(`/api/parts/${id}`,{method:'DELETE'});if(r.ok)d++;else f++;}catch{f++;}}selectedRows.clear();showToast(`${d} deleted${f?`, ${f} failed`:''}`,f?'error':'success');loadParts();loadStats(); }
+async function bulkDelete() {
+    const count=selectedRows.size;
+    if(!confirm(`Delete ${count} part${count!==1?'s':''}?`))return;
+    const ids=[...selectedRows];
+    showBulkProgress(`Deleting 0 of ${count}…`);
+    let d=0,f=0,done=0;
+    const CONC=8;
+    async function worker(){
+        while(ids.length){
+            const id=ids.shift();
+            try{const r=await fetch(`/api/parts/${id}`,{method:'DELETE'});if(r.ok)d++;else f++;}catch{f++;}
+            done++;
+            updateBulkProgress(`Deleting ${done} of ${count}…`);
+        }
+    }
+    await Promise.all(Array.from({length:Math.min(CONC,count)},worker));
+    hideBulkProgress();
+    selectedRows.clear();
+    showToast(`${d} deleted${f?`, ${f} failed`:''}`,f?'error':'success');
+    loadParts();loadStats();
+}
+function showBulkProgress(msg){let el=document.getElementById('bulkProgress');if(!el){el=document.createElement('div');el.id='bulkProgress';el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;';el.innerHTML=`<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;gap:0.85rem;box-shadow:var(--shadow-lg);"><div class="spinner"></div><div id="bulkProgressText" style="font-size:0.88rem;color:var(--text-primary);font-family:var(--mono);"></div></div>`;document.body.appendChild(el);}document.getElementById('bulkProgressText').textContent=msg;}
+function updateBulkProgress(msg){const t=document.getElementById('bulkProgressText');if(t)t.textContent=msg;}
+function hideBulkProgress(){const el=document.getElementById('bulkProgress');if(el)el.remove();}
 
 function renderPagination(d) { if(d.pages<=1)return;const p=document.getElementById('pagination');let h=`<button ${d.page<=1?'disabled':''} onclick="goPage(${d.page-1})">‹ Prev</button>`;for(let i=Math.max(1,d.page-2);i<=Math.min(d.pages,d.page+2);i++)h+=`<button class="${i===d.page?'active':''}" onclick="goPage(${i})">${i}</button>`;h+=`<span class="page-info">${d.total} parts</span><button ${d.page>=d.pages?'disabled':''} onclick="goPage(${d.page+1})">Next ›</button>`;p.innerHTML=h; }
 function goPage(p) { currentPage=p; loadParts(); }
@@ -1510,7 +1725,7 @@ function setFilter(btn) {
     document.getElementById('sidebar').classList.remove('open');
 }
 function setView(mode) { currentView=mode;currentPage=1;selectedRows.clear();document.getElementById('viewCards').classList.toggle('active',mode==='cards');document.getElementById('viewTable').classList.toggle('active',mode==='table');loadParts(); }
-function onSortChange() { currentSortBy=document.getElementById('sortSelect').value;currentSortDir=currentSortBy==='updated_at'?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
+function onSortChange() { currentSortBy=document.getElementById('sortSelect').value;currentSortDir=['updated_at','sold','flagged'].includes(currentSortBy)?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
 function toggleSortDir() { currentSortDir=currentSortDir==='asc'?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
 
 // ══════════════════════════════════════════
@@ -1600,11 +1815,17 @@ async function openDetail(id) {
         document.getElementById('detailModalTitle').innerHTML = `<span class="card-badge" style="position:static;margin-right:8px;background:${catColor};color:#000;">${esc(catLabel)}</span> ${esc(title)}`;
         let h = '';
 
-        // Product number header
+        // Product number header with flag
         if (p.product_number) {
+            const detailFlagged = !!p.flagged;
             h += `<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.85rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
                 <img src="/api/parts/${p.id}/qr.png" alt="QR" style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);">
-                <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--text-primary);letter-spacing:0.02em;">${esc(p.product_number)}</div>
+                <div style="flex:1;">
+                    <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--text-primary);letter-spacing:0.02em;">${esc(p.product_number)}</div>
+                </div>
+                <button class="flag-btn${detailFlagged?' flagged':''}" onclick="toggleFlagDetail(${p.id},this)" title="${detailFlagged?'Unflag':'Flag'}" style="padding:6px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="${detailFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                </button>
             </div>`;
         }
 
@@ -1690,11 +1911,68 @@ async function printBatchLabels() {
     } catch { showToast('Failed to generate labels', 'error'); }
 }
 
+async function toggleFlag(id, btn) {
+    try {
+        const res = await fetch(`/api/parts/${id}/flag`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw 0;
+        const flagged = !!data.flagged;
+        syncAllFlagButtons(id, flagged);
+    } catch { showToast('Failed to update flag', 'error'); }
+}
+
+async function toggleFlagDetail(id, btn) {
+    try {
+        const res = await fetch(`/api/parts/${id}/flag`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw 0;
+        const flagged = !!data.flagged;
+        if (window._detailPart) window._detailPart.flagged = data.flagged;
+        syncAllFlagButtons(id, flagged);
+    } catch { showToast('Failed to update flag', 'error'); }
+}
+
+function syncAllFlagButtons(partId, flagged) {
+    // Update all flag buttons for this part across table, cards, and detail modal
+    // Table row flag
+    const tableRow = document.querySelector(`.parts-table tr[data-id="${partId}"] .flag-btn`);
+    if (tableRow) {
+        tableRow.classList.toggle('flagged', flagged);
+        tableRow.title = flagged ? 'Unflag' : 'Flag';
+        tableRow.querySelector('svg').setAttribute('fill', flagged ? 'currentColor' : 'none');
+    }
+    // Card flag
+    document.querySelectorAll('.part-card').forEach(card => {
+        const onclick = card.getAttribute('onclick') || '';
+        if (onclick.includes(`openDetail(${partId})`)) {
+            const btn = card.querySelector('.flag-btn');
+            if (btn) {
+                btn.classList.toggle('flagged', flagged);
+                btn.title = flagged ? 'Unflag' : 'Flag';
+                btn.querySelector('svg').setAttribute('fill', flagged ? 'currentColor' : 'none');
+            }
+        }
+    });
+    // Detail modal flag (if open for this part)
+    if (window._detailPart && window._detailPart.id === partId) {
+        const detailBtn = document.querySelector('#detailModalBody .flag-btn');
+        if (detailBtn) {
+            detailBtn.classList.toggle('flagged', flagged);
+            detailBtn.title = flagged ? 'Unflag' : 'Flag';
+            detailBtn.querySelector('svg').setAttribute('fill', flagged ? 'currentColor' : 'none');
+        }
+    }
+}
+
 // ══════════════════════════════════════════
 //  IMPORT WIZARD
 // ══════════════════════════════════════════
 let importState = {};
-function resetImportState() { importState={step:1,tempFile:'',sheets:[],selectedSheet:'',headers:[],sampleRows:[],category:'',mapping:{},headerRow:0,preview:null}; }
+function resetImportState() { importState={step:1,tempFile:'',sheets:[],selectedSheet:'',headers:[],sampleRows:[],category:'',mapping:{},headerRow:0,preview:null,headChartCol:-1,headChartEnabled:false,hcVirtualCount:0}; }
+const HC_AUTOMATCH = {'[HC] Engine #':'engine_name','[HC] Head #':'engine_head','[HC] Litre':'engine_litre','[HC] Vehicle':'fitment_vehicle','[HC] Date Stamp':'engine_date_stamp','[HC] Clean Description':'notes','[HC] Block Part #':'engine_name','[HC] Mileage':'notes'};
+function syncHcSheetState(s) { importState.headChartCol=(s&&typeof s.headchart_col==='number')?s.headchart_col:-1; importState.hcVirtualCount=(s&&s.headchart_keys)?s.headchart_keys.length:0; importState.headChartEnabled=importState.headChartCol>=0; }
+function visibleHeaders() { if(importState.headChartEnabled||importState.hcVirtualCount===0)return importState.headers; return importState.headers.slice(0,importState.headers.length-importState.hcVirtualCount); }
+function visibleSampleRows() { if(importState.headChartEnabled||importState.hcVirtualCount===0)return importState.sampleRows; const n=importState.hcVirtualCount; return importState.sampleRows.map(r=>r.slice(0,r.length-n)); }
 function openImportModal() { resetImportState();openModal('importModal');setImportStep(1); }
 function updateStepIndicators(n) { document.querySelectorAll('#importSteps .import-step').forEach(el=>{const s=parseInt(el.dataset.step);el.classList.toggle('active',s===n);el.classList.toggle('done',s<n);}); }
 function setImportStep(n) { importState.step=n;updateStepIndicators(n);renderImportStep(); }
@@ -1714,34 +1992,37 @@ async function importStepUpload() {
     if(!fileInput.files.length){showToast('Select a file','error');return;} if(!catSelect.value){showToast('Select a category','error');return;}
     importState.category=catSelect.value;const fd=new FormData();fd.append('file',fileInput.files[0]);
     document.getElementById('importUploadStatus').innerHTML=`<div class="loading-spinner" style="padding:0.85rem;"><div class="spinner"></div></div>`;document.getElementById('importNextBtn').disabled=true;
-    try{const r=await fetch('/api/import/upload',{method:'POST',body:fd});const data=await r.json();if(!r.ok){showToast(data.error||'Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.tempFile=data.temp_file;importState.sheets=data.sheets;if(!data.sheets.length){showToast('No data found','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.selectedSheet=data.sheets[0].name;importState.headers=data.sheets[0].headers;importState.sampleRows=data.sheets[0].sample_rows;setImportStep(2);}catch{showToast('Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;}
+    try{const r=await fetch('/api/import/upload',{method:'POST',body:fd});const data=await r.json();if(!r.ok){showToast(data.error||'Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.tempFile=data.temp_file;importState.sheets=data.sheets;if(!data.sheets.length){showToast('No data found','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;return;}importState.selectedSheet=data.sheets[0].name;importState.headers=data.sheets[0].headers;importState.sampleRows=data.sheets[0].sample_rows;syncHcSheetState(data.sheets[0]);setImportStep(2);}catch{showToast('Upload failed','error');document.getElementById('importUploadStatus').innerHTML='';document.getElementById('importNextBtn').disabled=false;}
 }
 function renderMappingStep() {
     const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),cat=importState.category,catLabel=getCatLabel(cat);
     let sheetHtml='';if(importState.sheets.length>1){sheetHtml=`<div style="margin-bottom:0.85rem;"><div class="form-group"><label class="form-label">Sheet</label><select class="form-select" onchange="onSheetChange(this.value)">`;for(const s of importState.sheets)sheetHtml+=`<option value="${esc(s.name)}" ${s.name===importState.selectedSheet?'selected':''}>${esc(s.name)}</option>`;sheetHtml+=`</select></div></div>`;}
-    let headerRowHtml=`<div class="form-group" style="margin-bottom:0.85rem;"><label class="form-label">Header Row</label><select class="form-select" id="importHeaderRow" onchange="onHeaderRowChange(parseInt(this.value))" style="max-width:200px;">`;const allR=[importState.headers,...importState.sampleRows];for(let i=0;i<Math.min(allR.length,10);i++){const pv=allR[i].slice(0,3).filter(c=>c).join(', ');headerRowHtml+=`<option value="${i}" ${i===importState.headerRow?'selected':''}>Row ${i+1}: ${esc(pv.substring(0,40))}${pv.length>40?'…':''}</option>`;}headerRowHtml+=`</select></div>`;
+    let hcHtml='';if(importState.headChartCol>=0){hcHtml=`<div style="margin-bottom:0.85rem;padding:0.6rem 0.8rem;border:1px solid var(--border);border-radius:6px;background:var(--accent-dim,rgba(74,142,255,0.08));"><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem;"><input type="checkbox" ${importState.headChartEnabled?'checked':''} onchange="toggleHeadChart(this.checked)"><span><strong>Parse engine details from description HTML</strong> — detected <code>headChart</code> in column <code>${esc(importState.headers[importState.headChartCol]||'Description')}</code>. Adds <code>[HC]</code> columns (Engine #, Head #, Litre, Vehicle, Date Stamp, Mileage, Clean Description) you can map below.</span></label></div>`;}
+    const vHeaders=visibleHeaders(),vSamples=visibleSampleRows();
+    let headerRowHtml=`<div class="form-group" style="margin-bottom:0.85rem;"><label class="form-label">Header Row</label><select class="form-select" id="importHeaderRow" onchange="onHeaderRowChange(parseInt(this.value))" style="max-width:200px;">`;const allR=[vHeaders,...vSamples];for(let i=0;i<Math.min(allR.length,10);i++){const pv=allR[i].slice(0,3).filter(c=>c).join(', ');headerRowHtml+=`<option value="${i}" ${i===importState.headerRow?'selected':''}>Row ${i+1}: ${esc(pv.substring(0,40))}${pv.length>40?'…':''}</option>`;}headerRowHtml+=`</select></div>`;
     const sharedKeys = new Set(['sku','location','fitment_vehicle','sold','sold_date','notes']);
     const catFields = getCatFields(cat);
     const fields = catFields.map(f => {
         const isShared = sharedKeys.has(f.key);
         return { ...f, key: isShared ? f.key : `custom_${f.key}` };
     });
-    const headers=importState.headers;let colOpts=`<option value="-1">— Skip —</option>`;headers.forEach((h,i)=>{colOpts+=`<option value="${i}">${esc(h||`Column ${i+1}`)}</option>`;});
+    const headers=vHeaders;let colOpts=`<option value="-1">— Skip —</option>`;headers.forEach((h,i)=>{colOpts+=`<option value="${i}">${esc(h||`Column ${i+1}`)}</option>`;});
     let mapHtml=`<div class="import-mapping-grid"><div class="map-header">${esc(catLabel)} Field</div><div class="map-header"></div><div class="map-header">Excel Column</div>`;
     for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${f.label}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:0.65rem;color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${f.key}" onchange="importState.mapping['${f.key}']=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
     const nf=fields.find(f=>f.key==='notes');if(nf){const nm=importState.mapping['notes']!==undefined?importState.mapping['notes']:autoMatchColumn(nf,headers);importState.mapping['notes']=nm;mapHtml+=`<div class="map-field-label">Notes</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="notes" onchange="importState.mapping['notes']=parseInt(this.value)">${colOpts.replace(`value="${nm}"`,'value="'+nm+'" selected')}</select>`;}
     mapHtml+=`</div>`;
-    let sampleHtml='';if(importState.sampleRows.length){sampleHtml=`<div style="margin-top:1rem;"><span class="form-label">Sample Data</span><div class="preview-table-wrap" style="margin-top:0.3rem;max-height:160px;"><table class="preview-table"><thead><tr>`;headers.forEach(h=>{sampleHtml+=`<th>${esc(h||'—')}</th>`;});sampleHtml+=`</tr></thead><tbody>`;importState.sampleRows.slice(0,5).forEach(row=>{sampleHtml+=`<tr>`;row.forEach(c=>{sampleHtml+=`<td>${esc(c)}</td>`;});sampleHtml+=`</tr>`;});sampleHtml+=`</tbody></table></div></div>`;}
-    content.innerHTML=sheetHtml+headerRowHtml+mapHtml+sampleHtml;
+    let sampleHtml='';if(vSamples.length){sampleHtml=`<div style="margin-top:1rem;"><span class="form-label">Sample Data</span><div class="preview-table-wrap" style="margin-top:0.3rem;max-height:160px;"><table class="preview-table"><thead><tr>`;headers.forEach(h=>{sampleHtml+=`<th>${esc(h||'—')}</th>`;});sampleHtml+=`</tr></thead><tbody>`;vSamples.slice(0,5).forEach(row=>{sampleHtml+=`<tr>`;row.slice(0,headers.length).forEach(c=>{sampleHtml+=`<td>${esc((c||'').toString().slice(0,140))}</td>`;});sampleHtml+=`</tr>`;});sampleHtml+=`</tbody></table></div></div>`;}
+    content.innerHTML=sheetHtml+hcHtml+headerRowHtml+mapHtml+sampleHtml;
     footer.innerHTML=`<button class="btn btn-ghost" onclick="setImportStep(1)">← Back</button><button class="btn btn-primary" onclick="setImportStep(3)">Dry Run Preview</button>`;
 }
-function autoMatchColumn(field,headers) { const label=field.label.toLowerCase(),key=field.key.toLowerCase().replace(/^(head_|engine_|trans_)/,'');for(let i=0;i<headers.length;i++){const h=headers[i].toLowerCase().trim();if(h===label||h===key||h===field.key)return i;if(label.includes(h)&&h.length>2)return i;if(h.includes(label)&&label.length>2)return i;if(h.includes(key)&&key.length>2)return i;}return -1; }
-function onSheetChange(name) { const s=importState.sheets.find(s=>s.name===name);if(s){importState.selectedSheet=name;importState.headers=s.headers;importState.sampleRows=s.sample_rows;importState.headerRow=0;importState.mapping={};renderMappingStep();} }
-function onHeaderRowChange(idx) { const s=importState.sheets.find(s=>s.name===importState.selectedSheet);if(!s)return;const allR=[s.headers,...s.sample_rows];importState.headerRow=idx;importState.headers=allR[idx]||[];importState.sampleRows=allR.slice(idx+1);importState.mapping={};renderMappingStep(); }
+function autoMatchColumn(field,headers) { const dbKey=field.key.replace(/^custom_/,''); for(let i=0;i<headers.length;i++){const h=headers[i];if(h&&HC_AUTOMATCH[h]===dbKey)return i;} const label=field.label.toLowerCase(),key=field.key.toLowerCase().replace(/^(head_|engine_|trans_|custom_)/,'');for(let i=0;i<headers.length;i++){const h=(headers[i]||'').toLowerCase().trim();if(h.startsWith('[hc]'))continue;if(h===label||h===key||h===field.key)return i;if(label.includes(h)&&h.length>2)return i;if(h.includes(label)&&label.length>2)return i;if(h.includes(key)&&key.length>2)return i;}return -1; }
+function onSheetChange(name) { const s=importState.sheets.find(s=>s.name===name);if(s){importState.selectedSheet=name;importState.headers=s.headers;importState.sampleRows=s.sample_rows;importState.headerRow=0;importState.mapping={};syncHcSheetState(s);renderMappingStep();} }
+function toggleHeadChart(on) { importState.headChartEnabled=!!on; importState.mapping={}; renderMappingStep(); }
+function onHeaderRowChange(idx) { const s=importState.sheets.find(s=>s.name===importState.selectedSheet);if(!s)return;const allR=[s.headers,...s.sample_rows];importState.headerRow=idx;importState.headers=allR[idx]||[];importState.sampleRows=allR.slice(idx+1);importState.mapping={};syncHcSheetState(s);renderMappingStep(); }
 async function runDryRun() {
     document.querySelectorAll('.map-select').forEach(sel=>{importState.mapping[sel.dataset.field]=parseInt(sel.value);});
     const mapped=Object.entries(importState.mapping).filter(([k,v])=>v>=0);if(!mapped.length){showToast('Map at least one field','error');setImportStep(2);return;}
-    try{const r=await fetch('/api/import/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow})});const data=await r.json();if(!r.ok){showToast(data.error||'Preview failed','error');setImportStep(2);return;}importState.preview=data;renderPreview(data);}catch{showToast('Preview failed','error');setImportStep(2);}
+    try{const r=await fetch('/api/import/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow,headchart_col:importState.headChartEnabled?importState.headChartCol:-1})});const data=await r.json();if(!r.ok){showToast(data.error||'Preview failed','error');setImportStep(2);return;}importState.preview=data;renderPreview(data);}catch{showToast('Preview failed','error');setImportStep(2);}
 }
 function renderPreview(data) {
     const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),catLabel=getCatLabel(importState.category);
@@ -1758,10 +2039,63 @@ function renderPreview(data) {
 async function executeImport() {
     const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter');
     content.innerHTML=`<div style="text-align:center;padding:1.5rem;"><div class="spinner" style="margin:0 auto 0.85rem;"></div><div style="color:var(--text-secondary);">Importing…</div></div>`;footer.innerHTML='';
-    try{const r=await fetch('/api/import/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow})});const data=await r.json();if(!r.ok){showToast(data.error||'Import failed','error');setImportStep(3);return;}setImportStep(4);
+    try{const r=await fetch('/api/import/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow,headchart_col:importState.headChartEnabled?importState.headChartCol:-1})});const data=await r.json();if(!r.ok){showToast(data.error||'Import failed','error');setImportStep(3);return;}setImportStep(4);
     let errH='';if(data.errors&&data.errors.length)errH=`<div class="import-warnings" style="text-align:left;margin-top:0.85rem;"><strong>Some rows had issues:</strong>${data.errors.map(e=>`<div>${esc(e)}</div>`).join('')}</div>`;
     content.innerHTML=`<div class="import-result"><div class="import-result-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--yes)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div><h3>Import Complete</h3><p>${data.inserted} record${data.inserted!==1?'s':''} imported</p>${errH}</div>`;
     footer.innerHTML=`<button class="btn btn-primary" onclick="closeModal('importModal');loadParts();loadStats();">Done</button>`;}catch{showToast('Import failed','error');setImportStep(3);}
+}
+
+// ══════════════════════════════════════════
+//  ICON LIBRARY
+// ══════════════════════════════════════════
+const ICON_LIB = {
+    engine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="1"/><path d="M9 10V6h6v4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="9" y1="4" x2="15" y2="4"/><line x1="3" y1="14" x2="5" y2="14"/><line x1="19" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="5" y2="18"/><line x1="19" y1="18" x2="21" y2="18"/></svg>',
+    head: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
+    transmission: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/><path d="M6 12h6V6"/><path d="M12 12h0v6"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+    truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+    zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    disc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>',
+    cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>',
+    battery: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"/><line x1="23" y1="13" x2="23" y2="11"/></svg>',
+    gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 6v6l4 2"/></svg>',
+    filter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+    droplet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+    thermometer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>',
+    square: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+    clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+    archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
+    package: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+};
+
+function getIconSvg(key) {
+    return ICON_LIB[key] || ICON_LIB['tag'];
+}
+
+function renderIconPicker(selectedKey) {
+    const container = document.getElementById('catIconPicker');
+    if (!container) return;
+    let h = '';
+    for (const [key, svg] of Object.entries(ICON_LIB)) {
+        const sel = key === selectedKey ? ' selected' : '';
+        h += `<div class="icon-pick${sel}" data-icon="${key}" onclick="selectCatIcon('${key}')" title="${key}">${svg}</div>`;
+    }
+    container.innerHTML = h;
+}
+
+function selectCatIcon(key) {
+    document.getElementById('catFormIcon').value = key;
+    document.querySelectorAll('#catIconPicker .icon-pick').forEach(el => {
+        el.classList.toggle('selected', el.dataset.icon === key);
+    });
 }
 
 // ══════════════════════════════════════════
@@ -1780,6 +2114,7 @@ async function loadCategoryManager() {
         for (const cat of cats) {
             h += `<div class="cat-manager-item">
                 <div class="cat-manager-swatch" style="background:${cat.color};"></div>
+                <span style="display:inline-flex;width:18px;height:18px;color:var(--text-secondary);">${getIconSvg(cat.icon || 'tag')}</span>
                 <div class="cat-manager-name">${esc(cat.name)}</div>
                 <span class="cat-manager-count">${(cat.fields || []).length} fields</span>
                 <div class="table-actions">
@@ -1813,10 +2148,13 @@ function openCategoryForm(cat) {
     document.getElementById('catFormSlug').value = cat ? cat.slug : '';
     document.getElementById('catFormName').value = cat ? cat.name : '';
     document.getElementById('catFormColor').value = cat ? cat.color : '#4a8eff';
+    document.getElementById('catFormIcon').value = cat ? (cat.icon || 'tag') : 'tag';
     document.getElementById('catFormTitle').textContent = isEdit ? 'Edit Category' : 'Add Category';
     document.getElementById('catFormSaveBtn').textContent = isEdit ? 'Save Changes' : 'Create Category';
     document.getElementById('catFormName').disabled = false;
     document.getElementById('catFormSaveBtn').style.display = '';
+
+    renderIconPicker(cat ? (cat.icon || 'tag') : 'tag');
 
     const list = document.getElementById('catFieldsList');
     list.innerHTML = '';
@@ -1945,6 +2283,7 @@ async function saveCategory() {
     const slug = document.getElementById('catFormSlug').value;
     const name = document.getElementById('catFormName').value.trim();
     const color = document.getElementById('catFormColor').value;
+    const icon = document.getElementById('catFormIcon').value || 'tag';
 
     if (!name) { showToast('Name is required', 'error'); return; }
 
@@ -1962,7 +2301,7 @@ async function saveCategory() {
         fields.push({ field_label: label, field_key: key, field_type: type, radio_options: radioOpts, show_on_card: showCard ? 1 : 0, show_in_table: showTable ? 1 : 0 });
     }
 
-    const body = { name, color, fields };
+    const body = { name, color, icon, fields };
     const url = slug ? `/api/categories/${slug}` : '/api/categories';
     const method = slug ? 'PUT' : 'POST';
 
