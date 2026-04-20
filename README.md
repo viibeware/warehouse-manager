@@ -221,6 +221,9 @@ warehouse-manager/
 
 ## Changelog
 
+### v0.1.38
+- **Table column order** — SKU column now appears first, followed by WM # and the rest of the category fields
+
 ### v0.1.37
 - **Flag toggle re-sorts when sorting by Flagged** — Clicking a flag in the list while sorted by Flagged now immediately re-orders the row into the correct group instead of waiting for a page refresh. Scroll position is preserved.
 

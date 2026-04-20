@@ -1660,7 +1660,7 @@ function renderTable(parts) {
     let h = `<div class="parts-table-wrap"><table class="parts-table"><thead><tr>`;
     if (canEdit) h += `<th class="cb-cell"><input type="checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>`;
     h += `<th style="width:28px;" title="Flag"></th>`;
-    h += `<th>WM #</th><th>${cols[0].label}</th>`;
+    h += `<th>${cols[0].label}</th><th>WM #</th>`;
     if (showType) h += `<th>Type</th>`;
     for (let i=1;i<cols.length;i++) h += `<th>${cols[i].label}</th>`;
     h += `</tr></thead><tbody>`;
@@ -1670,8 +1670,8 @@ function renderTable(parts) {
         h += `<tr class="${isSold?'row-sold':''}" data-id="${p.id}">`;
         if (canEdit) h += `<td class="cb-cell"><input type="checkbox" value="${p.id}" onchange="toggleRowSelect(this,${p.id})" onclick="event.stopPropagation()"></td>`;
         h += `<td style="text-align:center;"><button class="flag-btn${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button></td>`;
-        h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
         h += `<td onclick="openDetail(${p.id})">${esc(p[cols[0].key]||'')}</td>`;
+        h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
         if (showType) h += `<td onclick="openDetail(${p.id})"><span class="table-badge" style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};">${esc(getCatLabel(p.category))}</span></td>`;
         for (let i=1;i<cols.length;i++) {
             const c=cols[i]; let cell='';
