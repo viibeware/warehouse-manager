@@ -152,6 +152,7 @@ body {
 /* ══════════════════════════════════════════ */
 .main-wrapper {
     flex: 1; margin-left: var(--sidebar-w); min-height: 100vh;
+    max-width: calc(100% - var(--sidebar-w)); min-width: 0;
     display: flex; flex-direction: column;
 }
 .toolbar {
@@ -805,7 +806,7 @@ body {
 @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); }
     .sidebar.open { transform: translateX(0); }
-    .main-wrapper { margin-left: 0; }
+    .main-wrapper { margin-left: 0; max-width: 100%; }
     .sidebar-toggle {
         display: flex; align-items: center; justify-content: center;
         width: 36px; height: 36px; border: 1px solid var(--border); background: var(--bg-input);
@@ -1796,7 +1797,8 @@ async function savePart() {
     const imgInput=document.getElementById('formImages');
     if(imgInput&&imgInput.files.length>0)for(const file of imgInput.files)fd.append('images',file);
     const isEdit=editingPart&&editingPart.id;
-    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');loadParts();loadStats();}catch{showToast('Failed to save part','error');}
+    const savedScroll=isEdit?(window.scrollY||window.pageYOffset||0):0;
+    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');await loadParts();loadStats();if(isEdit)window.scrollTo(0,savedScroll);}catch{showToast('Failed to save part','error');}
 }
 
 // ══════════════════════════════════════════

@@ -221,6 +221,9 @@ warehouse-manager/
 
 ## Changelog
 
+### v0.1.36
+- **Edit preserves scroll position** — Saving a part from the edit modal no longer jumps the list back to the top; the page stays where you were so you don't have to scroll to find the part again
+
 ### v0.1.35
 - **Settings moved to sidebar footer** — Replaced the full-width Settings nav item with a compact gear icon beside the user profile
 - **Bulk delete progress** — Deleting many rows now shows a blocking spinner with live "Deleting X of Y…" progress; requests run 8-at-a-time for faster completion
