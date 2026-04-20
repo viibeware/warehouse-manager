@@ -221,6 +221,9 @@ warehouse-manager/
 
 ## Changelog
 
+### v0.1.40
+- **Modals only close via the X button** — Clicking the backdrop or pressing Escape no longer dismisses any modal app-wide. Fixes the edit modal closing when text-selection drags end on the backdrop.
+
 ### v0.1.38
 - **Table column order** — SKU column now appears first, followed by WM # and the rest of the category fields
 

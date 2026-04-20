@@ -2360,13 +2360,6 @@ function showToast(msg, type='success') { const c=document.getElementById('toast
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-document.querySelectorAll('.modal-overlay').forEach(o => { o.addEventListener('click', (e) => { if(e.target===o) o.classList.remove('active'); }); });
-document.addEventListener('keydown', (e) => {
-    if(e.key==='Escape') {
-        if (document.getElementById('lightbox').classList.contains('active')) return;
-        document.querySelectorAll('.modal-overlay.active').forEach(m=>m.classList.remove('active'));
-    }
-});
 </script>
 </body>
 </html>
