@@ -1920,6 +1920,11 @@ async function toggleFlag(id, btn) {
         if (!res.ok) throw 0;
         const flagged = !!data.flagged;
         syncAllFlagButtons(id, flagged);
+        if (currentSortBy === 'flagged') {
+            const savedScroll = window.scrollY || window.pageYOffset || 0;
+            await loadParts();
+            window.scrollTo(0, savedScroll);
+        }
     } catch { showToast('Failed to update flag', 'error'); }
 }
 
@@ -1931,6 +1936,11 @@ async function toggleFlagDetail(id, btn) {
         const flagged = !!data.flagged;
         if (window._detailPart) window._detailPart.flagged = data.flagged;
         syncAllFlagButtons(id, flagged);
+        if (currentSortBy === 'flagged') {
+            const savedScroll = window.scrollY || window.pageYOffset || 0;
+            await loadParts();
+            window.scrollTo(0, savedScroll);
+        }
     } catch { showToast('Failed to update flag', 'error'); }
 }
 

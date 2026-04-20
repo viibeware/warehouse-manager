@@ -221,6 +221,9 @@ warehouse-manager/
 
 ## Changelog
 
+### v0.1.37
+- **Flag toggle re-sorts when sorting by Flagged** — Clicking a flag in the list while sorted by Flagged now immediately re-orders the row into the correct group instead of waiting for a page refresh. Scroll position is preserved.
+
 ### v0.1.36
 - **Edit preserves scroll position** — Saving a part from the edit modal no longer jumps the list back to the top; the page stays where you were so you don't have to scroll to find the part again
 
