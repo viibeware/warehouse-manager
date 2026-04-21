@@ -207,6 +207,13 @@ body {
 .nav-item .nav-count {
     margin-left: auto; font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted);
 }
+.nav-item .nav-flag-badge {
+    min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+    background: var(--danger); color: #fff;
+    border-radius: 999px; font-family: var(--mono); font-size: 0.66rem;
+    font-weight: 700; line-height: 18px; text-align: center;
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 40%, transparent);
+}
 .sidebar-footer {
     padding: 0.5rem; border-top: 1px solid var(--border);
 }
@@ -832,7 +839,7 @@ body {
 .wo-card {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 0.85rem 1rem; cursor: pointer; transition: all var(--transition);
-    display: grid; grid-template-columns: 1fr auto; gap: 0.65rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
 }
 .wo-card:hover { background: var(--bg-card-hover); border-color: var(--accent); }
 /* Admin-configurable priority tint via CSS custom property --prio-color; theme-aware pale blend */
@@ -916,7 +923,33 @@ body {
     background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border);
 }
 .wo-priority-badge.urgent, .wo-priority-badge.next-day-air { background: rgba(245,158,11,0.15); color: var(--engine); border-color: transparent; }
-.wo-card-actions { display: flex; gap: 0.35rem; align-items: flex-start; }
+.wo-card-actions {
+    display: flex; gap: 0.35rem; flex-wrap: wrap;
+    justify-content: flex-start;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+.wo-card-actions .wo-action-mark-delivered { margin-left: auto; }
+
+/* Right-aligned cluster on the card header: status, priority, chevron */
+.wo-card-top-right {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 0.45rem;
+}
+
+/* Collapsible delivered-pending card */
+.wo-collapse-btn {
+    width: 24px; height: 24px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); border-radius: 4px; cursor: pointer;
+    transition: all var(--transition);
+}
+.wo-collapse-btn:hover { color: var(--accent); border-color: var(--accent); }
+.wo-collapse-btn .chev { transition: transform 0.2s ease; }
+.wo-card.wo-collapsed .wo-collapse-btn .chev { transform: rotate(-90deg); }
+.wo-card.wo-collapsed .wo-card-collapsible { display: none; }
+.wo-card.wo-collapsed .wo-meta-row { font-size: 0.72rem; }
 .wo-flag-note {
     margin-top: 0.5rem; padding: 0.5rem 0.65rem; background: rgba(239,68,68,0.08);
     border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.78rem; color: var(--text-secondary);
@@ -944,12 +977,13 @@ body {
 }
 .wo-parts-head, .wo-part-line {
     display: grid;
-    grid-template-columns: 58px 48px 1fr 22px;
+    grid-template-columns: 58px 48px 1fr auto;
     gap: 0.6rem; align-items: center;
     padding: 3px 6px;
     font-size: 0.78rem;
     border-radius: 4px;
 }
+.wo-part-acts { display: inline-flex; gap: 4px; align-items: center; }
 .wo-part-check { margin: 0 auto; }
 .wo-parts-head .hd:first-child { padding-right: 0; }
 .wo-parts-head {
@@ -990,7 +1024,7 @@ body {
     text-align: right; font-weight: 600;
 }
 .wo-part-desc { color: var(--text-primary); word-break: break-word; }
-.wo-part-flag-btn {
+.wo-part-flag-btn, .wo-part-photo-btn {
     width: 22px; height: 22px; border: 1px solid var(--border); background: transparent;
     color: var(--text-muted); border-radius: 4px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; padding: 0;
@@ -999,10 +1033,76 @@ body {
 .wo-part-flag-btn:hover { border-color: var(--danger); color: var(--danger); }
 .wo-part-flag-btn.flagged { background: var(--danger); border-color: var(--danger); color: #fff; }
 .wo-part-flag-btn.flagged:hover { background: var(--danger-hover); }
+.wo-part-photo-btn:hover { border-color: var(--accent); color: var(--accent); }
 .wo-part-note {
     grid-column: 3 / 5; font-size: 0.72rem; color: var(--danger);
     font-style: italic; padding-left: 0; margin-top: 2px;
 }
+
+/* Per-part photo blocks (card summary and detail-modal editor) */
+.wo-part-photos-compact {
+    grid-column: 3 / 5;
+    display: flex; gap: 4px; align-items: center;
+    margin-top: 4px; flex-wrap: wrap;
+}
+.wo-part-photo-thumb-sm {
+    width: 28px; height: 28px; object-fit: cover;
+    border-radius: 4px; border: 1px solid var(--border);
+}
+.wo-part-photo-more {
+    font-family: var(--mono); font-size: 0.62rem; color: var(--text-muted);
+    padding: 0 4px;
+}
+.wo-part-photos-full {
+    grid-column: 1 / 5;
+    margin-top: 6px; padding-top: 6px;
+    border-top: 1px dashed var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+}
+.wo-part-photos-grid {
+    display: flex; flex-wrap: wrap; gap: 8px;
+}
+.wo-photo-card {
+    width: 120px; display: flex; flex-direction: column;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; position: relative;
+}
+.wo-photo-thumb {
+    width: 100%; height: 90px; object-fit: cover; cursor: zoom-in;
+    display: block; background: #000;
+}
+.wo-photo-actions {
+    position: absolute; top: 4px; right: 4px;
+    display: flex; gap: 3px;
+}
+.wo-photo-act-btn {
+    width: 22px; height: 22px; padding: 0;
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+    border: none; border-radius: 4px; cursor: pointer;
+    font-size: 0.75rem; line-height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition);
+}
+.wo-photo-act-btn:hover { background: rgba(0, 0, 0, 0.8); }
+.wo-photo-act-btn.danger:hover { background: var(--danger); }
+.wo-photo-comment {
+    padding: 4px 6px; font-size: 0.7rem;
+    color: var(--text-primary); word-break: break-word;
+    line-height: 1.3; max-height: 60px; overflow: auto;
+}
+.wo-photo-meta {
+    padding: 0 6px 4px; font-family: var(--mono); font-size: 0.58rem;
+    color: var(--text-muted);
+}
+.wo-photo-add-btn {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; background: var(--bg-input);
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    color: var(--text-secondary); font-size: 0.75rem; cursor: pointer;
+    transition: all var(--transition);
+}
+.wo-photo-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* WO toolbar (search + sort in header) */
 .wo-toolbar {
@@ -1512,6 +1612,7 @@ body {
         <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             Work Orders <span class="nav-count" id="countWoActive"></span>
+            <span class="nav-flag-badge" id="navWoFlaggedBadge" style="display:none;" title="Flagged work orders"></span>
         </button>
         <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -2130,7 +2231,7 @@ body {
         <div class="modal-body">
             <div class="form-grid" style="grid-template-columns:1fr;">
                 <input type="hidden" id="ufId">
-                <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="ufUsername" autocomplete="off"></div>
+                <div class="form-group"><label class="form-label">Username (email address)</label><input class="form-input" type="text" id="ufUsername" autocomplete="off"></div>
                 <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" type="text" id="ufDisplayName"></div>
                 <div class="form-group"><label class="form-label">Role</label>
                     <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select>
@@ -2346,6 +2447,57 @@ body {
     </div>
 </div>
 
+<!-- ═══ PART PHOTO UPLOAD MODAL ═══ -->
+<div class="modal-overlay" id="woPartPhotoModal" style="z-index:210;">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h2>Add Part Photo</h2>
+            <button class="modal-close" onclick="closeModal('woPartPhotoModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woPartPhotoWid">
+            <input type="hidden" id="woPartPhotoKey">
+            <div class="form-group">
+                <label class="form-label">Photo</label>
+                <input type="file" id="woPartPhotoFile" class="form-input" accept="image/*" multiple>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">
+                    Images will be resized to 2048px and saved as JPEG (quality 80).
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Comment (optional)</label>
+                <textarea class="form-textarea" id="woPartPhotoComment" rows="3" placeholder="Describe what this photo shows…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woPartPhotoModal')">Cancel</button>
+            <button class="btn btn-primary" id="woPartPhotoSaveBtn" onclick="submitWorkOrderPartPhoto()">Upload</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ PART PHOTO COMMENT EDIT MODAL ═══ -->
+<div class="modal-overlay" id="woPhotoEditModal" style="z-index:210;">
+    <div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+            <h2>Edit Photo Comment</h2>
+            <button class="modal-close" onclick="closeModal('woPhotoEditModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woPhotoEditWid">
+            <input type="hidden" id="woPhotoEditId">
+            <div class="form-group">
+                <label class="form-label">Comment</label>
+                <textarea class="form-textarea" id="woPhotoEditComment" rows="4"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woPhotoEditModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitWorkOrderPartPhotoComment()">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ FLAG NOTE MODAL ═══ -->
 <div class="modal-overlay" id="woFlagModal" style="z-index:210;">
     <div class="modal" style="max-width:460px;">
@@ -2363,6 +2515,7 @@ body {
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('woFlagModal')">Cancel</button>
+            <button class="btn btn-ghost" id="woFlagUnflagBtn" style="display:none;color:var(--danger);" onclick="submitPartUnflagFromModal()">Unflag</button>
             <button class="btn btn-primary" id="woFlagSaveBtn" onclick="submitFlagNote()">Save</button>
         </div>
     </div>
@@ -3835,8 +3988,19 @@ async function loadWoCounts() {
         const counts = await (await fetch('/api/work-orders/counts')).json();
         const a = document.getElementById('countWoActive');
         const b = document.getElementById('countWoArchive');
+        const flag = document.getElementById('navWoFlaggedBadge');
         if (a) a.textContent = counts.active || 0;
         if (b) b.textContent = counts.delivered || 0;
+        if (flag) {
+            const f = counts.flagged || 0;
+            if (f > 0) {
+                flag.textContent = String(f);
+                flag.title = `${f} flagged work order${f === 1 ? '' : 's'}`;
+                flag.style.display = '';
+            } else {
+                flag.style.display = 'none';
+            }
+        }
     } catch {}
 }
 
@@ -4141,7 +4305,7 @@ function renderWorkOrderCard(wo) {
     const partsBlock = (wo.parts && wo.parts.length)
         ? `<div class="wo-card-parts" onclick="event.stopPropagation();">
             ${renderPartsHeader()}
-            ${wo.parts.map((p, idx) => renderCardPartLine(wo.id, idx, p, canEdit)).join('')}
+            ${wo.parts.map((p, idx) => renderCardPartLine(wo.id, idx, p, canEdit, 'full')).join('')}
            </div>`
         : '';
     const isArchived = !!wo.archived_at;
@@ -4149,21 +4313,21 @@ function renderWorkOrderCard(wo) {
     const readOnly = isArchived || isDeliveredPending;
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            ${!readOnly ? `<button class="table-btn" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
-            ${!readOnly ? `<button class="table-btn" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
-            ${!readOnly ? `<button class="table-btn" onclick="openFlagModal(${wo.id}, '${wo.status==='flagged'?'update':'flag'}')">${wo.status==='flagged'?'Update Note':'Flag'}</button>` : ''}
-            ${wo.status === 'flagged' ? `<button class="table-btn" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
-            ${!readOnly ? `<button class="table-btn btn-mark-delivered" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : ''}
-            ${isDeliveredPending ? `<button class="table-btn" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
-            ${(isArchived || isDeliveredPending) ? `<button class="table-btn" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
-            ${!readOnly ? `<button class="table-btn" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
-            <button class="table-btn" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-            <button class="table-btn" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>
-            ${canViewAudit ? `<button class="table-btn" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+            <button class="table-btn" title="Open the full work-order details" onclick="openWorkOrderDetail(${wo.id})">View</button>
+            ${!readOnly ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
+            ${isDeliveredPending ? `<button class="table-btn" title="Archive immediately (skip the 23:00 sweep)" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
+            ${(isArchived || isDeliveredPending) ? `<button class="table-btn" title="Reopen this work order back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
+            <button class="table-btn" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+            <button class="table-btn" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>
+            ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+            ${!readOnly ? `<button class="table-btn btn-mark-delivered wo-action-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : ''}
           </div>`
-        : (canViewAudit ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            <button class="table-btn" onclick="openAuditModal(${wo.id})">Audit Trail</button>
-          </div>` : '');
+        : `<div class="wo-card-actions" onclick="event.stopPropagation();">
+            <button class="table-btn" title="Open the full work-order details" onclick="openWorkOrderDetail(${wo.id})">View</button>
+            ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+          </div>`;
     // Only tint the card in the active list; archive stays neutral
     // Tint: priority color for active (not archive); delivered-pending overrides to pale green
     const isDeliveredPendingCard = wo.status === 'delivered' && !wo.archived_at;
@@ -4171,16 +4335,27 @@ function renderWorkOrderCard(wo) {
     let cardCls = 'wo-card';
     if (prioColor) cardCls += ' has-priority-color';
     if (isDeliveredPendingCard) cardCls += ' delivered-pending';
+    // Delivered (pending or archived) cards start collapsed; requested/flagged
+    // cards start expanded. Every card shows a chevron so users can toggle.
+    const startCollapsed = wo.status === 'delivered';
+    if (startCollapsed) cardCls += ' wo-collapsed';
     const cardStyle = prioColor ? `style="--prio-color:${prioColor};"` : '';
+    const collapseToggle = `<button class="wo-collapse-btn" title="Expand / collapse"
+                   onclick="toggleWoCardCollapse(${wo.id}, event)">
+             <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+           </button>`;
     return `
     <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle} onclick="openWorkOrderDetail(${wo.id})">
         <div class="wo-card-main">
             <div class="wo-card-top">
                 <span class="wo-number">${esc(wo.wo_number)}</span>
-                <span class="wo-status-badge ${wo.status}">${wo.status}</span>
-                ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
                 ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">#${esc(wo.quote_invoice)}</span>` : ''}
+                <span class="wo-card-top-right">
+                    <span class="wo-status-badge ${wo.status}">${wo.status}</span>
+                    ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
+                    ${collapseToggle}
+                </span>
             </div>
             <div class="wo-meta-row">
                 <span><strong>${esc(wo.vehicle || '—')}</strong></span>
@@ -4189,12 +4364,21 @@ function renderWorkOrderCard(wo) {
                 ${wo.sales_person ? `<span>👤 ${esc(wo.sales_person)}</span>` : ''}
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
-            ${flagBlock}
-            ${notesBlock}
-            ${partsBlock}
+            <div class="wo-card-collapsible">
+                ${flagBlock}
+                ${notesBlock}
+                ${partsBlock}
+            </div>
         </div>
         ${actions}
     </div>`;
+}
+
+function toggleWoCardCollapse(wid, event) {
+    if (event) event.stopPropagation();
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (!card) return;
+    card.classList.toggle('wo-collapsed');
 }
 
 function renderPartsHeader() {
@@ -4212,18 +4396,34 @@ function _formatPulledAt(ts) {
     return ts.replace('T', ' ').split('.')[0].substring(0, 16);
 }
 
-function renderCardPartLine(wid, idx, p, canEdit) {
+function renderCardPartLine(wid, idx, p, canEdit, photoMode) {
     const pulled = !!p.pulled, flagged = !!p.flagged;
     const cbAttrs = canEdit ? '' : 'disabled';
     const flagBtn = canEdit
-        ? `<button class="wo-part-flag-btn ${flagged ? 'flagged' : ''}" onclick="onPartFlagClick(${wid}, ${idx}, ${flagged}); event.stopPropagation();" title="${flagged ? 'Unflag part' : 'Flag part'}">
+        ? `<button class="wo-part-flag-btn ${flagged ? 'flagged' : ''}" onclick="onPartFlagClick(${wid}, ${idx}, ${flagged}, ${JSON.stringify(p.flag_note || '').replace(/"/g, '&quot;')}); event.stopPropagation();" title="${flagged ? 'Edit flag note / unflag' : 'Flag part'}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="${flagged ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
            </button>`
+        : '';
+    const photoBtn = canEdit
+        ? `<button class="wo-part-photo-btn" onclick="openWorkOrderPartPhotoUpload(${wid}, '${esc(p.key || '')}'); event.stopPropagation();" title="Add photo">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+           </button>`
+        : '';
+    const actBtns = (flagBtn || photoBtn)
+        ? `<span class="wo-part-acts">${flagBtn}${photoBtn}</span>`
         : '<span></span>';
     const noteLine = (flagged && p.flag_note)
         ? `<div class="wo-part-note">⚑ ${esc(p.flag_note)}</div>` : '';
     const pulledTs = (pulled && p.pulled_at)
         ? `<div class="wo-part-pulled-ts">Pulled ${esc(_formatPulledAt(p.pulled_at))}</div>` : '';
+    // Photo UI: 'full' = detail modal (thumbnails + edit + delete), 'compact' = card summary, '' = hidden
+    const photos = Array.isArray(p.photos) ? p.photos : [];
+    let photoBlock = '';
+    if (photoMode === 'full') {
+        photoBlock = renderPartPhotosFull(wid, p.key, photos, canEdit);
+    } else if (photoMode === 'compact' && photos.length) {
+        photoBlock = renderPartPhotosCompact(photos);
+    }
     return `<div class="wo-part-line ${pulled ? 'pulled' : ''} ${flagged ? 'flagged' : ''}">
         <input type="checkbox" class="wo-part-check" ${pulled ? 'checked' : ''} ${cbAttrs}
                onchange="togglePartPulled(${wid}, ${idx}, this.checked, this.closest('.wo-part-line')); event.stopPropagation();"
@@ -4234,8 +4434,55 @@ function renderCardPartLine(wid, idx, p, canEdit) {
             <div>${esc(p.description || '')}</div>
             ${pulledTs}
         </span>
-        ${flagBtn}
+        ${actBtns}
         ${noteLine}
+        ${photoBlock}
+    </div>`;
+}
+
+function renderPartPhotosCompact(photos) {
+    // Shown on card summary — thumbnails only, click opens lightbox in detail view
+    const thumbs = photos.slice(0, 4).map(ph =>
+        `<img src="/uploads/${esc(ph.filename)}" alt="" class="wo-part-photo-thumb-sm" loading="lazy">`
+    ).join('');
+    const extra = photos.length > 4 ? `<span class="wo-part-photo-more">+${photos.length - 4}</span>` : '';
+    return `<div class="wo-part-photos-compact">${thumbs}${extra}</div>`;
+}
+
+function renderPartPhotosFull(wid, partKey, photos, canEdit) {
+    const items = photos.map((ph, i) => {
+        const when = (ph.created_at || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        const author = ph.uploaded_by || '';
+        const commentHtml = ph.comment
+            ? `<div class="wo-photo-comment">${esc(ph.comment)}</div>`
+            : '';
+        const metaParts = [];
+        if (author) metaParts.push(esc(author));
+        if (when) metaParts.push(esc(when));
+        const meta = metaParts.length ? `<div class="wo-photo-meta">${metaParts.join(' · ')}</div>` : '';
+        const actions = canEdit
+            ? `<div class="wo-photo-actions">
+                 <button class="wo-photo-act-btn" title="Edit comment"
+                         onclick="editWorkOrderPartPhotoComment(${wid}, ${ph.id}, ${JSON.stringify(ph.comment || '').replace(/"/g, '&quot;')}); event.stopPropagation();">✎</button>
+                 <button class="wo-photo-act-btn danger" title="Delete photo"
+                         onclick="deleteWorkOrderPartPhoto(${wid}, ${ph.id}); event.stopPropagation();">✕</button>
+               </div>`
+            : '';
+        return `<div class="wo-photo-card">
+            <img src="/uploads/${esc(ph.filename)}" alt=""
+                 class="wo-photo-thumb" loading="lazy"
+                 onclick="openWorkOrderPartLightbox('${esc(partKey)}', ${i}); event.stopPropagation();">
+            ${actions}
+            ${commentHtml}
+            ${meta}
+        </div>`;
+    }).join('');
+
+    // Store image list on a data attribute so the lightbox can find it by partKey
+    const dataImgs = photos.map(ph => `/uploads/${ph.filename}`);
+    if (!items) return '';
+    return `<div class="wo-part-photos-full" data-part-key="${esc(partKey)}" data-photos='${esc(JSON.stringify(dataImgs))}'>
+        <div class="wo-part-photos-grid">${items}</div>
     </div>`;
 }
 
@@ -4266,13 +4513,21 @@ async function togglePartPulled(wid, idx, pulled, rowEl) {
     } catch { showToast('Connection error', 'error'); }
 }
 
-function onPartFlagClick(wid, idx, isCurrentlyFlagged) {
+function onPartFlagClick(wid, idx, isCurrentlyFlagged, currentNote) {
     if (isCurrentlyFlagged) {
-        if (!confirm('Unflag this part?')) return;
-        submitPartFlag(wid, idx, false, '');
+        openFlagModal(`part:${wid}:${idx}`, 'part-edit', currentNote || '');
     } else {
         openFlagModal(`part:${wid}:${idx}`, 'flag');
     }
+}
+
+async function submitPartUnflagFromModal() {
+    const id = document.getElementById('woFlagId').value;
+    if (!id.startsWith('part:')) return;
+    const [, widStr, idxStr] = id.split(':');
+    if (!confirm('Unflag this part?')) return;
+    closeModal('woFlagModal');
+    await submitPartFlag(parseInt(widStr), parseInt(idxStr), false, '');
 }
 
 async function submitPartFlag(wid, idx, flagged, note) {
@@ -4292,7 +4547,104 @@ async function submitPartFlag(wid, idx, flagged, note) {
         if (document.getElementById('woDetailModal').classList.contains('active')) {
             renderWorkOrderDetail(data.work_order);
         }
+        loadWoCounts();
     } catch { showToast('Connection error', 'error'); }
+}
+
+// ─── PART PHOTOS ───────────────────────────────────────────────────────────
+function openWorkOrderPartPhotoUpload(wid, partKey) {
+    document.getElementById('woPartPhotoWid').value = wid;
+    document.getElementById('woPartPhotoKey').value = partKey;
+    document.getElementById('woPartPhotoFile').value = '';
+    document.getElementById('woPartPhotoComment').value = '';
+    openModal('woPartPhotoModal');
+    setTimeout(() => { const el = document.getElementById('woPartPhotoFile'); if (el) el.focus(); }, 50);
+}
+
+async function submitWorkOrderPartPhoto() {
+    const wid = document.getElementById('woPartPhotoWid').value;
+    const partKey = document.getElementById('woPartPhotoKey').value;
+    const fileEl = document.getElementById('woPartPhotoFile');
+    const comment = document.getElementById('woPartPhotoComment').value.trim();
+    const btn = document.getElementById('woPartPhotoSaveBtn');
+    if (!fileEl.files || !fileEl.files.length) {
+        showToast('Select a photo first', 'error'); return;
+    }
+    const fd = new FormData();
+    for (const f of fileEl.files) fd.append('photo', f);
+    if (comment) fd.append('comment', comment);
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/parts/${encodeURIComponent(partKey)}/photos`, {
+            method: 'POST', body: fd
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Upload failed', 'error'); return; }
+        closeModal('woPartPhotoModal');
+        let msg = 'Photo uploaded';
+        if (data.email_sent) msg += ' — email sent';
+        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        showToast(msg, 'success');
+        const wo = data.work_order || data;
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(wo);
+        }
+        if (currentWoView) await loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Upload'; }
+}
+
+function editWorkOrderPartPhotoComment(wid, photoId, currentComment) {
+    document.getElementById('woPhotoEditWid').value = wid;
+    document.getElementById('woPhotoEditId').value = photoId;
+    document.getElementById('woPhotoEditComment').value = currentComment || '';
+    openModal('woPhotoEditModal');
+    setTimeout(() => { const el = document.getElementById('woPhotoEditComment'); if (el) { el.focus(); el.select(); } }, 50);
+}
+
+async function submitWorkOrderPartPhotoComment() {
+    const wid = document.getElementById('woPhotoEditWid').value;
+    const photoId = document.getElementById('woPhotoEditId').value;
+    const comment = document.getElementById('woPhotoEditComment').value.trim();
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/photos/${photoId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woPhotoEditModal');
+        showToast('Comment updated', 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function deleteWorkOrderPartPhoto(wid, photoId) {
+    if (!confirm('Delete this photo?')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/photos/${photoId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast('Photo deleted', 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+        if (currentWoView) await loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function openWorkOrderPartLightbox(partKey, startIdx) {
+    const host = document.querySelector(`.wo-part-photos-full[data-part-key="${partKey}"]`);
+    if (!host) return;
+    try {
+        const arr = JSON.parse(host.getAttribute('data-photos') || '[]');
+        if (!arr.length) return;
+        lightboxImages = arr;
+        openLightbox(Math.max(0, Math.min(startIdx || 0, arr.length - 1)));
+    } catch {}
 }
 
 // Helper used by the inline Edit button on a card (needs to not open the detail first)
@@ -4395,11 +4747,11 @@ function renderPartsRows(parts) {
         list.innerHTML = '<div class="wo-parts-empty">No parts added yet. Click “+ Add Part” to request a part.</div>';
         return;
     }
-    list.innerHTML = parts.map(p => partRowHtml(p.quantity || 1, p.description || '')).join('');
+    list.innerHTML = parts.map(p => partRowHtml(p.quantity || 1, p.description || '', p.key || '')).join('');
 }
 
-function partRowHtml(qty, desc) {
-    return `<div class="wo-part-row">
+function partRowHtml(qty, desc, key) {
+    return `<div class="wo-part-row" data-part-key="${esc(key || '')}">
         <input class="form-input wo-part-qty" type="number" min="1" value="${esc(String(qty))}" placeholder="Qty">
         <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part description (SKU, WM#, or description)">
         <button type="button" class="wo-list-remove" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
@@ -4411,7 +4763,7 @@ function addPartRow() {
     // Clear the empty placeholder if present
     const empty = list.querySelector('.wo-parts-empty');
     if (empty) empty.remove();
-    list.insertAdjacentHTML('beforeend', partRowHtml(1, ''));
+    list.insertAdjacentHTML('beforeend', partRowHtml(1, '', ''));
     // Focus the description input of the new row
     const rows = list.querySelectorAll('.wo-part-row');
     const last = rows[rows.length - 1];
@@ -4431,7 +4783,12 @@ function collectPartsRows() {
     for (const r of rows) {
         const q = parseInt(r.querySelector('.wo-part-qty').value || '1');
         const d = r.querySelector('.wo-part-desc').value.trim();
-        if (d) out.push({ quantity: q > 0 ? q : 1, description: d });
+        const key = r.getAttribute('data-part-key') || '';
+        if (d) {
+            const item = { quantity: q > 0 ? q : 1, description: d };
+            if (key) item.key = key;
+            out.push(item);
+        }
     }
     return out;
 }
@@ -4526,40 +4883,35 @@ function renderWorkOrderDetail(wo) {
     }
     let statusButtons;
     if (canEdit) {
-        const flagBtn = wo.status === 'flagged'
-            ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'update')">Update Flag Note</button>
-               <button class="btn btn-ghost btn-sm" onclick="unflagWorkOrder(${wo.id})">Unflag</button>`
-            : (!readOnly ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'flag')">Flag</button>` : '');
         const deliverBtn = !readOnly
-            ? `<button class="btn btn-sm btn-mark-delivered" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
+            ? `<button class="btn btn-sm btn-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
             : (isArchived
-                ? `<button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
-                : `<button class="btn btn-ghost btn-sm" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>
-                   <button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`);
-        // Edit / Add Note / Flag / Email Update are hidden once delivered (pending or archived)
+                ? `<button class="btn btn-ghost btn-sm" title="Reopen this archived work order" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
+                : `<button class="btn btn-ghost btn-sm" title="Archive immediately (skip the 23:00 sweep)" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>
+                   <button class="btn btn-ghost btn-sm" title="Reopen back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`);
+        // Edit / Add Note / Email Update are hidden once delivered (pending or archived)
         const row1 = readOnly
-            ? `<button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-               <button class="btn btn-ghost btn-sm" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`
-            : `<button class="btn btn-ghost btn-sm" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
-               <button class="btn btn-ghost btn-sm" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
-               ${flagBtn}
-               <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-               <button class="btn btn-ghost btn-sm" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>
-               <button class="btn btn-ghost btn-sm" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`;
+            ? `<button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+               <button class="btn btn-ghost btn-sm" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`
+            : `<button class="btn btn-ghost btn-sm" title="Edit fields, parts, and details" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
+               <button class="btn btn-ghost btn-sm" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
+               <button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+               <button class="btn btn-ghost btn-sm" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>
+               <button class="btn btn-ghost btn-sm" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`;
         statusButtons = `
             <div class="wo-footer-row">${row1}</div>
             <div class="wo-footer-row">
                 ${deliverBtn}
-                ${canViewAudit ? `<button class="btn btn-ghost btn-sm" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+                ${canViewAudit ? `<button class="btn btn-ghost btn-sm" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
                 ${canDeleteThis
-                    ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
+                    ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" style="color:var(--danger);" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
                     : (showReArchive
-                        ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" onclick="reArchiveWorkOrder(${wo.id})">Re-Archive</button>`
+                        ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" title="Mark delivered and archive this work order immediately" onclick="reArchiveWorkOrder(${wo.id})">Re-Archive</button>`
                         : '')}
             </div>`;
     } else {
         statusButtons = `<div class="wo-footer-row">
-                <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+                <button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
             </div>`;
     }
     document.getElementById('woDetailFooter').innerHTML = statusButtons;
@@ -4595,7 +4947,7 @@ function renderWorkOrderPartsTable(wid, parts, canEdit) {
         <div class="detail-label">Parts Requested</div>
         <div class="wo-card-parts" style="border-top:none;padding-top:0.35rem;">
             ${renderPartsHeader()}
-            ${parts.map((p, idx) => renderCardPartLine(wid, idx, p, canEdit)).join('')}
+            ${parts.map((p, idx) => renderCardPartLine(wid, idx, p, canEdit, 'full')).join('')}
         </div>
     </div>`;
 }
@@ -4628,71 +4980,40 @@ async function submitGeneralNote() {
     } catch { showToast('Connection error', 'error'); }
 }
 
-function openFlagModal(id, mode) {
-    // id may be a number (WO-level) or string "part:wid:idx" (per-part flag)
-    const isPart = typeof id === 'string' && id.startsWith('part:');
+function openFlagModal(id, mode, prefillNote) {
+    // id is a string "part:wid:idx" — only per-part flagging is supported now.
     document.getElementById('woFlagId').value = String(id);
     document.getElementById('woFlagMode').value = mode;
-    document.getElementById('woFlagNote').value = '';
-    if (isPart) {
+    document.getElementById('woFlagNote').value = prefillNote || '';
+    const unflagBtn = document.getElementById('woFlagUnflagBtn');
+    if (mode === 'part-edit') {
+        document.getElementById('woFlagTitle').textContent = 'Edit Part Flag';
+        document.getElementById('woFlagLabel').textContent = 'Flag note';
+        document.getElementById('woFlagSaveBtn').textContent = 'Save Note';
+        if (unflagBtn) unflagBtn.style.display = '';
+    } else {
         document.getElementById('woFlagTitle').textContent = 'Flag Part';
         document.getElementById('woFlagLabel').textContent = 'Reason for flagging this part';
         document.getElementById('woFlagSaveBtn').textContent = 'Flag Part';
-    } else if (mode === 'flag') {
-        document.getElementById('woFlagTitle').textContent = 'Flag Work Order';
-        document.getElementById('woFlagLabel').textContent = 'Reason for flagging';
-        document.getElementById('woFlagSaveBtn').textContent = 'Flag Work Order';
-    } else {
-        document.getElementById('woFlagTitle').textContent = 'Add Flag Note';
-        document.getElementById('woFlagLabel').textContent = 'New note';
-        document.getElementById('woFlagSaveBtn').textContent = 'Add Note';
+        if (unflagBtn) unflagBtn.style.display = 'none';
     }
     openModal('woFlagModal');
+    setTimeout(() => {
+        const el = document.getElementById('woFlagNote');
+        if (el) { el.focus(); if (prefillNote) el.select(); }
+    }, 50);
 }
 
 async function submitFlagNote() {
     const id = document.getElementById('woFlagId').value;
-    const mode = document.getElementById('woFlagMode').value;
     const note = document.getElementById('woFlagNote').value.trim();
     if (!note) { showToast('Note is required', 'error'); return; }
 
-    // Per-part flag?
-    if (id.startsWith('part:')) {
-        const [, widStr, idxStr] = id.split(':');
-        closeModal('woFlagModal');
-        await submitPartFlag(parseInt(widStr), parseInt(idxStr), true, note);
-        return;
-    }
+    if (!id.startsWith('part:')) return;  // only per-part flagging now
 
-    try {
-        let res;
-        if (mode === 'flag') {
-            res = await fetch(`/api/work-orders/${id}/status`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'flagged', flag_note: note }),
-            });
-        } else {
-            res = await fetch(`/api/work-orders/${id}/notes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note }),
-            });
-        }
-        const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        closeModal('woFlagModal');
-        let msg = mode === 'flag' ? 'Work order flagged' : 'Note added';
-        if (data.email_sent) msg += ' — email sent';
-        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
-        showToast(msg, 'success');
-        // Refresh views
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
-            renderWorkOrderDetail(data.work_order);
-        }
-        if (currentWoView) await loadWorkOrders();
-        loadWoCounts();
-    } catch { showToast('Connection error', 'error'); }
+    const [, widStr, idxStr] = id.split(':');
+    closeModal('woFlagModal');
+    await submitPartFlag(parseInt(widStr), parseInt(idxStr), true, note);
 }
 
 async function markDelivered(wid) {
@@ -4729,24 +5050,8 @@ async function markDelivered(wid) {
     }
 }
 
-async function unflagWorkOrder(wid) {
-    if (!confirm('Remove the flag and return this work order to Requested status?')) return;
-    try {
-        const res = await fetch(`/api/work-orders/${wid}/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'requested' }),
-        });
-        const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        showToast('Flag removed — back to Requested', 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
-            renderWorkOrderDetail(data.work_order);
-        }
-        if (currentWoView) await loadWorkOrders();
-        loadWoCounts();
-    } catch { showToast('Connection error', 'error'); }
-}
+// (unflagWorkOrder removed — flagged status is now derived from per-part flags.
+//  To "unflag" a work order, unflag each individual part via its flag icon.)
 
 async function reArchiveWorkOrder(wid) {
     if (!confirm('Re-archive this work order? It will be marked delivered and archived immediately.')) return;

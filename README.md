@@ -221,6 +221,26 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.4.1
+- **Collapsible work-order cards** — Every card in the list view now has a chevron toggle that expands/collapses the request details and parts grid. Delivered work orders (both pending and archived) default to collapsed so the active list stays compact; requested/flagged cards default to expanded.
+- **Header reshuffle** — Card header bar is now `WO-##### · Customer · #invoice  …  STATUS · PRIORITY · ▾`: the status and priority badges moved to a right-aligned cluster sitting to the left of the collapse chevron. WO number and customer anchor the left side; the right side gives the status its own visual lane.
+- **View button + button header** — Action row sits at the bottom of each card with a divider, and a new **View** button (editor + viewer) opens the work-order detail modal. "Mark Delivered" is pushed to the far right of the row.
+- **Per-part photo icon in the row** — Camera icon sits next to the flag icon on each part line so uploads don't require drilling into the detail modal.
+- **Button tooltips** — Descriptive `title` attributes on every work-order action button (View, Edit, Add Note, Archive Now, Reopen, Email Update, Download PDF, Duplicate, Audit Trail, Mark Delivered, Re-Archive, Delete).
+- **Edit user modal** — Username field now reads "Username (email address)".
+
+### v1.4.0
+- **Flag status is now per-part** — Removed the work-order–level Flag / Unflag / Update Flag Note buttons. A work order is automatically marked "flagged" as soon as any part is flagged, and returns to "requested" the moment the last part flag is cleared. Delivered work orders are unaffected.
+- **Edit part flag notes** — Clicking a flagged part's flag icon now opens an editor modal prefilled with the existing note, with Save and Unflag buttons. Creating a flag works as before.
+- **Sidebar flagged badge** — Work Orders nav item now shows a red pill with the count of flagged work orders, refreshed whenever a flag is added/removed or the counts are re-fetched.
+- **API changes** — `POST /api/work-orders/<id>/status` no longer accepts `flagged` (derived); `POST /api/work-orders/<id>/parts/<idx>/flag` now also handles note-only updates for an already-flagged part.
+
+### v1.3.1
+- **Auto-email salesperson on photo upload** — Uploading a photo to a work-order part now sends the salesperson an update email with the image(s) attached. Subject is `[Photo] Work Order WO-XXXXX`; body includes customer, vehicle, part description, uploader, and the optional comment. Send success/failure is logged to the audit trail and surfaced in the toast. `_send_email` now takes an optional `attachments` list of `{filename, content, mime_type}`.
+
+### v1.3.0
+- **Per-part photos on work orders** — Editors can attach photos directly to individual parts within a work order, each with an optional comment. Uploads are resized to a 2048 px long edge and re-encoded as JPEG quality 80 to keep disk usage small. Thumbnails show under each part in the detail modal (click to open the lightbox), with inline edit-comment + delete buttons; card summaries surface up to four mini-thumbs so list readers know photos exist. Photo actions are mirrored into the Notes & Activity feed and the audit trail. Migration v24 adds `work_order_part_photos`; parts gain a stable UUID `key` so photos stay anchored across edits. Orphaned photos are cleaned up automatically when a part is removed during an edit or when the whole work order is deleted.
+
 ### v1.2.11
 - **"Mark Delivered" button restyled** — yellow pale fill / dark-yellow text at rest, transitions to pale green + green text on hover (previews the delivered state). Applies to both the inline card button and the detail-modal footer button.
 - **"Deliver" → "Mark Delivered"** on the list card (was already named that way in the detail modal).

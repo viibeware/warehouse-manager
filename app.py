@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.2.11'
+APP_VERSION = '1.4.1'
 
 app = Flask(__name__)
 
@@ -743,6 +743,25 @@ def migrate_v17(conn):
     ''')
 
 
+def migrate_v24(conn):
+    """Add work_order_part_photos table for per-part photo uploads on WOs.
+    Each part in parts_json gets a stable UUID `key` so photos survive
+    re-ordering/edits; the key is generated lazily on first load."""
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS work_order_part_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            part_key TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            comment TEXT DEFAULT '',
+            uploaded_by TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_wopp_wo_key ON work_order_part_photos(work_order_id, part_key);
+    ''')
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -770,6 +789,7 @@ MIGRATIONS = [
     (21, migrate_v21),
     (22, migrate_v22),
     (23, migrate_v23),
+    (24, migrate_v24),
 ]
 
 
@@ -873,6 +893,33 @@ def save_image(file_field):
         file_field.save(os.path.join(app.config['UPLOAD_FOLDER'], fname))
         return fname
     return ''
+
+
+def save_image_resized(file_field, max_edge=2048, jpeg_quality=80):
+    """Save an uploaded image re-encoded as JPEG with the long edge capped.
+    Returns the stored filename, or '' if the file is not a valid image."""
+    if not (file_field and file_field.filename and allowed_file(file_field.filename)):
+        return ''
+    from PIL import Image, ImageOps
+    try:
+        img = Image.open(file_field.stream)
+        img = ImageOps.exif_transpose(img)  # respect phone-photo orientation
+        if img.mode in ('RGBA', 'LA', 'P'):
+            # Flatten transparency on white — JPEG has no alpha channel
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            bg.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+            img = bg
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.thumbnail((max_edge, max_edge), Image.LANCZOS)
+        fname = f"{uuid.uuid4().hex}.jpg"
+        img.save(os.path.join(app.config['UPLOAD_FOLDER'], fname),
+                 format='JPEG', quality=jpeg_quality, optimize=True)
+        return fname
+    except Exception:
+        return ''
 
 def delete_image(filename):
     if filename:
@@ -2562,10 +2609,14 @@ def test_smtp():
 #  EMAIL (SMTP)
 # ══════════════════════════════════════════
 
-def _send_email(to_email, subject, body):
-    """Send a plain-text email via configured SMTP. Returns (success, error_msg)."""
+def _send_email(to_email, subject, body, attachments=None):
+    """Send an email via configured SMTP. Returns (success, error_msg).
+    attachments: optional list of dicts {filename, content (bytes), mime_type (e.g. 'image/jpeg')}."""
     import smtplib
     from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.base import MIMEBase
+    from email import encoders
     from email.utils import formataddr
 
     if not to_email:
@@ -2590,7 +2641,21 @@ def _send_email(to_email, subject, body):
         return False, 'SMTP from_email not configured'
 
     try:
-        msg = MIMEText(body, 'plain', 'utf-8')
+        if attachments:
+            msg = MIMEMultipart()
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            for a in attachments:
+                mime_type = a.get('mime_type', 'application/octet-stream')
+                maintype, _, subtype = mime_type.partition('/')
+                subtype = subtype or 'octet-stream'
+                part = MIMEBase(maintype, subtype)
+                part.set_payload(a.get('content', b''))
+                encoders.encode_base64(part)
+                fname = a.get('filename', 'attachment')
+                part.add_header('Content-Disposition', f'attachment; filename="{fname}"')
+                msg.attach(part)
+        else:
+            msg = MIMEText(body, 'plain', 'utf-8')
         msg['Subject'] = subject
         msg['From'] = formataddr((from_name, from_email))
         msg['To'] = to_email
@@ -2693,10 +2758,16 @@ def _work_order_to_dict(conn, row):
         raw_parts = []
     # Backfill per-part state fields so legacy rows have consistent shape
     parts = []
+    mutated = False
     for p in raw_parts:
         if not isinstance(p, dict):
             continue
+        key = str(p.get('key', '') or '').strip()
+        if not key:
+            key = uuid.uuid4().hex
+            mutated = True
         parts.append({
+            'key': key,
             'description': str(p.get('description', '')),
             'quantity': int(p.get('quantity', 1) or 1),
             'pulled': bool(p.get('pulled', False)),
@@ -2704,13 +2775,40 @@ def _work_order_to_dict(conn, row):
             'flagged': bool(p.get('flagged', False)),
             'flag_note': str(p.get('flag_note', '') or ''),
         })
+    # Persist any newly-generated keys so photos uploaded later stay anchored
+    if mutated:
+        conn.execute(
+            "UPDATE work_orders SET parts_json = ? WHERE id = ?",
+            (json_mod.dumps(parts), d['id'])
+        )
+        conn.commit()
+        d['parts_json'] = json_mod.dumps(parts)
+
+    # Attach per-part photos
+    if parts:
+        keys = [p['key'] for p in parts]
+        placeholders = ','.join(['?'] * len(keys))
+        photo_rows = conn.execute(
+            f"SELECT id, part_key, filename, comment, uploaded_by, created_at "
+            f"FROM work_order_part_photos "
+            f"WHERE work_order_id = ? AND part_key IN ({placeholders}) "
+            f"ORDER BY created_at, id",
+            [d['id']] + keys
+        ).fetchall()
+        by_key = {}
+        for r in photo_rows:
+            by_key.setdefault(r['part_key'], []).append(dict(r))
+        for p in parts:
+            p['photos'] = by_key.get(p['key'], [])
     d['parts'] = parts
     return d
 
 
 def _normalize_parts(raw):
     """Coerce a client-supplied parts list into validated
-    [{description, quantity, pulled, flagged, flag_note}, ...]."""
+    [{key, description, quantity, pulled, flagged, flag_note}, ...].
+    Preserves a stable per-part key (generated if absent) so photos
+    keyed off it survive edits and reordering."""
     out = []
     for p in (raw or []):
         if not isinstance(p, dict):
@@ -2723,7 +2821,9 @@ def _normalize_parts(raw):
         if qty < 1:
             qty = 1
         if desc:
+            key = str(p.get('key', '') or '').strip() or uuid.uuid4().hex
             out.append({
+                'key': key,
                 'description': desc,
                 'quantity': qty,
                 'pulled': bool(p.get('pulled', False)),
@@ -3051,6 +3151,17 @@ def update_work_order(wid):
         sets.append("updated_at=CURRENT_TIMESTAMP")
         vals.append(wid)
         conn.execute(f"UPDATE work_orders SET {', '.join(sets)} WHERE id=?", vals)
+        # If parts were replaced, drop photos tied to part keys that no longer exist
+        if new_parts_list is not None:
+            keep_keys = {p.get('key') for p in new_parts_list if p.get('key')}
+            orphans = conn.execute(
+                "SELECT id, part_key, filename FROM work_order_part_photos WHERE work_order_id = ?",
+                (wid,)
+            ).fetchall()
+            for orp in orphans:
+                if orp['part_key'] not in keep_keys:
+                    delete_image(orp['filename'])
+                    conn.execute("DELETE FROM work_order_part_photos WHERE id = ?", (orp['id'],))
         if change_parts:
             _log_wo_audit(conn, wid, 'edited', '; '.join(change_parts))
         conn.commit()
@@ -3065,8 +3176,9 @@ def update_work_order(wid):
 def set_work_order_status(wid):
     data = request.get_json() or {}
     new_status = str(data.get('status', '')).strip().lower()
-    if new_status not in ('requested', 'flagged', 'delivered'):
-        return jsonify({'error': 'Invalid status'}), 400
+    # 'flagged' is no longer directly settable — it's derived from per-part flags.
+    if new_status not in ('requested', 'delivered'):
+        return jsonify({'error': 'Invalid status (flag status is derived from per-part flags)'}), 400
 
     conn = get_db()
     row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
@@ -3075,11 +3187,6 @@ def set_work_order_status(wid):
         return jsonify({'error': 'Not found'}), 404
 
     old_status = row['status']
-    flag_note = str(data.get('flag_note', '')).strip()
-
-    if new_status == 'flagged' and not flag_note:
-        conn.close()
-        return jsonify({'error': 'Flag note is required'}), 400
 
     if new_status == 'delivered':
         # Schedule auto-archival for 23:00 local time on the day of delivery.
@@ -3091,83 +3198,60 @@ def set_work_order_status(wid):
             (new_status, _compute_archive_after(), wid)
         )
     else:
-        # Moving out of delivered back to active clears completed_at + archive state
+        # Reopening → clear delivered/archive state, then recompute (flag vs requested)
+        # from per-part flags.
         conn.execute(
             "UPDATE work_orders SET status = ?, completed_at = NULL, archive_after = NULL, "
             "archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (new_status, wid)
+            ('requested', wid)
         )
-    # Clear flag_note when transitioning out of flagged so stale reasons don't linger
-    if old_status == 'flagged' and new_status != 'flagged':
-        conn.execute("UPDATE work_orders SET flag_note = '' WHERE id = ?", (wid,))
-
-    # If flagging, store the flag_note on the work order and log it as a note
-    if new_status == 'flagged' and flag_note:
-        conn.execute("UPDATE work_orders SET flag_note = ? WHERE id = ?", (flag_note, wid))
-        author = current_user.display_name or current_user.username
-        conn.execute(
-            "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'flag')",
-            (wid, flag_note, author)
-        )
+        import json as json_mod
+        try:
+            parts = json_mod.loads(row['parts_json'] or '[]') or []
+        except Exception:
+            parts = []
+        new_status = _recompute_wo_status(conn, wid, parts, 'requested')
 
     # Audit log the status change + mirror into the Notes & Activity feed
     if new_status != old_status:
         actor = _actor()
-        if new_status == 'flagged':
-            audit_desc = f"Status: {old_status} → flagged — {flag_note}"
-            # Flag note insert is already handled above with note_type='flag'
-        elif new_status == 'delivered':
+        if new_status == 'delivered':
             audit_desc = f"Status: {old_status} → delivered"
             conn.execute(
                 "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
                 (wid, "Marked as delivered.", actor)
             )
-        elif new_status == 'requested':
-            if old_status == 'flagged':
-                reason = "Flag removed — back to Requested."
-            elif old_status == 'delivered':
-                reason = "Reopened from delivered — back to Requested."
+        else:
+            if old_status == 'delivered':
+                reason = f"Reopened from delivered — now {new_status}."
             else:
-                reason = f"Status changed {old_status} → requested."
+                reason = f"Status changed {old_status} → {new_status}."
             audit_desc = f"Status: {old_status} → {new_status} (reopened)"
             conn.execute(
                 "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
                 (wid, reason, actor)
             )
-        else:
-            audit_desc = f"Status: {old_status} → {new_status}"
         _log_wo_audit(conn, wid, 'status_changed', audit_desc)
 
     conn.commit()
 
-    # Send status-change email to salesperson (only for flagged or delivered changes)
+    # Send status-change email to salesperson on delivery (flag emails come from per-part path)
     email_sent = False
     email_error = None
-    if new_status in ('flagged', 'delivered') and new_status != old_status:
+    if new_status == 'delivered' and new_status != old_status:
         sp_email = _lookup_salesperson_email(conn, row['sales_person'])
         if sp_email:
             wo_num = row['wo_number']
             customer = row['customer_name']
             parts_block = _format_parts_for_email(row['parts_json'] if 'parts_json' in row.keys() else '[]')
-            if new_status == 'flagged':
-                subject = f"[Flagged] Work Order {wo_num}"
-                body = (
-                    f"Work Order: {wo_num}\n"
-                    f"Customer: {customer}\n"
-                    f"Vehicle: {row['vehicle']}\n"
-                    f"Status: FLAGGED\n"
-                    f"{parts_block}"
-                    f"\nReason:\n{flag_note}\n"
-                )
-            else:
-                subject = f"[Delivered] Work Order {wo_num}"
-                body = (
-                    f"Work Order: {wo_num}\n"
-                    f"Customer: {customer}\n"
-                    f"Vehicle: {row['vehicle']}\n"
-                    f"Status: DELIVERED / COMPLETE\n"
-                    f"{parts_block}"
-                )
+            subject = f"[Delivered] Work Order {wo_num}"
+            body = (
+                f"Work Order: {wo_num}\n"
+                f"Customer: {customer}\n"
+                f"Vehicle: {row['vehicle']}\n"
+                f"Status: DELIVERED / COMPLETE\n"
+                f"{parts_block}"
+            )
             email_sent, email_error = _send_email(sp_email, subject, body)
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
@@ -3275,6 +3359,13 @@ def delete_work_order(wid):
             'error': 'Previously-archived work orders can only be deleted by an admin or supervisor — please Re-Archive instead'
         }), 403
     _log_wo_audit(conn, wid, 'deleted', f"Work order {existing['wo_number']} deleted")
+    # Clean up per-part photo files from disk before removing rows
+    photo_rows = conn.execute(
+        "SELECT filename FROM work_order_part_photos WHERE work_order_id = ?", (wid,)
+    ).fetchall()
+    for pr in photo_rows:
+        delete_image(pr['filename'])
+    conn.execute("DELETE FROM work_order_part_photos WHERE work_order_id = ?", (wid,))
     conn.execute("DELETE FROM work_order_notes WHERE work_order_id = ?", (wid,))
     conn.execute("DELETE FROM work_orders WHERE id = ?", (wid,))
     conn.commit()
@@ -3310,10 +3401,41 @@ def re_archive_work_order(wid):
     return jsonify(wo)
 
 
+def _recompute_wo_status(conn, wid, parts, current_status):
+    """Derive the WO's top-level status from its per-part flags.
+    - delivered WOs stay delivered (per-part flags don't reopen them)
+    - any part flagged → 'flagged'
+    - otherwise → 'requested'
+    Also keeps work_orders.flag_note in sync (cleared unless flagged, in which case
+    it mirrors the first flagged part's note for quick display in email templates).
+    Returns the new status string."""
+    if current_status == 'delivered':
+        return current_status
+    any_flagged = any(isinstance(p, dict) and bool(p.get('flagged')) for p in parts)
+    new_status = 'flagged' if any_flagged else 'requested'
+    if any_flagged:
+        first_flag_note = next(
+            (str(p.get('flag_note', '') or '') for p in parts
+             if isinstance(p, dict) and p.get('flagged')),
+            ''
+        )
+        conn.execute(
+            "UPDATE work_orders SET status = ?, flag_note = ? WHERE id = ?",
+            (new_status, first_flag_note, wid)
+        )
+    else:
+        conn.execute(
+            "UPDATE work_orders SET status = ?, flag_note = '' WHERE id = ?",
+            (new_status, wid)
+        )
+    return new_status
+
+
 def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_body_extra=None, history_note=None, history_note_type='flag'):
     """Shared helper: load WO, mutate parts[idx] with updates dict, persist, audit-log.
     If history_note is provided, also insert into work_order_notes so it shows up in
     the flag notes history (use history_note_type to pick 'flag' or 'general').
+    After persisting, recomputes the WO's derived status from per-part flags.
     Returns (wo_dict, email_sent, email_error)."""
     import json as json_mod
     conn = get_db()
@@ -3336,6 +3458,7 @@ def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_
         "UPDATE work_orders SET parts_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (json_mod.dumps(parts), wid)
     )
+    _recompute_wo_status(conn, wid, parts, row['status'])
     if history_note:
         conn.execute(
             "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, ?)",
@@ -3405,6 +3528,9 @@ def set_part_pulled(wid, idx):
 @app.route('/api/work-orders/<int:wid>/parts/<int:idx>/flag', methods=['POST'])
 @editor_required
 def set_part_flag(wid, idx):
+    """Flag a part, update an existing flag's note, or unflag.
+      - {flagged: true, flag_note: "..."}  → flag (or update note if already flagged)
+      - {flagged: false}                   → unflag"""
     data = request.get_json() or {}
     flagged = bool(data.get('flagged', True))
     note = str(data.get('flag_note', '') or '').strip()
@@ -3425,13 +3551,28 @@ def set_part_flag(wid, idx):
     if idx < 0 or idx >= len(parts):
         return jsonify({'error': 'Invalid part index'}), 400
     part_desc = f"{parts[idx].get('quantity', 1)} × {parts[idx].get('description', '')}"
+    was_flagged = bool(parts[idx].get('flagged'))
+    old_note = str(parts[idx].get('flag_note', '') or '')
 
     if flagged:
         updates = {'flagged': True, 'flag_note': note}
-        audit_desc = f"Part {idx+1} ({part_desc}) flagged — {note}"
-        subj = f"[Part Flagged] Work Order — part needs attention"
-        body_extra = f"Part: {part_desc}\nStatus: PART FLAGGED\n\nReason:\n{note}\n"
-        history_note = f"Part flagged — {part_desc}: {note}"
+        if was_flagged and old_note == note:
+            # Idempotent update — return current state without writing
+            c2 = get_db()
+            r2 = c2.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+            wo = _work_order_to_dict(c2, r2)
+            c2.close()
+            return jsonify({'work_order': wo, 'email_sent': False, 'email_error': None})
+        if was_flagged:
+            audit_desc = f"Part {idx+1} ({part_desc}) flag note updated — {note}"
+            subj = f"[Part Flag Updated] Work Order — part note updated"
+            body_extra = f"Part: {part_desc}\nStatus: PART FLAG UPDATED\n\nNew note:\n{note}\n"
+            history_note = f"Part flag note updated — {part_desc}: {note}"
+        else:
+            audit_desc = f"Part {idx+1} ({part_desc}) flagged — {note}"
+            subj = f"[Part Flagged] Work Order — part needs attention"
+            body_extra = f"Part: {part_desc}\nStatus: PART FLAGGED\n\nReason:\n{note}\n"
+            history_note = f"Part flagged — {part_desc}: {note}"
     else:
         updates = {'flagged': False, 'flag_note': ''}
         audit_desc = f"Part {idx+1} ({part_desc}) unflagged"
@@ -3447,6 +3588,170 @@ def set_part_flag(wid, idx):
     if wo is None:
         return jsonify({'error': 'Work order not found'}), 404
     return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+
+
+def _wo_part_lookup(conn, wid, part_key):
+    """Return (work_order_row, part_dict) for the given WO + part_key, or (None, None)."""
+    import json as json_mod
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        return None, None
+    try:
+        parts = json_mod.loads(row['parts_json'] or '[]') or []
+    except Exception:
+        parts = []
+    for p in parts:
+        if isinstance(p, dict) and str(p.get('key', '')) == part_key:
+            return row, p
+    return row, None
+
+
+@app.route('/api/work-orders/<int:wid>/parts/<part_key>/photos', methods=['POST'])
+@editor_required
+def upload_work_order_part_photo(wid, part_key):
+    """Upload one or more photos tied to a specific part of a work order.
+    Accepts multipart/form-data with one or more `photo` fields and an
+    optional `comment` field applied to each photo in this batch."""
+    conn = get_db()
+    wo_row, part = _wo_part_lookup(conn, wid, part_key)
+    if not wo_row:
+        conn.close()
+        return jsonify({'error': 'Work order not found'}), 404
+    if not part:
+        conn.close()
+        return jsonify({'error': 'Part not found'}), 404
+
+    files = request.files.getlist('photo')
+    if not files or not files[0].filename:
+        files = request.files.getlist('photos')
+    if not files or not files[0].filename:
+        conn.close()
+        return jsonify({'error': 'No photo provided'}), 400
+
+    comment = str(request.form.get('comment', '') or '').strip()
+    author = _actor()
+    saved_ids = []
+    saved_filenames = []
+    for f in files:
+        fname = save_image_resized(f)
+        if not fname:
+            continue
+        cur = conn.execute(
+            "INSERT INTO work_order_part_photos "
+            "(work_order_id, part_key, filename, comment, uploaded_by) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (wid, part_key, fname, comment, author)
+        )
+        saved_ids.append(cur.lastrowid)
+        saved_filenames.append(fname)
+
+    if not saved_ids:
+        conn.close()
+        return jsonify({'error': 'Could not process image'}), 400
+
+    part_desc = f"{part.get('quantity', 1)} × {part.get('description', '')}"
+    _log_wo_audit(conn, wid, 'edited',
+                  f"Photo{'s' if len(saved_ids) > 1 else ''} added to part ({part_desc})"
+                  + (f" — {comment}" if comment else ''))
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (wid, f"Photo{'s' if len(saved_ids) > 1 else ''} added to part — {part_desc}"
+              + (f": {comment}" if comment else ''),
+         author)
+    )
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    conn.commit()
+
+    # Email the salesperson with the photo(s) attached
+    email_sent = False
+    email_error = None
+    sp_email = _lookup_salesperson_email(conn, wo_row['sales_person'])
+    if sp_email:
+        attachments = []
+        for fname in saved_filenames:
+            fpath = os.path.join(app.config['UPLOAD_FOLDER'], fname)
+            try:
+                with open(fpath, 'rb') as fh:
+                    attachments.append({
+                        'filename': fname,
+                        'content': fh.read(),
+                        'mime_type': 'image/jpeg',
+                    })
+            except Exception as e:
+                app.logger.warning(f"Photo email attach read failed for {fname}: {e}")
+        if attachments:
+            count = len(attachments)
+            subject = f"[Photo{'s' if count > 1 else ''}] Work Order {wo_row['wo_number']}"
+            body_lines = [
+                f"Work Order: {wo_row['wo_number']}",
+                f"Customer: {wo_row['customer_name'] or '—'}",
+                f"Vehicle: {wo_row['vehicle'] or '—'}",
+                f"Part: {part_desc}",
+                f"Uploaded by: {author}",
+                f"{count} photo{'s' if count > 1 else ''} attached.",
+            ]
+            if comment:
+                body_lines += ['', 'Comment:', comment]
+            body = '\n'.join(body_lines) + '\n'
+            email_sent, email_error = _send_email(sp_email, subject, body, attachments=attachments)
+            desc = (f"Photo email sent to {sp_email}" if email_sent
+                    else f"Photo email FAILED to {sp_email}: {email_error or 'unknown error'}")
+            _log_wo_audit(conn, wid, 'edited', desc)
+            conn.commit()
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+
+
+@app.route('/api/work-orders/<int:wid>/photos/<int:photo_id>', methods=['PUT'])
+@editor_required
+def update_work_order_part_photo(wid, photo_id):
+    """Update the comment on an existing photo."""
+    data = request.get_json() or {}
+    comment = str(data.get('comment', '') or '').strip()
+    conn = get_db()
+    photo = conn.execute(
+        "SELECT id FROM work_order_part_photos WHERE id = ? AND work_order_id = ?",
+        (photo_id, wid)
+    ).fetchone()
+    if not photo:
+        conn.close()
+        return jsonify({'error': 'Photo not found'}), 404
+    conn.execute(
+        "UPDATE work_order_part_photos SET comment = ? WHERE id = ?",
+        (comment, photo_id)
+    )
+    _log_wo_audit(conn, wid, 'edited', f"Photo comment updated: {comment or '(empty)'}")
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/photos/<int:photo_id>', methods=['DELETE'])
+@editor_required
+def delete_work_order_part_photo(wid, photo_id):
+    conn = get_db()
+    photo = conn.execute(
+        "SELECT id, filename, part_key FROM work_order_part_photos WHERE id = ? AND work_order_id = ?",
+        (photo_id, wid)
+    ).fetchone()
+    if not photo:
+        conn.close()
+        return jsonify({'error': 'Photo not found'}), 404
+    delete_image(photo['filename'])
+    conn.execute("DELETE FROM work_order_part_photos WHERE id = ?", (photo_id,))
+    _log_wo_audit(conn, wid, 'edited', "Photo removed from part")
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
 
 
 def _build_update_email_body(wo):
