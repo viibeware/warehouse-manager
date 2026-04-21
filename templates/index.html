@@ -673,6 +673,31 @@ body {
     font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
     padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
 }
+.role-perm-grid {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.76rem; margin-top: 0.3rem;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+}
+.role-perm-grid th, .role-perm-grid td {
+    padding: 6px 9px; border-bottom: 1px solid var(--border);
+}
+.role-perm-grid tr:last-child td { border-bottom: none; }
+.role-perm-grid th {
+    background: var(--bg-input); font-family: var(--mono);
+    font-size: 0.62rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); text-align: center;
+}
+.role-perm-grid th.perm-label, .role-perm-grid td.perm-label {
+    text-align: left; color: var(--text-secondary); font-family: var(--font);
+    font-size: 0.76rem; text-transform: none; letter-spacing: 0;
+    font-weight: 400;
+}
+.role-perm-grid td { text-align: center; color: var(--text-muted); font-family: var(--mono); }
+.role-perm-grid tbody tr:nth-child(even) td { background: var(--bg-input); }
+.role-perm-grid tbody tr td:not(.perm-label) { min-width: 52px; }
+
 .role-badge.admin { background: var(--engine-dim); color: var(--engine); }
 .role-badge.editor { background: var(--head-dim); color: var(--head); }
 .role-badge.supervisor { background: var(--transmission-dim); color: var(--transmission); }
@@ -782,7 +807,10 @@ body {
     overflow-y: auto; flex: 1; min-height: 0;
 }
 #woDetailModal .modal-footer {
-    flex-wrap: wrap; justify-content: flex-start;
+    flex-direction: column; align-items: stretch; gap: 0.4rem; justify-content: flex-start;
+}
+#woDetailModal .modal-footer .wo-footer-row {
+    display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
 }
 
 /* ── WORK ORDERS ── */
@@ -807,6 +835,50 @@ body {
     display: grid; grid-template-columns: 1fr auto; gap: 0.65rem;
 }
 .wo-card:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+/* Admin-configurable priority tint via CSS custom property --prio-color; theme-aware pale blend */
+.wo-card.has-priority-color {
+    background: color-mix(in srgb, var(--bg-card) 82%, var(--prio-color) 18%);
+}
+.wo-card.has-priority-color:hover {
+    background: color-mix(in srgb, var(--bg-card-hover) 82%, var(--prio-color) 18%);
+}
+/* Delivered-but-still-in-active tint: a persistent pale green */
+.wo-card.delivered-pending {
+    background: color-mix(in srgb, var(--bg-card) 75%, #86efac 25%);
+}
+.wo-card.delivered-pending:hover {
+    background: color-mix(in srgb, var(--bg-card-hover) 75%, #86efac 25%);
+}
+/* Mark-Delivered pulse: stronger green flash that settles into the delivered-pending green */
+.wo-card.flash-delivered {
+    animation: flashDeliveredPulse 1200ms ease-out forwards;
+    pointer-events: none;
+}
+@keyframes flashDeliveredPulse {
+    0%   { background: var(--bg-card); }
+    18%  { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); }
+    82%  { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); }
+    100% { background: color-mix(in srgb, var(--bg-card) 75%, #86efac 25%); }
+}
+/* Archive Now: green flash, then fade + scale the whole card out */
+.wo-card.flash-archiving {
+    animation: flashArchiving 1200ms ease-out forwards;
+    pointer-events: none;
+}
+@keyframes flashArchiving {
+    0%   { opacity: 1; transform: scale(1); }
+    18%  { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); opacity: 1; transform: scale(1); }
+    55%  { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); opacity: 1; transform: scale(1); }
+    100% { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); opacity: 0; transform: scale(0.96); }
+}
+
+.wo-invoice.clickable {
+    cursor: pointer; padding: 2px 7px; border-radius: 4px;
+    transition: color var(--transition), background var(--transition);
+}
+.wo-invoice.clickable:hover {
+    color: var(--accent); background: var(--accent-dim);
+}
 .wo-card-main { min-width: 0; }
 .wo-card-top {
     display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.35rem; flex-wrap: wrap;
@@ -1538,7 +1610,7 @@ body {
     <div class="modal" style="max-width:400px;">
         <div class="modal-header">
             <h2>Change Password</h2>
-            <button class="modal-close" onclick="closeModal('pwModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('pwModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div class="form-grid" style="grid-template-columns:1fr;">
@@ -1558,7 +1630,7 @@ body {
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeModal('pwModal')">Cancel</button>
+            <button class="btn btn-ghost" onclick="closeSubModal('pwModal')">Cancel</button>
             <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
         </div>
     </div>
@@ -1735,6 +1807,23 @@ body {
                 </div>
                 <h3 class="about-sub">Changelog</h3>
                 <div style="max-height:280px;overflow-y:auto;">
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.2.8</div>
+                        <ul class="changelog-list">
+                            <li><strong>Sub-modals return to Settings</strong> — Close any settings-reached modal and land back on the correct tab</li>
+                            <li><strong>Role permissions matrix</strong> — User form shows what each of the 4 roles can do</li>
+                            <li><strong>Re-Archive + 3-tier delete gating</strong> — Editors can't delete a previously-archived reopened WO; Re-Archive instead</li>
+                            <li><strong>Delayed archival + Archive Now</strong> — Delivered WOs stay Active until 23:00 local; button to archive immediately</li>
+                            <li><strong>Duplicate work order</strong> — Copy fields + parts into a fresh WO with reset status &amp; audit</li>
+                            <li><strong>Audit Trail on list cards</strong> — Button for admins and supervisors on active + archive</li>
+                            <li><strong>Click-to-copy invoice #</strong> — Card + detail modal, pill hover highlight</li>
+                            <li><strong>Part audit from anywhere</strong> — Clickable banner, list cell, and + Audit button</li>
+                            <li><strong>Configurable priority colors</strong> — Admin sets card tint per priority</li>
+                            <li><strong>Six themes</strong> — Light / Dark / Neobrutal / Solarpunk / Cyberpunk picker</li>
+                            <li><strong>Dashboard + URL routing</strong> — /dashboard, /workorders, /parts/&lt;slug&gt; in the address bar</li>
+                            <li><strong>AGPLv3 license</strong> — Switched from MIT</li>
+                        </ul>
+                    </div>
                     <div class="changelog-entry">
                         <div class="changelog-version">v1.1.1</div>
                         <ul class="changelog-list">
@@ -1995,7 +2084,7 @@ body {
     <div class="modal wide">
         <div class="modal-header">
             <h2>User Management</h2>
-            <button class="modal-close" onclick="closeModal('adminModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('adminModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
@@ -2012,7 +2101,7 @@ body {
 
 <!-- ═══ USER FORM MODAL ═══ -->
 <div class="modal-overlay" id="userFormModal" style="z-index:210;">
-    <div class="modal" style="max-width:440px;">
+    <div class="modal" style="max-width:560px;">
         <div class="modal-header">
             <h2 id="userFormTitle">Add User</h2>
             <button class="modal-close" onclick="closeModal('userFormModal')">&times;</button>
@@ -2024,6 +2113,32 @@ body {
                 <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" type="text" id="ufDisplayName"></div>
                 <div class="form-group"><label class="form-label">Role</label>
                     <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role Permissions</label>
+                    <table class="role-perm-grid">
+                        <thead>
+                            <tr>
+                                <th class="perm-label">Capability</th>
+                                <th>Viewer</th><th>Editor</th><th>Supervisor</th><th>Admin</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="perm-label">Browse parts &amp; work orders</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Download PDFs, copy invoice #</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Create / edit parts &amp; work orders</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Flag, deliver, archive, add notes</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Mark parts pulled / for audit</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Duplicate &amp; Re-Archive work orders</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Email Update to sales person</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">View audit trail</td><td>–</td><td>–</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Delete never-archived work orders</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Delete previously-archived reopened</td><td>–</td><td>–</td><td>✓</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Delete delivered / archived</td><td>–</td><td>–</td><td>–</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Manage users, categories, SMTP, Turnstile</td><td>–</td><td>–</td><td>–</td><td>✓</td></tr>
+                        </tbody>
+                    </table>
+                    <span class="form-hint">Supervisors get every editor permission plus the audit-trail view.</span>
                 </div>
                 <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">Minimum 4 characters</span></div>
                 <div class="form-group" id="ufActiveGroup" style="display:none;">
@@ -2044,7 +2159,7 @@ body {
     <div class="modal wide">
         <div class="modal-header">
             <h2>Import Data</h2>
-            <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('importModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div class="import-steps" id="importSteps">
@@ -2064,7 +2179,7 @@ body {
     <div class="modal wide">
         <div class="modal-header">
             <h2>Manage Categories</h2>
-            <button class="modal-close" onclick="closeModal('catManagerModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('catManagerModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
@@ -2179,7 +2294,7 @@ body {
 
 <!-- ═══ WORK ORDER DETAIL MODAL ═══ -->
 <div class="modal-overlay" id="woDetailModal">
-    <div class="modal" style="max-width:680px;">
+    <div class="modal" style="max-width:768px;">
         <div class="modal-header">
             <h2 id="woDetailTitle">Work Order</h2>
             <button class="modal-close" onclick="closeModal('woDetailModal')">&times;</button>
@@ -2269,7 +2384,7 @@ body {
     <div class="modal" style="max-width:640px;">
         <div class="modal-header">
             <h2>Work Order Lists</h2>
-            <button class="modal-close" onclick="closeModal('woListsModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('woListsModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Manage the dropdown values available when creating work order requests. Changes are not saved until you click Save.</div>
@@ -2306,7 +2421,7 @@ body {
     <div class="modal" style="max-width:520px;">
         <div class="modal-header">
             <h2>Cloudflare Turnstile</h2>
-            <button class="modal-close" onclick="closeModal('turnstileModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('turnstileModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
@@ -2346,7 +2461,7 @@ body {
     <div class="modal" style="max-width:580px;">
         <div class="modal-header">
             <h2>SMTP / Email Configuration</h2>
-            <button class="modal-close" onclick="closeModal('smtpModal')">&times;</button>
+            <button class="modal-close" onclick="closeSubModal('smtpModal')">&times;</button>
         </div>
         <div class="modal-body">
             <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Configure outgoing email for work order status notifications.</div>
@@ -2572,6 +2687,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     await loadCurrentUser();
     await loadCategories();
+    loadWoSettings();
     loadStats();
     loadWoCounts();
     initViewFromUrl();
@@ -2629,7 +2745,7 @@ async function changePassword() {
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        closeModal('pwModal'); showToast('Password updated', 'success');
+        closeSubModal('pwModal'); showToast('Password updated', 'success');
     } catch { showToast('Connection error', 'error'); }
 }
 
@@ -3310,7 +3426,7 @@ function renderImportStep() {
         let impCatOpts = '<option value="">Select type…</option>';
         for (const c of categoriesData) impCatOpts += `<option value="${c.slug}">${esc(c.name)}</option>`;
         content.innerHTML=`<div class="form-grid" style="grid-template-columns:1fr;"><div class="form-group"><label class="form-label">File</label><div class="file-upload" style="padding:1.5rem;"><input type="file" id="importFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="onImportFileSelect(this)"><div class="file-upload-text" id="importFileText"><strong>Click to select</strong> or drag your file here<br><span style="font-size:0.72rem;color:var(--text-muted);">.xlsx, .xls, .xlsm, or .csv</span></div></div></div><div class="form-group"><label class="form-label">Import As Category</label><select class="form-select" id="importCategory">${impCatOpts}</select></div></div><div id="importUploadStatus" style="margin-top:0.85rem;"></div>`;
-        footer.innerHTML=`<button class="btn btn-ghost" onclick="closeModal('importModal')">Cancel</button><button class="btn btn-primary" id="importNextBtn" onclick="importStepUpload()" disabled>Upload & Continue</button>`;
+        footer.innerHTML=`<button class="btn btn-ghost" onclick="closeSubModal('importModal')">Cancel</button><button class="btn btn-primary" id="importNextBtn" onclick="importStepUpload()" disabled>Upload & Continue</button>`;
     } else if (step===2) { renderMappingStep(); }
     else if (step===3) { content.innerHTML=`<div class="loading-spinner"><div class="spinner"></div></div>`;footer.innerHTML='';runDryRun(); }
 }
@@ -3370,7 +3486,7 @@ async function executeImport() {
     try{const r=await fetch('/api/import/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp_file:importState.tempFile,sheet:importState.selectedSheet,category:importState.category,mapping:Object.fromEntries(Object.entries(importState.mapping).filter(([k,v])=>v>=0)),header_row:importState.headerRow,headchart_col:importState.headChartEnabled?importState.headChartCol:-1})});const data=await r.json();if(!r.ok){showToast(data.error||'Import failed','error');setImportStep(3);return;}setImportStep(4);
     let errH='';if(data.errors&&data.errors.length)errH=`<div class="import-warnings" style="text-align:left;margin-top:0.85rem;"><strong>Some rows had issues:</strong>${data.errors.map(e=>`<div>${esc(e)}</div>`).join('')}</div>`;
     content.innerHTML=`<div class="import-result"><div class="import-result-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--yes)" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div><h3>Import Complete</h3><p>${data.inserted} record${data.inserted!==1?'s':''} imported</p>${errH}</div>`;
-    footer.innerHTML=`<button class="btn btn-primary" onclick="closeModal('importModal');loadParts();loadStats();">Done</button>`;}catch{showToast('Import failed','error');setImportStep(3);}
+    footer.innerHTML=`<button class="btn btn-primary" onclick="closeSubModal('importModal');loadParts();loadStats();">Done</button>`;}catch{showToast('Import failed','error');setImportStep(3);}
 }
 
 // ══════════════════════════════════════════
@@ -3686,6 +3802,13 @@ async function loadWoSettings() {
     } catch { woSettings = { locations: [], salespeople: [], priorities: [] }; }
 }
 
+function _priorityColor(name) {
+    if (!name || !woSettings || !woSettings.priorities) return '';
+    const hit = woSettings.priorities.find(p => (p && p.name) === name);
+    const c = hit && hit.color;
+    return /^#[0-9A-Fa-f]{3,8}$/.test(c || '') ? c : '';
+}
+
 async function loadWoCounts() {
     try {
         const counts = await (await fetch('/api/work-orders/counts')).json();
@@ -3982,6 +4105,7 @@ async function loadWorkOrders() {
 
 function renderWorkOrderCard(wo) {
     const canEdit = currentUserData && currentUserData.can_edit;
+    const canViewAudit = currentUserData && currentUserData.can_view_audit;
     const prioClass = (wo.priority || '').toLowerCase().replace(/\s+/g, '-');
     const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
     const flagBlock = (wo.status === 'flagged' && wo.flag_note)
@@ -3999,33 +4123,49 @@ function renderWorkOrderCard(wo) {
             ${wo.parts.map((p, idx) => renderCardPartLine(wo.id, idx, p, canEdit)).join('')}
            </div>`
         : '';
+    const isArchived = !!wo.archived_at;
+    const isDeliveredPending = wo.status === 'delivered' && !isArchived;
+    const readOnly = isArchived || isDeliveredPending;
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            <button class="table-btn" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>
-            <button class="table-btn" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
-            ${wo.status !== 'delivered' ? `<button class="table-btn" onclick="openFlagModal(${wo.id}, '${wo.status==='flagged'?'update':'flag'}')">${wo.status==='flagged'?'Update Note':'Flag'}</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" onclick="openFlagModal(${wo.id}, '${wo.status==='flagged'?'update':'flag'}')">${wo.status==='flagged'?'Update Note':'Flag'}</button>` : ''}
             ${wo.status === 'flagged' ? `<button class="table-btn" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
-            ${wo.status !== 'delivered' ? `<button class="table-btn" onclick="markDelivered(${wo.id})">Deliver</button>` : ''}
-            ${wo.status === 'delivered' ? `<button class="table-btn" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
-            <button class="table-btn" onclick="sendWorkOrderUpdate(${wo.id})">Send Update</button>
+            ${!readOnly ? `<button class="table-btn" onclick="markDelivered(${wo.id})">Deliver</button>` : ''}
+            ${isDeliveredPending ? `<button class="table-btn" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
+            ${(isArchived || isDeliveredPending) ? `<button class="table-btn" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
             <button class="table-btn" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+            <button class="table-btn" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>
+            ${canViewAudit ? `<button class="table-btn" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
           </div>`
-        : '';
+        : (canViewAudit ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
+            <button class="table-btn" onclick="openAuditModal(${wo.id})">Audit Trail</button>
+          </div>` : '');
+    // Only tint the card in the active list; archive stays neutral
+    // Tint: priority color for active (not archive); delivered-pending overrides to pale green
+    const isDeliveredPendingCard = wo.status === 'delivered' && !wo.archived_at;
+    const prioColor = (currentWoView === 'archive' || isDeliveredPendingCard) ? '' : _priorityColor(wo.priority);
+    let cardCls = 'wo-card';
+    if (prioColor) cardCls += ' has-priority-color';
+    if (isDeliveredPendingCard) cardCls += ' delivered-pending';
+    const cardStyle = prioColor ? `style="--prio-color:${prioColor};"` : '';
     return `
-    <div class="wo-card" onclick="openWorkOrderDetail(${wo.id})">
+    <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle} onclick="openWorkOrderDetail(${wo.id})">
         <div class="wo-card-main">
             <div class="wo-card-top">
                 <span class="wo-number">${esc(wo.wo_number)}</span>
                 <span class="wo-status-badge ${wo.status}">${wo.status}</span>
                 ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
+                ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">#${esc(wo.quote_invoice)}</span>` : ''}
             </div>
             <div class="wo-meta-row">
                 <span><strong>${esc(wo.vehicle || '—')}</strong></span>
                 ${wo.vin ? `<span style="font-family:var(--mono);font-size:0.72rem;"><strong>VIN:</strong> ${esc(wo.vin)}</span>` : ''}
                 ${wo.warehouse_location ? `<span>📍 ${esc(wo.warehouse_location)}</span>` : ''}
                 ${wo.sales_person ? `<span>👤 ${esc(wo.sales_person)}</span>` : ''}
-                ${wo.quote_invoice ? `<span>#${esc(wo.quote_invoice)}</span>` : ''}
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
             ${flagBlock}
@@ -4148,6 +4288,10 @@ async function openEditWorkOrderModal(wid) {
     try {
         const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
         if (!wo || wo.error) { showToast('Work order not found', 'error'); return; }
+        if (wo.status === 'delivered') {
+            showToast('Reopen this work order before editing', 'error');
+            return;
+        }
         await _prepareWoForm(wo);
         // Hide detail modal while editing so the form is on top
         closeModal('woDetailModal');
@@ -4181,7 +4325,8 @@ async function _prepareWoForm(wo) {
     spSel.innerHTML = '<option value="">—</option>' + sps.map(n => `<option value="${esc(n)}" ${isEdit && wo.sales_person === n ? 'selected' : ''}>${esc(n)}</option>`).join('');
 
     const prSel = document.getElementById('woFormPriority');
-    const prs = [...(woSettings.priorities || ['Normal'])];
+    const prs = (woSettings.priorities || []).map(p => typeof p === 'string' ? p : (p && p.name) || '').filter(Boolean);
+    if (!prs.length) prs.push('Normal');
     if (isEdit && wo.priority && !prs.includes(wo.priority)) prs.push(wo.priority);
     prSel.innerHTML = prs.map(p => `<option value="${esc(p)}" ${isEdit && wo.priority === p ? 'selected' : (!isEdit && p === 'Normal' ? 'selected' : '')}>${esc(p)}</option>`).join('');
 
@@ -4336,18 +4481,66 @@ function renderWorkOrderDetail(wo) {
              }).join('')}
            </div>`
         : '';
-    const statusButtons = canEdit ? `
-            <button class="btn btn-ghost btn-sm" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
-            <button class="btn btn-ghost btn-sm" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
-            ${wo.status !== 'flagged' && wo.status !== 'delivered' ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'flag')">Flag</button>` : ''}
-            ${wo.status === 'flagged' ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'update')">Update Flag Note</button>` : ''}
-            ${wo.status === 'flagged' ? `<button class="btn btn-ghost btn-sm" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
-            ${wo.status !== 'delivered' ? `<button class="btn btn-primary btn-sm" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : `<button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`}
-            <button class="btn btn-ghost btn-sm" onclick="sendWorkOrderUpdate(${wo.id})">Send Update</button>
-            <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-            ${canViewAudit ? `<button class="btn btn-ghost btn-sm" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
-            ${canDelete ? `<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);" onclick="deleteWorkOrder(${wo.id})">Delete</button>` : ''}`
-        : `<button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>`;
+    const isArchived = !!wo.archived_at;
+    const isDeliveredPending = wo.status === 'delivered' && !isArchived;
+    const readOnly = isArchived || isDeliveredPending;
+    const role = currentUserData && currentUserData.role;
+    const isAdmin = role === 'admin';
+    const isSupervisor = role === 'supervisor';
+    // Deletion gating:
+    //   currently delivered (pending or archived) → admin only
+    //   previously archived, now reopened         → admin or supervisor
+    //   never archived, active                    → editor+ (already inside canEdit)
+    let canDeleteThis = false;
+    let showReArchive = false;
+    if (canEdit) {
+        if (wo.status === 'delivered') {
+            canDeleteThis = isAdmin;
+        } else if (wo.was_archived) {
+            canDeleteThis = isAdmin || isSupervisor;
+            showReArchive = !canDeleteThis;
+        } else {
+            canDeleteThis = true;
+        }
+    }
+    let statusButtons;
+    if (canEdit) {
+        const flagBtn = wo.status === 'flagged'
+            ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'update')">Update Flag Note</button>
+               <button class="btn btn-ghost btn-sm" onclick="unflagWorkOrder(${wo.id})">Unflag</button>`
+            : (!readOnly ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'flag')">Flag</button>` : '');
+        const deliverBtn = !readOnly
+            ? `<button class="btn btn-primary btn-sm" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
+            : (isArchived
+                ? `<button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
+                : `<button class="btn btn-ghost btn-sm" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>
+                   <button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`);
+        // Edit / Add Note / Flag / Email Update are hidden once delivered (pending or archived)
+        const row1 = readOnly
+            ? `<button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+               <button class="btn btn-ghost btn-sm" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
+               <button class="btn btn-ghost btn-sm" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
+               ${flagBtn}
+               <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+               <button class="btn btn-ghost btn-sm" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>
+               <button class="btn btn-ghost btn-sm" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`;
+        statusButtons = `
+            <div class="wo-footer-row">${row1}</div>
+            <div class="wo-footer-row">
+                ${deliverBtn}
+                ${canViewAudit ? `<button class="btn btn-ghost btn-sm" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+                ${canDeleteThis
+                    ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
+                    : (showReArchive
+                        ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" onclick="reArchiveWorkOrder(${wo.id})">Re-Archive</button>`
+                        : '')}
+            </div>`;
+    } else {
+        statusButtons = `<div class="wo-footer-row">
+                <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+            </div>`;
+    }
     document.getElementById('woDetailFooter').innerHTML = statusButtons;
     document.getElementById('woDetailBody').innerHTML = `
         <div style="margin-bottom:0.85rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
@@ -4360,7 +4553,7 @@ function renderWorkOrderDetail(wo) {
             <div><div class="detail-label">Customer</div><div class="detail-value">${esc(wo.customer_name || '—')}</div></div>
             <div><div class="detail-label">Sales Person</div><div class="detail-value">${esc(wo.sales_person || '—')}</div></div>
             <div><div class="detail-label">Warehouse Location</div><div class="detail-value">${esc(wo.warehouse_location || '—')}</div></div>
-            <div><div class="detail-label">Quote / Invoice #</div><div class="detail-value">${esc(wo.quote_invoice || '—')}</div></div>
+            <div><div class="detail-label">Quote / Invoice #</div>${wo.quote_invoice ? `<div class="detail-value wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);">${esc(wo.quote_invoice)}</div>` : `<div class="detail-value">—</div>`}</div>
             <div><div class="detail-label">Vehicle</div><div class="detail-value">${esc(wo.vehicle || '—')}</div></div>
             <div><div class="detail-label">VIN</div><div class="detail-value" style="font-family:var(--mono);font-size:0.82rem;">${esc(wo.vin || '—')}</div></div>
             ${wo.created_by ? `<div><div class="detail-label">Created By</div><div class="detail-value">${esc(wo.created_by)}</div></div>` : ''}
@@ -4483,6 +4676,9 @@ async function submitFlagNote() {
 
 async function markDelivered(wid) {
     if (!confirm('Mark this work order as delivered/complete?')) return;
+    // Kick off the card "delivered" animation if there's a matching card in the list
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (card) card.classList.add('flash-delivered');
     try {
         const res = await fetch(`/api/work-orders/${wid}/status`, {
             method: 'POST',
@@ -4490,7 +4686,11 @@ async function markDelivered(wid) {
             body: JSON.stringify({ status: 'delivered' }),
         });
         const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        if (!res.ok) {
+            if (card) card.classList.remove('flash-delivered');
+            showToast(data.error || 'Failed', 'error');
+            return;
+        }
         let msg = 'Marked delivered';
         if (data.email_sent) msg += ' — email sent';
         else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
@@ -4498,9 +4698,14 @@ async function markDelivered(wid) {
         if (document.getElementById('woDetailModal').classList.contains('active')) {
             renderWorkOrderDetail(data.work_order);
         }
+        // Let the animation finish before the list refresh tears the card down
+        if (card) await new Promise(r => setTimeout(r, 1200));
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
-    } catch { showToast('Connection error', 'error'); }
+    } catch {
+        if (card) card.classList.remove('flash-delivered');
+        showToast('Connection error', 'error');
+    }
 }
 
 async function unflagWorkOrder(wid) {
@@ -4520,6 +4725,56 @@ async function unflagWorkOrder(wid) {
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
     } catch { showToast('Connection error', 'error'); }
+}
+
+async function reArchiveWorkOrder(wid) {
+    if (!confirm('Re-archive this work order? It will be marked delivered and archived immediately.')) return;
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (card) card.classList.add('flash-archiving');
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/re-archive`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            if (card) card.classList.remove('flash-archiving');
+            showToast(data.error || 'Failed', 'error');
+            return;
+        }
+        showToast(`Re-archived ${data.wo_number}`, 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+        if (card) await new Promise(r => setTimeout(r, 1200));
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch {
+        if (card) card.classList.remove('flash-archiving');
+        showToast('Connection error', 'error');
+    }
+}
+
+async function archiveNowWorkOrder(wid) {
+    if (!confirm('Archive this work order now instead of waiting until 23:00?')) return;
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (card) card.classList.add('flash-archiving');
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/archive-now`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            if (card) card.classList.remove('flash-archiving');
+            showToast(data.error || 'Failed', 'error');
+            return;
+        }
+        showToast(`Archived ${data.wo_number}`, 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+        if (card) await new Promise(r => setTimeout(r, 1200));
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch {
+        if (card) card.classList.remove('flash-archiving');
+        showToast('Connection error', 'error');
+    }
 }
 
 async function reopenWorkOrder(wid) {
@@ -4556,6 +4811,43 @@ async function deleteWorkOrder(wid) {
 
 function downloadWorkOrderPdf(wid) {
     window.open(`/api/work-orders/${wid}/pdf`, '_blank');
+}
+
+function copyInvoiceFromEl(el, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    // Strip any leading # the user may have typed so only the bare invoice number is copied
+    const raw = el && el.dataset ? (el.dataset.invoice || '') : '';
+    const txt = raw.replace(/^#+\s*/, '').trim();
+    if (!txt) return;
+    const ok = () => showToast(`Copied ${txt}`, 'success');
+    const fail = () => showToast('Copy failed', 'error');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(ok).catch(fail);
+        return;
+    }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok();
+    } catch { fail(); }
+}
+
+async function duplicateWorkOrder(wid) {
+    if (!confirm('Duplicate this work order? A new work order will be created with the same details and parts. Status, notes, and audit trail will be reset.')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/duplicate`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast(`Duplicated to ${data.wo_number}`, 'success');
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+        // Pop the new WO's detail so the user can edit immediately
+        renderWorkOrderDetail(data);
+        openModal('woDetailModal');
+    } catch { showToast('Connection error', 'error'); }
 }
 
 async function sendWorkOrderUpdate(wid) {
@@ -4605,9 +4897,16 @@ function renderWoListRows() {
     ).join('') || '';
 
     const prs = document.getElementById('woListPriorities');
-    prs.innerHTML = (woSettings.priorities || []).map(p =>
-        `<div class="wo-list-row"><input class="form-input" type="text" value="${esc(p)}"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`
-    ).join('') || '';
+    prs.innerHTML = (woSettings.priorities || []).map(p => {
+        const name = typeof p === 'string' ? p : (p && p.name) || '';
+        const color = (p && p.color) || '';
+        return `<div class="wo-list-row">
+            <input class="form-input" type="text" placeholder="Priority name" value="${esc(name)}" style="flex:1;">
+            <input class="form-input" type="color" value="${color || '#ffffff'}" title="Background tint for work order cards" style="width:44px;padding:2px;flex:0 0 44px;cursor:pointer;" data-has-color="${color ? '1' : '0'}">
+            <button type="button" class="wo-list-remove" onclick="this.previousElementSibling.dataset.hasColor='0';" title="No color">∅</button>
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`;
+    }).join('') || '';
 }
 
 function addLocationRow() {
@@ -4627,12 +4926,23 @@ function addSalesPersonRow() {
 function addPriorityRow() {
     const el = document.getElementById('woListPriorities');
     el.insertAdjacentHTML('beforeend',
-        `<div class="wo-list-row"><input class="form-input" type="text" placeholder="e.g. Urgent"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`);
+        `<div class="wo-list-row">
+            <input class="form-input" type="text" placeholder="e.g. Urgent" style="flex:1;">
+            <input class="form-input" type="color" value="#ffffff" title="Background tint for work order cards" style="width:44px;padding:2px;flex:0 0 44px;cursor:pointer;" data-has-color="0" oninput="this.dataset.hasColor='1';">
+            <button type="button" class="wo-list-remove" onclick="this.previousElementSibling.dataset.hasColor='0';" title="No color">∅</button>
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`);
 }
 
 async function saveWoLists() {
     const locations = [...document.querySelectorAll('#woListLocations .wo-list-row input')].map(i => i.value.trim()).filter(Boolean);
-    const priorities = [...document.querySelectorAll('#woListPriorities .wo-list-row input')].map(i => i.value.trim()).filter(Boolean);
+    const priorities = [...document.querySelectorAll('#woListPriorities .wo-list-row')].map(row => {
+        const inputs = row.querySelectorAll('input');
+        const name = inputs[0].value.trim();
+        const colorInput = inputs[1];
+        const color = (colorInput && colorInput.dataset.hasColor === '1') ? (colorInput.value || '') : '';
+        return { name, color };
+    }).filter(p => p.name);
     const salespeople = [...document.querySelectorAll('#woListSalespeople .wo-list-row')].map(row => {
         const inputs = row.querySelectorAll('input');
         return { name: inputs[0].value.trim(), email: (inputs[1].value || '').trim() };
@@ -4646,7 +4956,7 @@ async function saveWoLists() {
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         woSettings = { locations, salespeople, priorities };
-        closeModal('woListsModal');
+        closeSubModal('woListsModal');
         openSettingsModal('admin');
         showToast('Work order lists saved', 'success');
     } catch { showToast('Connection error', 'error'); }
@@ -4683,7 +4993,7 @@ async function saveTurnstile() {
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        closeModal('turnstileModal');
+        closeSubModal('turnstileModal');
         openSettingsModal('admin');
         showToast('Turnstile settings saved', 'success');
     } catch { showToast('Connection error', 'error'); }
@@ -4727,7 +5037,7 @@ async function saveSmtp() {
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        closeModal('smtpModal');
+        closeSubModal('smtpModal');
         openSettingsModal('admin');
         showToast('SMTP settings saved', 'success');
     } catch { showToast('Connection error', 'error'); }
@@ -4771,6 +5081,23 @@ function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.tex
 function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// Map of sub-modals reachable from the Settings modal → which tab to restore.
+// Used by closeSubModal() so users land back on Settings when they X-out / Cancel.
+const SETTINGS_SUB_MODALS = {
+    woListsModal: 'admin',
+    smtpModal: 'admin',
+    turnstileModal: 'admin',
+    adminModal: 'admin',
+    catManagerModal: 'admin',
+    importModal: 'data',
+    pwModal: 'general',
+};
+function closeSubModal(id) {
+    closeModal(id);
+    const tab = SETTINGS_SUB_MODALS[id];
+    if (tab && typeof openSettingsModal === 'function') openSettingsModal(tab);
+}
 
 </script>
 </body>

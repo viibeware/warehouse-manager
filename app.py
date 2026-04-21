@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.1.1'
+APP_VERSION = '1.2.8'
 
 app = Flask(__name__)
 
@@ -641,6 +641,40 @@ def migrate_v16(conn):
         pass
 
 
+def migrate_v23(conn):
+    """Track whether a work order has ever been archived.
+    Editors cannot delete a previously-archived-then-reopened WO — only admins
+    and supervisors can — and the editor UI shows Re-Archive instead."""
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN was_archived INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    # Backfill: anything that's already archived has definitely "been archived"
+    conn.execute("UPDATE work_orders SET was_archived = 1 WHERE archived_at IS NOT NULL")
+
+
+def migrate_v22(conn):
+    """Delayed archival for delivered work orders.
+    archive_after holds a local-time 23:00 threshold set when marked delivered.
+    archived_at is set by the sweep (or the Archive Now button) and is what
+    separates the Archive view from the Active list."""
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN archived_at TIMESTAMP")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN archive_after TIMESTAMP")
+    except Exception:
+        pass
+    # Backfill: any existing delivered WO gets archived immediately so behavior
+    # matches the old "delivered == archive" model for pre-upgrade records.
+    conn.execute(
+        "UPDATE work_orders SET archived_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
+        "WHERE status = 'delivered' AND archived_at IS NULL"
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wo_archived_at ON work_orders(archived_at)")
+
+
 def migrate_v21(conn):
     """Add needs_audit + audit_note columns to parts."""
     try:
@@ -734,6 +768,8 @@ MIGRATIONS = [
     (19, migrate_v19),
     (20, migrate_v20),
     (21, migrate_v21),
+    (22, migrate_v22),
+    (23, migrate_v23),
 ]
 
 
@@ -2303,6 +2339,32 @@ def _set_setting(conn, key, value):
         conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, v))
 
 
+_PRIORITY_DEFAULT_COLORS = {
+    'Next Day Air': '#fff3e5',
+}
+# Swap old defaults forward so stored data picks up a new default automatically
+_PRIORITY_DEPRECATED_COLORS = {
+    'Next Day Air': {'#fef9c3'},
+}
+
+
+def _normalize_priority(p):
+    """Accept either a legacy string or a {name,color} dict; return normalized dict."""
+    if isinstance(p, dict):
+        name = str(p.get('name', '')).strip()
+        color = str(p.get('color', '') or '').strip()
+    else:
+        name = str(p).strip()
+        color = _PRIORITY_DEFAULT_COLORS.get(name, '')
+    # Only accept 3/4/6/8-digit hex colors; empty string disables coloring
+    if color and not re.match(r'^#[0-9A-Fa-f]{3,8}$', color):
+        color = ''
+    # Rewrite superseded defaults to the new one so the value in the DB migrates forward
+    if name in _PRIORITY_DEPRECATED_COLORS and color.lower() in _PRIORITY_DEPRECATED_COLORS[name]:
+        color = _PRIORITY_DEFAULT_COLORS.get(name, '')
+    return {'name': name, 'color': color}
+
+
 @app.route('/api/settings/work-order', methods=['GET'])
 @login_required
 def get_wo_settings():
@@ -2311,7 +2373,8 @@ def get_wo_settings():
     conn = get_db()
     locations = _get_setting(conn, 'wo_locations', [])
     salespeople = _get_setting(conn, 'wo_salespeople', [])
-    priorities = _get_setting(conn, 'wo_priorities', ['Normal', 'Next Day Air'])
+    raw_priorities = _get_setting(conn, 'wo_priorities', ['Normal', 'Next Day Air'])
+    priorities = [_normalize_priority(p) for p in raw_priorities if _normalize_priority(p)['name']]
     conn.close()
     if not current_user.is_admin:
         salespeople = [{'name': s.get('name', '')} for s in salespeople]
@@ -2339,7 +2402,11 @@ def update_wo_settings():
                 sp.append({'name': name, 'email': email})
         _set_setting(conn, 'wo_salespeople', sp)
     if 'priorities' in data:
-        pr = [str(x).strip() for x in (data['priorities'] or []) if str(x).strip()]
+        pr = []
+        for x in (data['priorities'] or []):
+            n = _normalize_priority(x)
+            if n['name']:
+                pr.append(n)
         _set_setting(conn, 'wo_priorities', pr)
     conn.commit()
     conn.close()
@@ -2572,6 +2639,27 @@ def _lookup_salesperson_email(conn, name):
 #  WORK ORDERS API
 # ══════════════════════════════════════════
 
+def _compute_archive_after():
+    """Return an ISO datetime string representing today's 23:00 local time.
+    Used when a work order is marked delivered to schedule its auto-archival."""
+    from datetime import datetime, time
+    today_11pm = datetime.now().replace(hour=23, minute=0, second=0, microsecond=0)
+    return today_11pm.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _auto_archive_sweep(conn):
+    """Archive delivered work orders whose archive_after threshold has passed.
+    Called lazily at the top of list/count queries so no background process is needed."""
+    from datetime import datetime
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn.execute(
+        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1 "
+        "WHERE status = 'delivered' AND archived_at IS NULL "
+        "AND archive_after IS NOT NULL AND archive_after <= ?",
+        (now_str,)
+    )
+
+
 def _assign_wo_number(conn):
     """Generate next work-order number: WO-00001 ... WO-99999, then WO-100000+
     Tolerant of both old (WO#####) and new (WO-#####) stored formats when scanning for max."""
@@ -2710,18 +2798,20 @@ def list_work_orders():
     archived = request.args.get('archived', '') == '1'
 
     conn = get_db()
+    _auto_archive_sweep(conn)
     conds, params = [], []
     if archived:
-        conds.append("status = 'delivered'")
+        conds.append("archived_at IS NOT NULL")
     elif status_filter:
         wanted = [s.strip() for s in status_filter.split(',') if s.strip()]
         if wanted:
             placeholders = ','.join(['?'] * len(wanted))
             conds.append(f"status IN ({placeholders})")
             params.extend(wanted)
+        conds.append("archived_at IS NULL")
     else:
-        # default: active (non-archived)
-        conds.append("status IN ('requested','flagged')")
+        # default: active list = anything not yet archived (including pending-delivered)
+        conds.append("archived_at IS NULL")
 
     where = "WHERE " + " AND ".join(conds) if conds else ""
     search = request.args.get('search', '').strip()
@@ -2753,12 +2843,17 @@ def list_work_orders():
 @login_required
 def work_order_counts():
     conn = get_db()
-    rows = conn.execute("SELECT status, COUNT(*) as n FROM work_orders GROUP BY status").fetchall()
+    _auto_archive_sweep(conn)
+    counts = {
+        'requested':  conn.execute("SELECT COUNT(*) FROM work_orders WHERE status='requested' AND archived_at IS NULL").fetchone()[0],
+        'flagged':    conn.execute("SELECT COUNT(*) FROM work_orders WHERE status='flagged'   AND archived_at IS NULL").fetchone()[0],
+        # Delivered but still in active (awaiting auto-archive or manual Archive Now)
+        'delivered_pending': conn.execute("SELECT COUNT(*) FROM work_orders WHERE status='delivered' AND archived_at IS NULL").fetchone()[0],
+        # Archived (what shows in the Archive view)
+        'delivered':  conn.execute("SELECT COUNT(*) FROM work_orders WHERE archived_at IS NOT NULL").fetchone()[0],
+    }
+    counts['active'] = counts['requested'] + counts['flagged'] + counts['delivered_pending']
     conn.close()
-    counts = {'requested': 0, 'flagged': 0, 'delivered': 0}
-    for r in rows:
-        counts[r['status']] = r['n']
-    counts['active'] = counts['requested'] + counts['flagged']
     return jsonify(counts)
 
 
@@ -2812,6 +2907,113 @@ def create_work_order():
     return jsonify(wo), 201
 
 
+@app.route('/api/work-orders/<int:wid>/archive-now', methods=['POST'])
+@editor_required
+def archive_now_work_order(wid):
+    """Manually archive a delivered work order immediately (bypass the 23:00 sweep)."""
+    conn = get_db()
+    row = conn.execute("SELECT id, status, archived_at, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    if row['status'] != 'delivered':
+        conn.close()
+        return jsonify({'error': 'Only delivered work orders can be archived'}), 400
+    if row['archived_at']:
+        conn.close()
+        return jsonify({'error': 'Work order is already archived'}), 400
+    conn.execute(
+        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1 WHERE id = ?",
+        (wid,)
+    )
+    _log_wo_audit(conn, wid, 'status_changed', "Manually archived")
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (wid, "Manually archived.", _actor())
+    )
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/duplicate', methods=['POST'])
+@editor_required
+def duplicate_work_order(wid):
+    """Create a new work order by copying fields + parts from an existing one.
+    Status resets to 'requested'; per-part pulled/flagged state is reset;
+    notes_log and audit trail are fresh (audit records the source WO #)."""
+    import json as json_mod
+    conn = get_db()
+    src = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not src:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    try:
+        src_parts = json_mod.loads(src['parts_json'] or '[]') or []
+    except Exception:
+        src_parts = []
+    fresh_parts = []
+    for p in src_parts:
+        if not isinstance(p, dict):
+            continue
+        desc = str(p.get('description', '')).strip()
+        if not desc:
+            continue
+        try:
+            qty = int(p.get('quantity', 1) or 1)
+        except (TypeError, ValueError):
+            qty = 1
+        if qty < 1:
+            qty = 1
+        fresh_parts.append({
+            'description': desc,
+            'quantity': qty,
+            'pulled': False,
+            'pulled_at': '',
+            'flagged': False,
+            'flag_note': '',
+        })
+
+    wo_num = _assign_wo_number(conn)
+    created_by = _actor()
+    cur = conn.execute('''
+        INSERT INTO work_orders
+            (wo_number, warehouse_location, customer_name, quote_invoice, sales_person,
+             vehicle, vin, priority, notes, status, created_by, parts_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    ''', (
+        wo_num,
+        src['warehouse_location'] or '',
+        src['customer_name'] or '',
+        src['quote_invoice'] or '',
+        src['sales_person'] or '',
+        src['vehicle'] or '',
+        src['vin'] or '',
+        src['priority'] or 'Normal',
+        src['notes'] or '',
+        'requested',
+        created_by,
+        json_mod.dumps(fresh_parts),
+    ))
+    new_id = cur.lastrowid
+    _log_wo_audit(conn, new_id, 'created',
+                  f"Created {wo_num} by duplicating {src['wo_number']}")
+    # Also leave a visible note on the new WO's activity feed for context
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (new_id, f"Duplicated from {src['wo_number']}.", created_by)
+    )
+    conn.commit()
+
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (new_id,)).fetchone()
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+    return jsonify(wo), 201
+
+
 @app.route('/api/work-orders/<int:wid>', methods=['PUT'])
 @editor_required
 def update_work_order(wid):
@@ -2821,6 +3023,9 @@ def update_work_order(wid):
     if not existing:
         conn.close()
         return jsonify({'error': 'Not found'}), 404
+    if existing['status'] == 'delivered':
+        conn.close()
+        return jsonify({'error': 'Delivered work orders cannot be edited. Reopen first.'}), 400
 
     import json as json_mod
     editable = ['warehouse_location', 'customer_name', 'quote_invoice', 'sales_person',
@@ -2877,14 +3082,19 @@ def set_work_order_status(wid):
         return jsonify({'error': 'Flag note is required'}), 400
 
     if new_status == 'delivered':
+        # Schedule auto-archival for 23:00 local time on the day of delivery.
+        # archived_at stays NULL so the WO stays in Active until the sweep (or the
+        # Archive Now button) flips it.
         conn.execute(
-            "UPDATE work_orders SET status = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (new_status, wid)
+            "UPDATE work_orders SET status = ?, completed_at = CURRENT_TIMESTAMP, "
+            "archive_after = ?, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_status, _compute_archive_after(), wid)
         )
     else:
-        # Moving out of delivered back to active clears completed_at
+        # Moving out of delivered back to active clears completed_at + archive state
         conn.execute(
-            "UPDATE work_orders SET status = ?, completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE work_orders SET status = ?, completed_at = NULL, archive_after = NULL, "
+            "archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (new_status, wid)
         )
     # Clear flag_note when transitioning out of flagged so stale reasons don't linger
@@ -2900,14 +3110,32 @@ def set_work_order_status(wid):
             (wid, flag_note, author)
         )
 
-    # Audit log the status change
+    # Audit log the status change + mirror into the Notes & Activity feed
     if new_status != old_status:
+        actor = _actor()
         if new_status == 'flagged':
             audit_desc = f"Status: {old_status} → flagged — {flag_note}"
+            # Flag note insert is already handled above with note_type='flag'
         elif new_status == 'delivered':
             audit_desc = f"Status: {old_status} → delivered"
-        else:
+            conn.execute(
+                "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+                (wid, "Marked as delivered.", actor)
+            )
+        elif new_status == 'requested':
+            if old_status == 'flagged':
+                reason = "Flag removed — back to Requested."
+            elif old_status == 'delivered':
+                reason = "Reopened from delivered — back to Requested."
+            else:
+                reason = f"Status changed {old_status} → requested."
             audit_desc = f"Status: {old_status} → {new_status} (reopened)"
+            conn.execute(
+                "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+                (wid, reason, actor)
+            )
+        else:
+            audit_desc = f"Status: {old_status} → {new_status}"
         _log_wo_audit(conn, wid, 'status_changed', audit_desc)
 
     conn.commit()
@@ -3025,19 +3253,61 @@ def add_general_note(wid):
 
 
 @app.route('/api/work-orders/<int:wid>', methods=['DELETE'])
-@admin_required
+@editor_required
 def delete_work_order(wid):
+    """Delete a work order. Gating:
+      - delivered (pending or archived)       → admin only
+      - previously archived, now reopened     → admin or supervisor
+      - never archived, active                → editor+ (decorator-level)"""
     conn = get_db()
-    existing = conn.execute("SELECT id, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    existing = conn.execute(
+        "SELECT id, wo_number, status, was_archived FROM work_orders WHERE id = ?", (wid,)
+    ).fetchone()
     if not existing:
         conn.close()
         return jsonify({'error': 'Not found'}), 404
+    if existing['status'] == 'delivered' and not current_user.is_admin:
+        conn.close()
+        return jsonify({'error': 'Archived work orders can only be deleted by an admin'}), 403
+    if existing['was_archived'] and current_user.role not in ('admin', 'supervisor'):
+        conn.close()
+        return jsonify({
+            'error': 'Previously-archived work orders can only be deleted by an admin or supervisor — please Re-Archive instead'
+        }), 403
     _log_wo_audit(conn, wid, 'deleted', f"Work order {existing['wo_number']} deleted")
     conn.execute("DELETE FROM work_order_notes WHERE work_order_id = ?", (wid,))
     conn.execute("DELETE FROM work_orders WHERE id = ?", (wid,))
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+@app.route('/api/work-orders/<int:wid>/re-archive', methods=['POST'])
+@editor_required
+def re_archive_work_order(wid):
+    """Immediately re-archive a work order (skipping the 23:00 grace period).
+    Used from the UI where editors can't delete a previously-archived reopened WO."""
+    conn = get_db()
+    row = conn.execute("SELECT id, status, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    conn.execute(
+        "UPDATE work_orders SET status = 'delivered', completed_at = CURRENT_TIMESTAMP, "
+        "archive_after = ?, archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
+        "flag_note = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (_compute_archive_after(), wid)
+    )
+    _log_wo_audit(conn, wid, 'status_changed', "Re-archived")
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (wid, "Re-archived.", _actor())
+    )
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
 
 
 def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_body_extra=None, history_note=None, history_note_type='flag'):

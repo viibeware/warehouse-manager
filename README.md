@@ -221,6 +221,30 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.2.8
+- **Sub-modals return to Settings** — Closing any settings-reached modal (Work Order Lists, SMTP, Turnstile, User Management, Category Manager, Import, Change Password) via save, cancel, or X returns you to the main Settings modal on the appropriate tab instead of dumping you back to the dashboard.
+- **Role permissions matrix** — The User form modal now shows a 12-row permission grid for all four roles (Viewer / Editor / Supervisor / Admin) so admins can see what each role can and can't do at a glance.
+- **Re-Archive button + three-tier delete gating** — Migration v23 tracks `was_archived`. Editors can no longer delete a work order that's been archived and reopened — they see a **Re-Archive** button instead (marks delivered + archives immediately, skipping the 23:00 grace). Admins and supervisors retain delete on previously-archived reopened WOs. Delivered / currently-archived orders remain admin-only to delete.
+- **Delayed archival + Archive Now** — Migration v22: delivered WOs stay in the Active list until 23:00 local time of the delivery day, then an on-demand sweep (triggered by any list/count query) sets `archived_at`. New `POST /api/work-orders/<id>/archive-now` + button lets an editor archive immediately. New `POST /api/work-orders/<id>/re-archive` skips the grace period for the re-archive flow.
+- **Delivered-pending visual state** — Work orders in that post-delivery / pre-archive window get a persistent pale green card background (`color-mix(--bg-card 75% / #86efac 25%)`), with the Mark-Delivered flash animation settling onto that exact color and Archive Now / Re-Archive using a fade-out animation on top of it.
+- **Duplicate work order** — `POST /api/work-orders/<id>/duplicate` copies fields + parts (pulled / flagged reset) into a fresh `WO-#####`, logs an audit entry, and posts a "Duplicated from WO-XXXXX" note. Button appears on every card and in the detail modal footer (active + archive).
+- **Audit Trail button on list cards** — Admins and supervisors see an Audit Trail button directly on each work order card in both the active and archive views.
+- **Invoice number click-to-copy** — Invoice / quote # shown next to customer name on the card and in the detail modal. Clicking copies the bare number (stripping any `#` prefix) with a pill hover highlight so it reads as interactive.
+- **"Needs Audited" from anywhere** — Part detail modal's orange banner is now clickable for editors (edit / clear the flag), a "Mark for Audit" button appears on parts that aren't flagged, and the Audit column in the parts table is fully actionable. New `POST /api/parts/<id>/audit` endpoint.
+- **Configurable priority colors** — Priorities in Settings → Admin → Work Order Lists now carry an optional color (color-picker input + clear button). Card tints use that color via `color-mix(--bg-card 82% / configured 18%)`. Stored as `{name, color}` with legacy-string normalization. Next Day Air default bumped from pale yellow to `#fff3e5` with a forward-migrate for records still on the old default.
+- **Six themes** — Light, Dark, Neobrutal Light, Neobrutal Dark, Solarpunk, Cyberpunk — picker in Settings → General; sidebar sun/moon button toggles Light ↔ Dark.
+- **AGPLv3 license** — Switched from MIT; About pane links to the canonical GNU text.
+- **Dashboard landing page + URL routing** — `/dashboard` with WO summary + active list + recent part updates. Flask serves `/dashboard`, `/workorders`, `/workorders/archive`, `/parts`, `/parts/<slug>`; frontend uses `pushState` + `popstate` so every view has its own URL.
+- **Next Day Air card tint** — Priority-colored card background with paler (18%) color-mix, skipped on the archive list.
+- **Settings modal** — 900 px wide, fixed 640 px height so tabs don't jump, mixed-case labels, About tab is admin-only.
+- **Pulled flash + audit logging** — Checking a part's pulled box pulses a pale green 1 s flash on the work-order block and adds an entry to the Notes & Activity feed. Pulled timestamp captured and displayed under the part description.
+- **Send / Email Update** — Renamed "Send Update" → **Email Update**; added to the card action row.
+- **WO detail modal** — Widened to 768 px with two-row footer (Edit/Add Note/Flag/Download PDF/Email Update/Duplicate on row 1; Mark Delivered, Audit Trail, …, Delete on row 2) and sticky footer so action buttons stay visible while body scrolls.
+- **90-day login sessions** — `PERMANENT_SESSION_LIFETIME` + `REMEMBER_COOKIE_DURATION` = 90 days.
+- **Cloudflare Turnstile** — Optional login challenge, admin-configurable site key + secret.
+- **Supervisor role** — Editor permissions + audit-trail view.
+- **Promoted to 1.0 in this line** — feature-complete working release.
+
 ### v1.1.1
 - **Activate audit from view modal** — The orange "Needs Audited" banner in the part detail modal is now clickable for editors: it opens a Part Audit modal prefilled with the current note, where you can edit the details or clear the audit flag entirely. A **Mark for Audit** button appears in place of the banner when the part isn't currently flagged.
 - **Trigger audit from the list view** — The Audit column in the parts table is now actionable: rows with `needs_audit = true` show a clickable orange **⚠ AUDIT** badge (opens the modal for editing/clearing); editors see a subtle dashed **+ Audit** button on rows that aren't flagged, so they can mark a part for audit directly from the table without opening the part.
