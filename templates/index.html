@@ -986,11 +986,13 @@ body {
     100% { background: color-mix(in srgb, var(--bg-card) 35%, #86efac 65%); opacity: 0; transform: scale(0.96); }
 }
 
-.wo-invoice.clickable {
+.wo-invoice.clickable,
+.wo-number.clickable {
     cursor: pointer; padding: 2px 7px; border-radius: 4px;
     transition: color var(--transition), background var(--transition);
 }
-.wo-invoice.clickable:hover {
+.wo-invoice.clickable:hover,
+.wo-number.clickable:hover {
     color: var(--accent); background: var(--accent-dim);
 }
 
@@ -4772,7 +4774,7 @@ function renderWorkOrderCard(wo) {
     <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle}>
         <div class="wo-card-main">
             <div class="wo-card-top">
-                <span class="wo-number">${esc(wo.wo_number)}</span>
+                <span class="wo-number clickable" data-wo="${esc(wo.wo_number)}" onclick="copyWoNumFromEl(this, event)" title="Click to copy WO #">${esc(wo.wo_number)}</span>
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
                 ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">#${esc(wo.quote_invoice)}</span>` : ''}
                 <span class="wo-card-top-right">
@@ -5562,13 +5564,9 @@ function downloadWorkOrderPdf(wid) {
     window.open(`/api/work-orders/${wid}/pdf`, '_blank');
 }
 
-function copyInvoiceFromEl(el, event) {
-    if (event) { event.stopPropagation(); event.preventDefault(); }
-    // Strip any leading # the user may have typed so only the bare invoice number is copied
-    const raw = el && el.dataset ? (el.dataset.invoice || '') : '';
-    const txt = raw.replace(/^#+\s*/, '').trim();
+function _copyTextToClipboard(txt, okMsg) {
     if (!txt) return;
-    const ok = () => showToast(`Copied ${txt}`, 'success');
+    const ok = () => showToast(okMsg || `Copied ${txt}`, 'success');
     const fail = () => showToast('Copy failed', 'error');
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(txt).then(ok).catch(fail);
@@ -5582,6 +5580,21 @@ function copyInvoiceFromEl(el, event) {
         document.body.removeChild(ta);
         ok();
     } catch { fail(); }
+}
+
+function copyInvoiceFromEl(el, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    // Strip any leading # the user may have typed so only the bare invoice number is copied
+    const raw = el && el.dataset ? (el.dataset.invoice || '') : '';
+    const txt = raw.replace(/^#+\s*/, '').trim();
+    _copyTextToClipboard(txt, `Copied ${txt}`);
+}
+
+function copyWoNumFromEl(el, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    const raw = el && el.dataset ? (el.dataset.wo || '') : '';
+    const txt = raw.trim();
+    _copyTextToClipboard(txt, `Copied ${txt}`);
 }
 
 async function duplicateWorkOrder(wid) {

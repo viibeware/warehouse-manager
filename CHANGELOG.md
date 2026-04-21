@@ -1,6 +1,7 @@
 # Changelog
 
 ## v1.5.6
+- <strong>Click-to-copy WO #</strong> — The work-order number in each card header now copies to the clipboard on click, with the same hover pill treatment as the invoice number. A toast confirms the copied value.
 - <strong>Quieter WO cards</strong> — Removed the horizontal divider lines between sections inside each card (above Notes &amp; Activity, above the parts grid, below the parts-head column labels, and above the action row). Sections now separate via spacing only.
 - <strong>Flagged parts blend in</strong> — Dropped the red row-background tint from flagged parts. The red flag icon, flag-note pill, and red thread badge still mark flagged parts; the row itself is neutral.
 - <strong>Photo strip</strong> — Removed the dotted line above per-part photo thumbnails. Padding retained for breathing room.
