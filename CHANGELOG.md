@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.4
+- <strong>Un-pull cleans the thread</strong> — When a part is unmarked as pulled, the matching "Part pulled — …" note is removed from the Notes &amp; Activity thread if nobody has replied to it. Replies preserve the original note and post an explicit "Part unmarked pulled" entry instead. The audit log always records both events regardless.
+- <strong>New WO modal: sticky header + footer</strong> — Title/close and Cancel/Create Request rows stay pinned; only the form body scrolls. Opening a new request always starts scrolled to the top.
+- <strong>Parts row polish</strong> — Placeholder renamed to "Part Number"; the Red square ✕ remove button is skipped during Tab so keyboard users go Part Number → Short Description → next row.
+- <strong>About tab single-scroll</strong> — Dropped the inner scroll container so the whole About pane scrolls as one region.
+
 ## v1.5.3
 - <strong>Centralized changelog</strong> — CHANGELOG.md is now the single source of truth, shipped with the Docker image. The About tab fetches it at runtime from <code>/api/changelog</code>, so updating one file keeps the About pane in sync with every build. README's "Changelog" section links here instead of duplicating entries.
 - <strong>Per-part short description</strong> — Each part on the new + edit work-order forms has an optional full-width "Short description" input (color, condition, fitment note). The value persists in <code>parts_json.details</code>, surfaces on the card under the part line, and is included in the full-status update email and PDF export.

@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.3'
+APP_VERSION = '1.5.4'
 
 app = Flask(__name__)
 
@@ -4298,17 +4298,56 @@ def set_part_pulled(wid, idx):
     part_desc = f"{parts[idx].get('quantity', 1)} × {parts[idx].get('description', '')}"
 
     if pulled:
-        history_note = f"Part pulled — {part_desc}"
+        # Pulled: post a note + audit entry as usual
+        wo, _, err = _update_part_field(
+            wid, idx,
+            {'pulled': pulled, 'pulled_at': pulled_at},
+            audit_desc=f"Part {idx+1} marked pulled at {pulled_at}",
+            history_note=f"Part pulled — {part_desc}",
+            history_note_type='general',
+        )
     else:
-        history_note = f"Part unmarked pulled — {part_desc}"
+        # Unmarked-pulled: keep the audit entry, but clean up the notes thread.
+        # If the most recent "Part pulled" note for this part has no replies,
+        # remove it silently (the whole "pulled → un-pulled" ping-pong
+        # disappears). If a teammate already replied to it, preserve the
+        # original note and post an explicit "Part unmarked pulled" entry.
+        c2 = get_db()
+        expected = f"Part pulled — {part_desc}"
+        last = c2.execute(
+            "SELECT id FROM work_order_notes "
+            "WHERE work_order_id = ? AND note = ? AND note_type = 'general' "
+            "ORDER BY created_at DESC, id DESC LIMIT 1",
+            (wid, expected)
+        ).fetchone()
+        has_replies = False
+        if last:
+            reply = c2.execute(
+                "SELECT id FROM work_order_notes WHERE parent_id = ? LIMIT 1",
+                (last['id'],)
+            ).fetchone()
+            has_replies = bool(reply)
+        if last and not has_replies:
+            # Remove the original pulled note; don't add a new history note.
+            c2.execute("DELETE FROM work_order_notes WHERE id = ?", (last['id'],))
+            c2.commit()
+            c2.close()
+            wo, _, err = _update_part_field(
+                wid, idx,
+                {'pulled': pulled, 'pulled_at': pulled_at},
+                audit_desc=f"Part {idx+1} marked not pulled (pulled note removed from thread)",
+                history_note=None,
+            )
+        else:
+            c2.close()
+            wo, _, err = _update_part_field(
+                wid, idx,
+                {'pulled': pulled, 'pulled_at': pulled_at},
+                audit_desc=f"Part {idx+1} marked not pulled",
+                history_note=f"Part unmarked pulled — {part_desc}",
+                history_note_type='general',
+            )
 
-    wo, _, err = _update_part_field(
-        wid, idx,
-        {'pulled': pulled, 'pulled_at': pulled_at},
-        audit_desc=f"Part {idx+1} marked {'pulled at ' + pulled_at if pulled else 'not pulled'}",
-        history_note=history_note,
-        history_note_type='general',
-    )
     if wo is None:
         return jsonify({'error': 'Not found' if err == 'not_found' else 'Invalid part index'}), 404 if err == 'not_found' else 400
     return jsonify(wo)
