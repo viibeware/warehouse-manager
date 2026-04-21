@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.5.8
+- <strong>Edit gating on work orders</strong> — Only the originator, admins, and supervisors can edit the request body (fields, parts list, details). Plain editors and viewers see a greyed-out Edit button with a tooltip explaining the restriction. Other functions — adding notes, uploading photos, flagging parts, marking pulled — remain available to everyone with edit rights. Backend <code>PUT /api/work-orders/&lt;id&gt;</code> enforces the same rule and returns 403 if breached.
+
 ## v1.5.7
 - <strong>Archive in any state</strong> — New <strong>Archive</strong> button on every active card (between Delete and Mark Delivered) archives the work order regardless of status. Non-delivered archives keep <code>was_delivered = 0</code> and show an orange <strong>Not Delivered</strong> pill in the Archive list. New endpoint <code>POST /api/work-orders/&lt;id&gt;/archive</code>.
 - <strong>Smarter delete gating</strong> — Migration v29 adds <code>was_delivered</code> (latches ON once delivered) and <code>created_by_user_id</code> (authoritative originator). Delete is now allowed for the <strong>originator</strong>, admins, and supervisors only; editors without originator match are blocked. Reopened-from-delivered records show a greyed-out Delete with a tooltip "Delivered work orders cannot be deleted once completed. Use Archive instead." The backend <code>DELETE /api/work-orders/&lt;id&gt;</code> enforces the same rules.

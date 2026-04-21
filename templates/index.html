@@ -764,8 +764,13 @@ body {
     color: var(--text-secondary); border-radius: 6px; font-size: 0.75rem;
     cursor: pointer; transition: all var(--transition); font-family: var(--font);
 }
-.table-btn:hover { border-color: var(--accent); color: var(--accent); }
-.table-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.table-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.table-btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.table-btn:disabled {
+    color: var(--text-muted); border-color: var(--border);
+    background: var(--bg-input); opacity: 0.55;
+    cursor: not-allowed;
+}
 .self-badge {
     font-family: var(--mono); font-size: 0.58rem; background: var(--accent-dim);
     color: var(--accent); padding: 1px 5px; border-radius: 8px; margin-left: 5px;
@@ -4782,9 +4787,18 @@ function renderWorkOrderCard(wo) {
     const trailingGroup = (deleteBtn || archiveBtn || markDeliveredBtn)
         ? `<span class="wo-actions-trailing">${deleteBtn}${archiveBtn}${markDeliveredBtn}</span>`
         : '';
+    // Edit gating: only the originator, admins, and supervisors may edit the
+    // work-order body. Plain editors see a greyed-out button with a tooltip
+    // (they can still add notes / upload photos / flag parts).
+    const canEditBody = !readOnly && (isAdmin || isSupervisor || isOriginator);
+    const editBtn = readOnly
+        ? ''
+        : (canEditBody
+            ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>`
+            : `<button class="table-btn" disabled title="Only the originator, an admin, or a supervisor can edit this work order. You can still add notes, photos, and flag parts.">Edit</button>`);
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            ${!readOnly ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
+            ${editBtn}
             ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
             ${(isArchived || isDeliveredPending) ? `<button class="table-btn" title="Reopen this work order back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
             ${!readOnly ? `<button class="table-btn" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}

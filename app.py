@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.7'
+APP_VERSION = '1.5.8'
 
 app = Flask(__name__)
 
@@ -3879,6 +3879,17 @@ def update_work_order(wid):
     if existing['status'] == 'delivered':
         conn.close()
         return jsonify({'error': 'Delivered work orders cannot be edited. Reopen first.'}), 400
+    # Editing the original request body is restricted to the originator, admins,
+    # and supervisors. Plain editors who didn't create this WO can still add
+    # notes, upload photos, mark parts pulled/flagged — just not rewrite the
+    # request fields or the parts list.
+    is_originator = existing['created_by_user_id'] == current_user.id \
+        if 'created_by_user_id' in existing.keys() else False
+    if not (current_user.is_admin or current_user.role == 'supervisor' or is_originator):
+        conn.close()
+        return jsonify({
+            'error': 'Only the originator, an admin, or a supervisor can edit this work order. You can still add notes, photos, and flag parts.'
+        }), 403
 
     import json as json_mod
     editable = ['warehouse_location', 'customer_name', 'quote_invoice', 'sales_person',
