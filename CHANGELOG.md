@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.5.9
+- <strong>Your Access tab</strong> — New top-level tab in Settings (visible to every role) that shows the user's role badge, display name, email, a plain-English summary, and five grouped capability lists (Browse &amp; View, Parts, Work Orders, Delete &amp; Admin, Your Account). Each capability has a green check for "you can do this" or a muted line for capabilities that your role doesn't include — at a glance you see both what you have and what a higher role would add.
+
 ## v1.5.8
 - <strong>Edit gating on work orders</strong> — Only the originator, admins, and supervisors can edit the request body (fields, parts list, details). Plain editors and viewers see a greyed-out Edit button with a tooltip explaining the restriction. Other functions — adding notes, uploading photos, flagging parts, marking pulled — remain available to everyone with edit rights. Backend <code>PUT /api/work-orders/&lt;id&gt;</code> enforces the same rule and returns 403 if breached.
 

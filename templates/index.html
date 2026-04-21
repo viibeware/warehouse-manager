@@ -809,6 +809,62 @@ body {
 .role-badge.supervisor { background: var(--transmission-dim); color: var(--transmission); }
 .role-badge.viewer { background: var(--accent-dim); color: var(--accent); }
 
+/* "Your Access" card in Settings → General */
+.role-access-card {
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 0.85rem 1rem; background: var(--bg-card);
+    display: flex; flex-direction: column; gap: 0.8rem;
+}
+.role-access-head {
+    display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;
+}
+.role-access-head .role-badge {
+    font-size: 0.68rem; padding: 3px 10px; border-radius: 10px;
+}
+.role-access-email {
+    font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted);
+}
+.role-access-summary {
+    font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;
+}
+.role-access-groups {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.85rem 1.1rem;
+}
+.role-access-group {
+    display: flex; flex-direction: column; gap: 0.35rem;
+}
+.role-access-group-title {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+.role-access-list {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.82rem; color: var(--text-primary); line-height: 1.4;
+}
+.role-access-list li {
+    position: relative; padding-left: 22px;
+}
+.role-access-list li::before {
+    content: ''; position: absolute; left: 4px; top: 6px;
+    width: 12px; height: 9px;
+    background: none;
+    border-left: 2px solid var(--yes);
+    border-bottom: 2px solid var(--yes);
+    transform: rotate(-45deg);
+}
+.role-access-list li.role-access-locked { color: var(--text-muted); }
+.role-access-list li.role-access-locked::before {
+    border-color: var(--text-muted); opacity: 0.55;
+    transform: rotate(0deg);
+    width: 10px; height: 2px;
+    border-left: 0; border-bottom: 0;
+    background: var(--text-muted);
+    top: 9px;
+}
+
 /* Matches .sidebar-user-bar horizontal padding so gear (top row) and theme (bottom row) icons line up */
 .sidebar-footer-bottom { display: flex; align-items: center; gap: 4px; padding: 0 0.6rem; }
 
@@ -2058,6 +2114,7 @@ body {
         <div class="modal-body" style="min-height:420px;">
             <div class="settings-tabs">
                 <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
+                <button class="settings-tab" onclick="switchSettingsTab('access', this)">Your Access</button>
                 <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Admin</button>
                 <button class="settings-tab" id="settingsBrandingTab" style="display:none;" onclick="switchSettingsTab('branding', this)">Branding</button>
                 <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
@@ -2114,6 +2171,17 @@ body {
                             <span class="swatch-label">Cyberpunk</span>
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Your Access Tab -->
+            <div class="settings-tab-content" id="settingsTabAccess">
+                <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.35rem;">
+                    <div>
+                        <div class="settings-label">Your Access</div>
+                        <div class="settings-desc">Your role controls what you can do on this system. The list below shows exactly what's available to your account right now.</div>
+                    </div>
+                    <div id="yourAccessCard" class="role-access-card"><!-- populated by JS --></div>
                 </div>
             </div>
 
@@ -2937,6 +3005,7 @@ function openSettingsModal(tab) {
     if (av && currentUserData) av.textContent = `v${currentUserData.version || '?'}`;
     const btnSelector = {
         general: '.settings-tab',
+        access: '.settings-tab:nth-child(2)',
         admin: '#settingsAdminTab',
         branding: '#settingsBrandingTab',
         data: '#settingsDataTab',
@@ -2998,6 +3067,7 @@ function switchSettingsTab(tab, btn) {
     if (btn) btn.classList.add('active');
     const tabMap = {
         general: 'settingsTabGeneral',
+        access: 'settingsTabAccess',
         admin: 'settingsTabAdmin',
         branding: 'settingsTabBranding',
         data: 'settingsTabData',
@@ -3005,6 +3075,7 @@ function switchSettingsTab(tab, btn) {
     };
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
+    if (tab === 'access') renderYourAccessCard();
     if (tab === 'branding') refreshBrandingPreview();
     if (tab === 'about') loadAboutChangelog();
 }
@@ -3178,7 +3249,110 @@ async function loadCurrentUser() {
             document.getElementById('settingsDataTab').style.display = '';
             document.getElementById('settingsAboutTab').style.display = '';
         }
+        renderYourAccessCard();
     } catch { window.location.href = '/login'; }
+}
+
+/* Render the "Your Access" panel on Settings → General. Lists capabilities
+   organized into intuitive groups with a checkmark for everything the user
+   can do now, and a subtle struck-through line for things their role
+   doesn't include (so they see how they compare). */
+function renderYourAccessCard() {
+    const el = document.getElementById('yourAccessCard');
+    if (!el || !currentUserData) return;
+    const role = currentUserData.role || 'viewer';
+    const isAdmin = role === 'admin';
+    const isSupervisor = role === 'supervisor';
+    const isEditor = role === 'editor';
+    const isViewer = role === 'viewer';
+    const canEdit = isAdmin || isSupervisor || isEditor;
+
+    const summary = {
+        admin: 'Full access. You manage the system, data, users, and every work order.',
+        supervisor: 'Everything an editor can do, plus editing other people\'s work orders, viewing audit trails, and deleting previously-archived reopened work orders.',
+        editor: 'You can create and work on parts and work orders. You can only edit / delete work orders that you created — but you can still add notes, photos, flag parts, and mark them delivered on anyone\'s work order.',
+        viewer: 'Read-only access. You can browse parts and work orders, download PDFs, and manage your own account, but you can\'t make changes.',
+    }[role];
+
+    const groups = [
+        {
+            title: 'Browse & View',
+            items: [
+                ['Browse parts &amp; work orders',       true],
+                ['View dashboard',                      true],
+                ['Download PDFs, copy WO &amp; invoice #', true],
+                ['View audit trail',                    isAdmin || isSupervisor],
+            ],
+        },
+        {
+            title: 'Parts',
+            items: [
+                ['Create &amp; edit parts',             canEdit],
+                ['Mark parts sold / for audit',         canEdit],
+                ['Upload part images',                  canEdit],
+                ['Flag parts',                          canEdit],
+            ],
+        },
+        {
+            title: 'Work Orders',
+            items: [
+                ['Create new work orders',              canEdit],
+                ['Edit any work order',                 isAdmin || isSupervisor],
+                ['Edit work orders you created',        canEdit],
+                ['Add notes, reply to threads',         canEdit],
+                ['Upload part photos',                  canEdit],
+                ['Flag parts, mark pulled',             canEdit],
+                ['Mark delivered / archive / reopen',   canEdit],
+                ['Duplicate work orders',               canEdit],
+                ['Email Update to sales person',        canEdit],
+            ],
+        },
+        {
+            title: 'Delete & Admin',
+            items: [
+                ['Delete work orders you created',      canEdit],
+                ['Delete previously-archived reopened', isAdmin || isSupervisor],
+                ['Delete delivered / archived',         isAdmin],
+                ['Import / export data',                isAdmin],
+                ['Manage users &amp; categories',       isAdmin],
+                ['Configure SMTP, Turnstile, branding', isAdmin],
+                ['Toggle global email alerts',          isAdmin],
+                ['Unlock locked accounts',              isAdmin],
+            ],
+        },
+        {
+            title: 'Your Account',
+            items: [
+                ['Change your password',                true],
+                ['Toggle your own email notifications', true],
+                ['Receive salesperson emails',          !!currentUserData.is_sales_person],
+            ],
+        },
+    ];
+
+    const email = currentUserData.username || '';
+    const displayName = currentUserData.display_name || email;
+    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+    el.innerHTML = `
+        <div class="role-access-head">
+            <span class="role-badge ${role}">${roleLabel}</span>
+            <span style="font-weight:600;color:var(--text-primary);">${esc(displayName)}</span>
+            ${email && email !== displayName ? `<span class="role-access-email">${esc(email)}</span>` : ''}
+        </div>
+        <div class="role-access-summary">${summary}</div>
+        <div class="role-access-groups">
+            ${groups.map(g => `
+                <div class="role-access-group">
+                    <div class="role-access-group-title">${esc(g.title)}</div>
+                    <ul class="role-access-list">
+                        ${g.items.map(([label, allowed]) =>
+                            `<li class="${allowed ? '' : 'role-access-locked'}">${label}</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+            `).join('')}
+        </div>`;
 }
 
 // ══════════════════════════════════════════
