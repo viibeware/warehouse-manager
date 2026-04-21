@@ -1367,6 +1367,22 @@ body {
     grid-column: 1 / -1;     /* span all three columns on its own line */
     font-size: 0.85rem;
 }
+.wo-part-row .wo-list-remove {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    background: var(--danger);
+    color: #fff;
+    border: 1px solid var(--danger);
+    border-radius: 4px;      /* squared-off — slight rounding to match inputs */
+    font-weight: 700; font-size: 0.95rem; line-height: 1;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition);
+}
+.wo-part-row .wo-list-remove:hover {
+    background: var(--danger-hover, #dc2626);
+    border-color: var(--danger-hover, #dc2626);
+}
 .wo-parts-empty {
     padding: 0.5rem 0.6rem; font-size: 0.75rem; color: var(--text-muted);
     border: 1px dashed var(--border); border-radius: var(--radius); text-align: center;
@@ -5185,7 +5201,7 @@ function partRowHtml(qty, desc, key, details) {
     return `<div class="wo-part-row" data-part-key="${esc(key || '')}">
         <input class="form-input wo-part-qty" type="number" min="1" value="${esc(String(qty))}" placeholder="Qty">
         <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part Number">
-        <button type="button" class="wo-list-remove" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
+        <button type="button" class="wo-list-remove" tabindex="-1" title="Remove part" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
         <input class="form-input wo-part-details" type="text" value="${esc(details || '')}" placeholder="Short description (optional — e.g. color, condition, fitment note)">
     </div>`;
 }
