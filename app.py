@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.0'
+APP_VERSION = '1.5.1'
 
 app = Flask(__name__)
 
@@ -1055,7 +1055,7 @@ def form_val(key, default=''):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect('/dashboard')
 
     # Pull turnstile config + branding once per request so GET and POST both see it
     conn_ts = get_db()
@@ -1108,9 +1108,12 @@ def login():
             login_user(user, remember=True)
             session.permanent = True
 
+            # Always land on the dashboard after signing in — ignore any `next`
+            # parameter so users start at a known screen regardless of where
+            # the auth redirect came from.
             if is_ajax:
-                return jsonify({'success': True, 'redirect': url_for('index')})
-            return redirect(request.args.get('next') or url_for('index'))
+                return jsonify({'success': True, 'redirect': '/dashboard'})
+            return redirect('/dashboard')
 
         if is_ajax:
             return jsonify({'error': 'Invalid username or password'}), 401

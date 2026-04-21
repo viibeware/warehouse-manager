@@ -370,17 +370,23 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         return [f(0), f(8), f(4)];
     };
 
-    // Triadic palette: 3 hues 120° apart, full saturation, mid-lightness,
-    // with a random base hue each reload. "Complementary" in the looser
-    // sense users typically mean — harmonious, evenly spaced.
+    // Analogous pastel palette: 3 hues spread ±25-40° around a random base,
+    // giving a harmonious, low-contrast ribbon instead of the divergent
+    // look triadic colors produce. High lightness + moderate saturation
+    // lands the swatches in pastel territory.
     const baseHue = Math.random() * 360;
-    const hues = [baseHue, (baseHue + 120) % 360, (baseHue + 240) % 360];
-    // Shuffle so the band order also varies per reload
+    const spread = 25 + Math.random() * 15;
+    const hues = [baseHue - spread, baseHue, baseHue + spread].map(
+        h => ((h % 360) + 360) % 360
+    );
+    // Shuffle band order so the dominant hue isn't always the middle band
     for (let i = hues.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [hues[i], hues[j]] = [hues[j], hues[i]];
     }
-    const rgb = hues.map(h => hslToRgb(h, 0.78, 0.52));
+    const sat = 0.42 + Math.random() * 0.12;   // 42%-54% — softer than jewel-tone
+    const lum = 0.76 + Math.random() * 0.06;   // 76%-82% — pastel high-key
+    const rgb = hues.map(h => hslToRgb(h, sat, lum));
     const n = rgb.length;
 
     // Random rotation of the gradient band
@@ -452,16 +458,21 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     requestAnimationFrame(frame);
 
     function drawStaticGradient(c){
+        // Reduced-motion fallback — same analogous-pastel approach so the
+        // static gradient matches the animated one.
         const rect = c.getBoundingClientRect();
         c.width = Math.round(rect.width);
         c.height = Math.round(rect.height);
         const g = c.getContext('2d').createLinearGradient(0, 0, rect.width, rect.height);
         const baseHue = Math.random() * 360;
-        const hues = [baseHue, (baseHue + 120) % 360, (baseHue + 240) % 360];
-        const rgb = hues.map(h => hslToRgb(h, 0.78, 0.52));
-        g.addColorStop(0, `rgb(${rgb[0].join(',')})`);
+        const spread = 25 + Math.random() * 15;
+        const hues = [baseHue - spread, baseHue, baseHue + spread].map(
+            h => ((h % 360) + 360) % 360
+        );
+        const rgb = hues.map(h => hslToRgb(h, 0.48, 0.79));
+        g.addColorStop(0,   `rgb(${rgb[0].join(',')})`);
         g.addColorStop(0.5, `rgb(${rgb[1].join(',')})`);
-        g.addColorStop(1, `rgb(${rgb[2].join(',')})`);
+        g.addColorStop(1,   `rgb(${rgb[2].join(',')})`);
         const ctx2 = c.getContext('2d');
         ctx2.fillStyle = g;
         ctx2.fillRect(0, 0, rect.width, rect.height);

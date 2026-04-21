@@ -221,6 +221,10 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.5.1
+- **Always land on the dashboard after sign-in.** Login redirect ignores any `?next=…` param and sends users to `/dashboard` for both AJAX and form-post flows; the already-authenticated guard matches.
+- **Softer login gradient.** Hero sine-wave switched from triadic (120° apart) to an analogous pastel palette — three hues within ±25–40° of a random base hue, saturation 42–54%, lightness 76–82%. Less visually divergent, dreamier look. Reduced-motion static fallback matches.
+
 ### v1.5.0
 - **Two-panel login screen** — New split layout with a left hero panel that always renders a full-canvas animated sine-wave gradient. Each reload picks a fresh triadic palette (3 complementary hues 120° apart, random rotation, random wave frequencies/phases); reduced-motion falls back to a static gradient. The hero shows the Warehouse Manager SVG + name at 100 px; no Viibeware branding. The right form panel displays just the version number (Inter, not mono). The login chrome respects the last signed-in user's saved light/dark theme by reading `wm-theme` from localStorage before first paint.
 - **Custom branding** — New admin-only Branding tab in Settings. Upload a PNG or SVG logo to appear at the bottom of the login hero; logo width is adjustable via a range slider + numeric input with a WYSIWYG preview rendered at the actual render width; changes persist via a Save button. `GET /branding/logo` serves the asset publicly so the login page can fetch it pre-auth.
