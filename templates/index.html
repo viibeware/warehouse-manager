@@ -1563,6 +1563,20 @@ body {
 #settingsModal .modal-body {
     flex: 1; min-height: 0; overflow-y: auto;
 }
+
+/* Work-order form modal: sticky header + footer, only the body scrolls */
+#woFormModal .modal {
+    display: flex; flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+#woFormModal .modal-header,
+#woFormModal .modal-footer {
+    flex-shrink: 0;
+}
+#woFormModal .modal-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+}
 .settings-tab:hover { color: var(--text-secondary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .settings-tab-content { display: none; }
