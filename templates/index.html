@@ -1193,6 +1193,12 @@ body {
     font-family: var(--mono); font-size: 0.62rem;
     color: var(--text-muted); margin-top: 2px;
 }
+.wo-part-details-text {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    white-space: pre-wrap; word-break: break-word;
+}
 .wo-part-check {
     appearance: none; width: 16px; height: 16px; border: 1.5px solid var(--border);
     border-radius: 4px; cursor: pointer; position: relative; background: var(--bg-input);
@@ -1354,8 +1360,12 @@ body {
 .wo-list-row .wo-list-remove:hover { border-color: var(--danger); color: var(--danger); }
 
 .wo-part-row {
-    display: grid; grid-template-columns: 80px 1fr 32px; gap: 0.4rem;
-    align-items: center; margin-bottom: 0.35rem;
+    display: grid; grid-template-columns: 80px 1fr 32px; gap: 0.4rem 0.4rem;
+    align-items: center; margin-bottom: 0.5rem;
+}
+.wo-part-row .wo-part-details {
+    grid-column: 1 / -1;     /* span all three columns on its own line */
+    font-size: 0.85rem;
 }
 .wo-parts-empty {
     padding: 0.5rem 0.6rem; font-size: 0.75rem; color: var(--text-muted);
@@ -2195,342 +2205,8 @@ body {
                     </div>
                 </div>
                 <h3 class="about-sub">Changelog</h3>
-                <div style="max-height:280px;overflow-y:auto;">
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.5.2</div>
-                        <ul class="changelog-list">
-                            <li><strong>Security hardening</strong> — Min password 8 chars; constant-time login; global security headers (XFO, XCTO, Referrer-Policy, Permissions-Policy, HSTS); <code>WM_SECURE_COOKIES</code> env flips Secure cookies on; Werkzeug debug off by default; <code>/uploads</code> validates UUID-filename pattern; email-header injection hardening.</li>
-                            <li><strong>Account lockout</strong> — 5 fails → 15-minute lock (migration v28). Admin <strong>Locked Accounts</strong> dashboard widget with one-click Unlock.</li>
-                            <li><strong>SVG branding (admin-only, sanitized)</strong> — PNG re-encoded through Pillow; SVG parsed as XML and stripped of <code>&lt;script&gt;</code>, animation elements, <code>on*</code> handlers, and dangerous URL schemes. Response-level CSP on <code>/branding/logo</code>.</li>
-                            <li><strong>About tab mirrors the full changelog</strong> that ships with every build.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.5.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Always land on the dashboard after sign-in</strong> — <code>?next=…</code> ignored; both AJAX and form-post redirect to <code>/dashboard</code>.</li>
-                            <li><strong>Softer login gradient</strong> — Analogous pastel palette (±25-40° spread, 42-54% saturation, 76-82% lightness) instead of triadic.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.5.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Two-panel login screen</strong> — Animated sine-wave gradient hero with random triadic palette + rotation per reload. Warehouse Manager logo + name centered in Inter 600 / -1px tracking. Theme follows the last signed-in user's saved light/dark setting via localStorage.</li>
-                            <li><strong>Custom branding</strong> — Admin-only Branding tab in Settings. Upload logo with WYSIWYG preview at configured render width; Save persists.</li>
-                            <li><strong>Sales people from users</strong> — Migration v25 adds <code>users.is_sales_person</code>. WO dropdown derives from flagged users; Sales People tab removed.</li>
-                            <li><strong>Threaded notes with replies</strong> — Migration v26 adds <code>parent_id</code> + <code>author_user_id</code>. Adding a note emails the salesperson; replies email every prior participant. Scrollable 5-note container, newest thread at top. Flag + unflag events appear in the same thread.</li>
-                            <li><strong>Global + per-user email toggles</strong> — Migration v27 adds <code>smtp_notifications_enabled</code> setting and <code>users.email_notifications_enabled</code>. Admin toggle kills all alerts; user toggle opts individuals out. Banner on the Work Orders page when global alerts are off.</li>
-                            <li><strong>Photo emails</strong> — Uploading a photo emails the salesperson with the JPEG attached.</li>
-                            <li><strong>Per-part camera icon</strong> — Camera beside the flag on every part row; "+ Add Photo" button retired.</li>
-                            <li><strong>Collapsible cards</strong> — Chevron accordion; delivered cards default collapsed. Status/priority badges moved right next to the chevron. Action row on the bottom with Mark Delivered pushed far-right. Tooltips on every action button.</li>
-                            <li><strong>Sort by Audit + Posted to Web</strong> — Parts table headers click-to-sort with inline arrows. Audit badge on card view for every category.</li>
-                            <li><strong>Detail modal retired</strong> — List view renders every action inline.</li>
-                            <li><strong>Derived flag status + sidebar badge</strong> — Flag status derived from per-part flags. Red badge on Work Orders nav shows flagged count.</li>
-                            <li><strong>? help tooltip</strong> on the Work Orders heading.</li>
-                            <li><strong>Email validation</strong> on user create/update; "Username (email address)" label.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.4.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Header reshuffle</strong> — Status + Priority cluster to the right next to the chevron.</li>
-                            <li><strong>View button + button tooltips</strong> — Added View to action row; descriptive <code>title</code> attributes on every button.</li>
-                            <li><strong>Per-part photo camera icon</strong> in each row.</li>
-                            <li><strong>Edit user modal</strong> — "Username (email address)" label.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.4.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Flag status is per-part</strong> — Removed WO-level Flag / Unflag / Update Flag Note buttons. Any flagged part auto-flips status to flagged; last unflag returns to requested.</li>
-                            <li><strong>Edit part flag notes</strong> — Click the flagged icon to edit the note or unflag.</li>
-                            <li><strong>Sidebar flagged badge</strong> with live count.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.3.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Auto-email salesperson on photo upload</strong> — Photos attached to <code>[Photo] Work Order WO-XXXXX</code> email. Comment included.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.3.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Per-part photos on work orders</strong> — Resize to 2048 px / JPEG 80. Thumbnails, comments, edit + delete. Stable UUID keys so photos survive edits (migration v24). Orphaned photos cleaned up on part removal or WO delete.</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.2.11</div>
-                        <ul class="changelog-list">
-                            <li><strong>Mark Delivered button</strong> — Pale yellow at rest, flips to pale green on hover</li>
-                            <li><strong>Deliver → Mark Delivered</strong> — Consistent label on card &amp; modal</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.2.8</div>
-                        <ul class="changelog-list">
-                            <li><strong>Sub-modals return to Settings</strong> — Close any settings-reached modal and land back on the correct tab</li>
-                            <li><strong>Role permissions matrix</strong> — User form shows what each of the 4 roles can do</li>
-                            <li><strong>Re-Archive + 3-tier delete gating</strong> — Editors can't delete a previously-archived reopened WO; Re-Archive instead</li>
-                            <li><strong>Delayed archival + Archive Now</strong> — Delivered WOs stay Active until 23:00 local; button to archive immediately</li>
-                            <li><strong>Duplicate work order</strong> — Copy fields + parts into a fresh WO with reset status &amp; audit</li>
-                            <li><strong>Audit Trail on list cards</strong> — Button for admins and supervisors on active + archive</li>
-                            <li><strong>Click-to-copy invoice #</strong> — Card + detail modal, pill hover highlight</li>
-                            <li><strong>Part audit from anywhere</strong> — Clickable banner, list cell, and + Audit button</li>
-                            <li><strong>Configurable priority colors</strong> — Admin sets card tint per priority</li>
-                            <li><strong>Six themes</strong> — Light / Dark / Neobrutal / Solarpunk / Cyberpunk picker</li>
-                            <li><strong>Dashboard + URL routing</strong> — /dashboard, /workorders, /parts/&lt;slug&gt; in the address bar</li>
-                            <li><strong>AGPLv3 license</strong> — Switched from MIT</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.1.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Audit from detail modal</strong> — Click the banner to edit details or clear the audit flag; "Mark for Audit" button when not flagged</li>
-                            <li><strong>Audit from list view</strong> — Audit column cells are clickable: ⚠ AUDIT badge edits, + Audit button marks</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.1.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Needs Audited</strong> — New part toggle + audit details textarea; shown as an Audit column in the list and a banner in the detail modal</li>
-                            <li><strong>Download PDF on WO cards</strong> — Inline button on each work order list card</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v1.0.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Promoted to 1.0</strong> — Feature-complete release</li>
-                            <li><strong>License → AGPLv3</strong> — Switched from MIT to GNU Affero General Public License v3.0</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.6</div>
-                        <ul class="changelog-list">
-                            <li><strong>About pane redesigned</strong> — Hero card with logo, tagline, Built-by credit, and a Built With tech-stack grid</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.5</div>
-                        <ul class="changelog-list">
-                            <li><strong>90-day sessions</strong> — Stay signed in for 90 days between logins</li>
-                            <li><strong>Footer icons aligned</strong> — Theme toggle now sits on the same vertical axis as the gear</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.4</div>
-                        <ul class="changelog-list">
-                            <li><strong>Pull events logged</strong> — Pulled checkbox toggles now add to Notes &amp; Activity</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.3</div>
-                        <ul class="changelog-list">
-                            <li><strong>Pull flash</strong> — Duration bumped to 1000 ms</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.2</div>
-                        <ul class="changelog-list">
-                            <li><strong>Dashboard Work Orders widget</strong> — Active list now lives inside the WO widget</li>
-                            <li><strong>Pulled flash</strong> — Lights the whole WO block pale green, 500 ms fade</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Pulled flash</strong> — Row briefly lights up green and fades when a part is marked pulled</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.6.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Dashboard</strong> — Landing page with widgets for WO summary, recent parts, and active work orders</li>
-                            <li><strong>URL routing</strong> — /dashboard, /workorders, /workorders/archive, /parts, /parts/&lt;slug&gt; in the address bar; back/forward works</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.5.4</div>
-                        <ul class="changelog-list">
-                            <li><strong>Send Update on list view</strong> — Inline button on each work order card</li>
-                            <li><strong>Confirmation prompt</strong> — "Do you want to send an email update to the sales person?"</li>
-                            <li><strong>Theme button moved</strong> — Bottom-right of the sidebar footer, across from Sign Out</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.5.3</div>
-                        <ul class="changelog-list">
-                            <li><strong>Theme toggle moved to sidebar</strong> — One-click sun/moon button in the sidebar footer</li>
-                            <li><strong>Cloudflare Turnstile</strong> — Optional login challenge; configure site/secret keys in Admin settings</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.5.2</div>
-                        <ul class="changelog-list">
-                            <li><strong>Supervisor role</strong> — Same as Editor plus the ability to view work order audit trails</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.5.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Request Details background removed</strong> — flows as plain text now</li>
-                            <li><strong>Part columns fixed</strong> — Pulled / Qty headers no longer run together</li>
-                            <li><strong>Latest notes first</strong> — Notes &amp; Activity list ordered newest-first</li>
-                            <li><strong>Sticky detail footer</strong> — Action buttons pinned at the bottom; body scrolls independently</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.5.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Notes → Request Details</strong> — Original WO notes field renamed across the app</li>
-                            <li><strong>Running notes</strong> — Add Note button on the list card and detail modal; no edit mode needed</li>
-                            <li><strong>Notes &amp; Activity log</strong> — Combined chronological log of flag notes and general notes with type badges</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.6</div>
-                        <ul class="changelog-list">
-                            <li><strong>Send Update button</strong> — Manually email the full current state of a work order to the sales person on demand</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.5</div>
-                        <ul class="changelog-list">
-                            <li><strong>Notes on list cards</strong> — Light gray block on each active/archive card (3-line clamp)</li>
-                            <li><strong>Notes above parts</strong> — In the detail modal, notes now sit above the parts in the same gray block</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.4</div>
-                        <ul class="changelog-list">
-                            <li><strong>VIN on work order cards</strong> — VIN now shown in the active and archive list views</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.3</div>
-                        <ul class="changelog-list">
-                            <li><strong>WO numbers hyphenated</strong> — New format: WO-00001; existing numbers rewritten on upgrade</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.2</div>
-                        <ul class="changelog-list">
-                            <li><strong>"Pulled" column header</strong> — Checkmarks stay aligned whether rows are flagged or not</li>
-                            <li><strong>Pulled timestamp</strong> — Date/time shown under the part when checked; cleared on uncheck</li>
-                            <li><strong>No more strikethrough</strong> — Pulled parts read normally</li>
-                            <li><strong>Part flag notes in history</strong> — Per-part flag/unflag events now appear in the Flag Notes History</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Unflag work orders</strong> — Remove the flag and return to Requested, or go straight to Delivered; clears the flag note</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.4.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Work order search</strong> — Live-search active and archive by WO #, customer, vehicle, VIN, notes, or parts</li>
-                            <li><strong>Sort</strong> — Default to Requested Date; also sort by Customer / Priority / WO # / Status with direction toggle</li>
-                            <li><strong>Inline Edit button</strong> — Edit a work order directly from the list</li>
-                            <li><strong>Parts in list view</strong> — Each card shows its parts with pulled checkboxes and per-part flag buttons</li>
-                            <li><strong>Per-part flagging</strong> — Flag individual parts with their own reason; email includes the specific part</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.3.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Edit work orders</strong> — Edit any field on a saved work order from the detail modal</li>
-                            <li><strong>Audit trail</strong> — Every create/edit/status/note/delete is logged; admins see an Audit Trail button with the full history</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.2.2</div>
-                        <ul class="changelog-list">
-                            <li><strong>Save returns to Settings</strong> — Save Changes on Work Order Lists or SMTP re-opens the Settings modal instead of staying in the sub-modal</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.2.1</div>
-                        <ul class="changelog-list">
-                            <li><strong>Parts list on work orders</strong> — Add repeatable part rows with quantity and description</li>
-                            <li><strong>Work Order Lists: tabs</strong> — Locations / Sales People / Priorities are now separate tabs</li>
-                            <li><strong>Save keeps modals open</strong> — Close via X only; SMTP and Work Order Lists no longer close on save</li>
-                            <li><strong>SMTP overflow fix</strong> — Inputs sized cleanly; test-email row layout fixed</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.2.0</div>
-                        <ul class="changelog-list">
-                            <li><strong>Work orders</strong> — Create, track, flag, and deliver part requests with unique WO numbers</li>
-                            <li><strong>Status workflow</strong> — Requested → Flagged (with notes) → Delivered/Complete</li>
-                            <li><strong>SMTP email</strong> — Configurable outgoing email; auto-notifies salesperson on flag/deliver and on new flag notes</li>
-                            <li><strong>Admin settings</strong> — Manage warehouse locations, sales people (with emails), and priorities</li>
-                            <li><strong>Work order PDFs</strong> — Printable PDF for any work order</li>
-                            <li><strong>Archive</strong> — Completed work orders archived for reference</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.1.32</div>
-                        <ul class="changelog-list">
-                            <li><strong>WM numbers</strong> — Reformatted to 5-digit: WM00001–WM99999, then WM100000+</li>
-                            <li><strong>Card flags</strong> — Flag icon now appears on card view (top-right corner)</li>
-                            <li><strong>Detail flags</strong> — Flag toggle in the product detail modal header</li>
-                            <li><strong>Flag sync</strong> — Toggling a flag in any view instantly updates all other views</li>
-                            <li><strong>Retroactive renumber</strong> — All existing parts renumbered sequentially</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.1.31</div>
-                        <ul class="changelog-list">
-                            <li><strong>Flagging</strong> — Click flag icon in table to mark parts, sort by flagged</li>
-                            <li><strong>Posted to Web</strong> — New toggle field on all categories</li>
-                            <li><strong>Sort by Sold / Flagged</strong> — New sort options in toolbar</li>
-                            <li><strong>Icon picker</strong> — 24 icons to choose from for categories</li>
-                            <li><strong>Tabbed Settings</strong> — General, Admin, Data, and About tabs with consistent height</li>
-                            <li><strong>About tab</strong> — Version info and full changelog</li>
-                            <li><strong>Head category</strong> — Removed Old SKU and Head Number from default table view</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.1.30</div>
-                        <ul class="changelog-list">
-                            <li><strong>WM numbers</strong> — Removed dash: WM-1000000 → WM1000000</li>
-                            <li><strong>Sort by WM#</strong> — New sort option in toolbar</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.1.29</div>
-                        <ul class="changelog-list">
-                            <li><strong>Default fields</strong> — New categories pre-populated with shared fields</li>
-                            <li><strong>Full field editing</strong> — All fields visible and reorderable</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">v0.1.28</div>
-                        <ul class="changelog-list">
-                            <li><strong>Custom categories</strong> — Admin-defined with drag-to-reorder fields</li>
-                            <li><strong>Product numbers</strong> — Auto-assigned WM numbers</li>
-                            <li><strong>QR codes</strong> — Per-part QR in detail view and labels</li>
-                            <li><strong>Label printing</strong> — 4"×1" Zebra-compatible PDF labels</li>
-                            <li><strong>Docker deployment</strong> — Full containerized setup</li>
-                            <li><strong>Dynamic sidebar</strong> — Categories from database with icons</li>
-                            <li><strong>Unified data model</strong> — All fields in custom_data JSON</li>
-                        </ul>
-                    </div>
-                    <div class="changelog-entry">
-                        <div class="changelog-version">Earlier</div>
-                        <ul class="changelog-list">
-                            <li>Multi-image gallery with lightbox</li>
-                            <li>Light/dark mode</li>
-                            <li>Role-based access (Admin, Editor, Viewer)</li>
-                            <li>Excel/CSV import with 4-step wizard</li>
-                            <li>CSV export</li>
-                            <li>Radio fields for Turns/Spins/Shifts</li>
-                            <li>Sidebar layout with search and sorting</li>
-                            <li>Sold tracking with red highlights</li>
-                        </ul>
-                    </div>
+                <div style="max-height:280px;overflow-y:auto;" id="aboutChangelog">
+                    <div class="widget-empty">Loading…</div>
                 </div>
               </div>
             </div>
@@ -3258,6 +2934,30 @@ function switchSettingsTab(tab, btn) {
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
     if (tab === 'branding') refreshBrandingPreview();
+    if (tab === 'about') loadAboutChangelog();
+}
+
+async function loadAboutChangelog() {
+    const el = document.getElementById('aboutChangelog');
+    if (!el) return;
+    try {
+        const data = await (await fetch('/api/changelog')).json();
+        const entries = Array.isArray(data.entries) ? data.entries : [];
+        if (!entries.length) {
+            el.innerHTML = '<div class="widget-empty">No changelog available.</div>';
+            return;
+        }
+        el.innerHTML = entries.map(v => `
+            <div class="changelog-entry">
+                <div class="changelog-version">v${v.version}</div>
+                <ul class="changelog-list">
+                    ${(v.bullets || []).map(b => `<li>${b}</li>`).join('')}
+                </ul>
+            </div>
+        `).join('');
+    } catch {
+        el.innerHTML = '<div class="widget-empty">Failed to load changelog.</div>';
+    }
 }
 
 async function refreshBrandingPreview() {
@@ -5161,6 +4861,7 @@ function renderCardPartLine(wid, idx, p, canEdit, photoMode) {
         <span class="wo-part-qty">${esc(String(p.quantity || 1))} ×</span>
         <span class="wo-part-desc">
             <div>${esc(p.description || '')}</div>
+            ${p.details ? `<div class="wo-part-details-text">${esc(p.details)}</div>` : ''}
             ${pulledTs}
         </span>
         ${actBtns}
@@ -5475,14 +5176,17 @@ function renderPartsRows(parts) {
         list.innerHTML = '<div class="wo-parts-empty">No parts added yet. Click “+ Add Part” to request a part.</div>';
         return;
     }
-    list.innerHTML = parts.map(p => partRowHtml(p.quantity || 1, p.description || '', p.key || '')).join('');
+    list.innerHTML = parts.map(p =>
+        partRowHtml(p.quantity || 1, p.description || '', p.key || '', p.details || '')
+    ).join('');
 }
 
-function partRowHtml(qty, desc, key) {
+function partRowHtml(qty, desc, key, details) {
     return `<div class="wo-part-row" data-part-key="${esc(key || '')}">
         <input class="form-input wo-part-qty" type="number" min="1" value="${esc(String(qty))}" placeholder="Qty">
         <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part description (SKU, WM#, or description)">
         <button type="button" class="wo-list-remove" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
+        <input class="form-input wo-part-details" type="text" value="${esc(details || '')}" placeholder="Short description (optional — e.g. color, condition, fitment note)">
     </div>`;
 }
 
@@ -5491,7 +5195,7 @@ function addPartRow() {
     // Clear the empty placeholder if present
     const empty = list.querySelector('.wo-parts-empty');
     if (empty) empty.remove();
-    list.insertAdjacentHTML('beforeend', partRowHtml(1, '', ''));
+    list.insertAdjacentHTML('beforeend', partRowHtml(1, '', '', ''));
     // Focus the description input of the new row
     const rows = list.querySelectorAll('.wo-part-row');
     const last = rows[rows.length - 1];
@@ -5511,9 +5215,11 @@ function collectPartsRows() {
     for (const r of rows) {
         const q = parseInt(r.querySelector('.wo-part-qty').value || '1');
         const d = r.querySelector('.wo-part-desc').value.trim();
+        const detailsEl = r.querySelector('.wo-part-details');
+        const details = detailsEl ? detailsEl.value.trim() : '';
         const key = r.getAttribute('data-part-key') || '';
         if (d) {
-            const item = { quantity: q > 0 ? q : 1, description: d };
+            const item = { quantity: q > 0 ? q : 1, description: d, details };
             if (key) item.key = key;
             out.push(item);
         }

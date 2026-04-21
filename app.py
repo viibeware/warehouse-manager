@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.2'
+APP_VERSION = '1.5.3'
 
 app = Flask(__name__)
 
@@ -1270,6 +1270,63 @@ def auth_me():
         'can_view_audit': current_user.can_view_audit,
         'version': APP_VERSION,
     })
+
+
+#
+# Changelog — CHANGELOG.md is the single source of truth, shipped with the
+# Docker image. The About tab fetches it at runtime so bumping the file
+# automatically updates the in-app pane on the next build.
+#
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_CHANGELOG_PATH = os.path.join(_APP_DIR, 'CHANGELOG.md')
+_CHANGELOG_CACHE = None
+
+
+def _load_changelog():
+    """Parse CHANGELOG.md into [{version, bullets: [...]} ...].
+    Each `## vX.Y.Z` line starts a new version block; lines starting with `-`
+    become bullet items. Bullet HTML is preserved as-authored so the About
+    tab can render <strong>/<code>/<em> inline. Cached after first load."""
+    global _CHANGELOG_CACHE
+    if _CHANGELOG_CACHE is not None:
+        return _CHANGELOG_CACHE
+    if not os.path.exists(_CHANGELOG_PATH):
+        _CHANGELOG_CACHE = []
+        return _CHANGELOG_CACHE
+    versions = []
+    current = None
+    header_re = re.compile(r'^##\s+v?([0-9][^\s]*)')
+    try:
+        with open(_CHANGELOG_PATH, encoding='utf-8') as fh:
+            for raw in fh:
+                line = raw.rstrip('\n')
+                m = header_re.match(line)
+                if m:
+                    if current and current['bullets']:
+                        versions.append(current)
+                    current = {'version': m.group(1).strip(), 'bullets': []}
+                    continue
+                if current is not None:
+                    stripped = line.lstrip()
+                    if stripped.startswith('- '):
+                        current['bullets'].append(stripped[2:].strip())
+                    elif stripped.startswith('-'):
+                        current['bullets'].append(stripped[1:].strip())
+                    elif stripped and current['bullets']:
+                        # Continuation of the previous bullet (indented line)
+                        current['bullets'][-1] += ' ' + stripped
+        if current and current['bullets']:
+            versions.append(current)
+    except Exception as e:
+        app.logger.warning(f"Failed to parse CHANGELOG.md: {e}")
+    _CHANGELOG_CACHE = versions
+    return versions
+
+
+@app.route('/api/changelog')
+@login_required
+def api_changelog():
+    return jsonify({'version': APP_VERSION, 'entries': _load_changelog()})
 
 
 @app.route('/api/auth/change-password', methods=['POST'])
@@ -3286,6 +3343,9 @@ def _format_parts_for_email(parts_json):
     lines = ['\nParts Requested:']
     for p in parts:
         lines.append(f"  - {p.get('quantity', 1)} × {p.get('description', '')}")
+        d = (p.get('details') or '').strip()
+        if d:
+            lines.append(f"      {d}")
     return '\n'.join(lines) + '\n'
 
 
@@ -3388,6 +3448,7 @@ def _work_order_to_dict(conn, row):
         parts.append({
             'key': key,
             'description': str(p.get('description', '')),
+            'details': str(p.get('details', '') or ''),
             'quantity': int(p.get('quantity', 1) or 1),
             'pulled': bool(p.get('pulled', False)),
             'pulled_at': str(p.get('pulled_at', '') or ''),
@@ -3425,7 +3486,7 @@ def _work_order_to_dict(conn, row):
 
 def _normalize_parts(raw):
     """Coerce a client-supplied parts list into validated
-    [{key, description, quantity, pulled, flagged, flag_note}, ...].
+    [{key, description, details, quantity, pulled, flagged, flag_note}, ...].
     Preserves a stable per-part key (generated if absent) so photos
     keyed off it survive edits and reordering."""
     out = []
@@ -3433,6 +3494,7 @@ def _normalize_parts(raw):
         if not isinstance(p, dict):
             continue
         desc = str(p.get('description', '')).strip()
+        details = str(p.get('details', '') or '').strip()
         try:
             qty = int(p.get('quantity', 1) or 1)
         except (TypeError, ValueError):
@@ -3444,6 +3506,7 @@ def _normalize_parts(raw):
             out.append({
                 'key': key,
                 'description': desc,
+                'details': details,
                 'quantity': qty,
                 'pulled': bool(p.get('pulled', False)),
                 'pulled_at': str(p.get('pulled_at', '') or ''),
@@ -3689,6 +3752,7 @@ def duplicate_work_order(wid):
             qty = 1
         fresh_parts.append({
             'description': desc,
+            'details': str(p.get('details', '') or ''),
             'quantity': qty,
             'pulled': False,
             'pulled_at': '',
@@ -4530,6 +4594,8 @@ def _build_update_email_body(wo):
             row = f"  {box} {p.get('quantity', 1)} × {p.get('description', '')}{flag}"
             if p.get('pulled') and p.get('pulled_at'):
                 row += f"  (pulled {p['pulled_at']})"
+            if (p.get('details') or '').strip():
+                row += f"\n       {p['details'].strip()}"
             if p.get('flagged') and p.get('flag_note'):
                 row += f"\n       FLAGGED: {p['flag_note']}"
             lines.append(row)
@@ -4674,6 +4740,17 @@ def work_order_pdf(wid):
                     y = h - 0.75 * inch
                 c.drawString(1.2 * inch, y, line)
                 y -= 0.2 * inch
+            # Short description rendered in italic beneath the main line
+            details = (p.get('details') or '').strip()
+            if details:
+                c.setFont("Helvetica-Oblique", 9)
+                for line in _wrap_text(details, 85):
+                    if y < 1.2 * inch:
+                        c.showPage()
+                        y = h - 0.75 * inch
+                    c.drawString(1.2 * inch, y, line)
+                    y -= 0.18 * inch
+                c.setFont("Helvetica", 10)
 
     # Request details block
     y -= line_h * 0.25
