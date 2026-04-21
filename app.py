@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.4.1'
+APP_VERSION = '1.5.0'
 
 app = Flask(__name__)
 
@@ -762,6 +762,65 @@ def migrate_v24(conn):
     ''')
 
 
+def migrate_v26(conn):
+    """Add parent_id + author_user_id to work_order_notes for threaded
+    conversation replies. Top-level notes have parent_id=NULL; every reply
+    points at the root note it belongs to (flat one-level threading)."""
+    try:
+        conn.execute("ALTER TABLE work_order_notes ADD COLUMN parent_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE work_order_notes ADD COLUMN author_user_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_won_parent ON work_order_notes(parent_id)")
+    # Backfill author_user_id where we can match by display_name or username
+    conn.execute("""
+        UPDATE work_order_notes
+           SET author_user_id = (
+               SELECT u.id FROM users u
+                WHERE LOWER(u.display_name) = LOWER(work_order_notes.author)
+                   OR LOWER(u.username) = LOWER(work_order_notes.author)
+                LIMIT 1
+           )
+         WHERE author_user_id IS NULL AND author IS NOT NULL AND author != ''
+    """)
+
+
+def migrate_v25(conn):
+    """Add is_sales_person flag to users. Sales people for work orders are now
+    derived from users with this flag set (their username = email). Backfills
+    from the legacy wo_salespeople app_setting by matching display_name or
+    username so existing configurations keep working."""
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN is_sales_person INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    import json as json_mod
+    row = conn.execute("SELECT value FROM app_settings WHERE key = 'wo_salespeople'").fetchone()
+    if row:
+        try:
+            legacy = json_mod.loads(row['value'] or '[]') or []
+        except Exception:
+            legacy = []
+        for sp in legacy:
+            if not isinstance(sp, dict):
+                continue
+            name = str(sp.get('name', '')).strip()
+            email = str(sp.get('email', '')).strip()
+            if not name:
+                continue
+            # Match by display_name (case-insensitive), then username, then email
+            matched = conn.execute(
+                "UPDATE users SET is_sales_person = 1 "
+                "WHERE LOWER(display_name) = LOWER(?) OR LOWER(username) = LOWER(?) "
+                "OR (? != '' AND LOWER(username) = LOWER(?))",
+                (name, name, email, email)
+            )
+            _ = matched  # rowcount not needed; silent backfill
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -790,6 +849,8 @@ MIGRATIONS = [
     (22, migrate_v22),
     (23, migrate_v23),
     (24, migrate_v24),
+    (25, migrate_v25),
+    (26, migrate_v26),
 ]
 
 
@@ -996,13 +1057,18 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
-    # Pull turnstile config once per request so GET and POST both see it
+    # Pull turnstile config + branding once per request so GET and POST both see it
     conn_ts = get_db()
     ts_cfg = _get_setting(conn_ts, 'turnstile_config', {})
+    branding_logo = _branding_filename(conn_ts)
+    branding_width = _branding_logo_width(conn_ts)
     conn_ts.close()
     ts_ctx = {
         'turnstile_enabled': bool(ts_cfg.get('enabled')),
         'turnstile_site_key': ts_cfg.get('site_key', '') if ts_cfg.get('enabled') else '',
+        'branding_logo_url': '/branding/logo' if branding_logo else '',
+        'branding_logo_width': branding_width,
+        'app_version': APP_VERSION,
     }
 
     if request.method == 'POST':
@@ -1101,11 +1167,21 @@ def change_own_password():
 #  ADMIN — USER MANAGEMENT
 # ══════════════════════════════════════════
 
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _valid_email(s):
+    return bool(s) and bool(_EMAIL_RE.match(s))
+
+
 @app.route('/api/users', methods=['GET'])
 @admin_required
 def list_users():
     conn = get_db()
-    rows = conn.execute("SELECT id, username, display_name, role, active, created_at FROM users ORDER BY created_at").fetchall()
+    rows = conn.execute(
+        "SELECT id, username, display_name, role, active, is_sales_person, created_at "
+        "FROM users ORDER BY created_at"
+    ).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -1118,9 +1194,12 @@ def create_user():
     display_name = data.get('display_name', '').strip()
     password = data.get('password', '')
     role = data.get('role', 'viewer')
+    is_sales_person = 1 if bool(data.get('is_sales_person')) else 0
 
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
+    if not _valid_email(username):
+        return jsonify({'error': 'Username must be a valid email address'}), 400
     if len(password) < 4:
         return jsonify({'error': 'Password must be at least 4 characters'}), 400
     if role not in ('admin', 'editor', 'supervisor', 'viewer'):
@@ -1134,12 +1213,16 @@ def create_user():
 
     pw_hash = generate_password_hash(password, method='pbkdf2:sha256')
     cur = conn.execute(
-        "INSERT INTO users (username, display_name, password_hash, role, active) VALUES (?, ?, ?, ?, 1)",
-        (username, display_name or username, pw_hash, role)
+        "INSERT INTO users (username, display_name, password_hash, role, active, is_sales_person) "
+        "VALUES (?, ?, ?, ?, 1, ?)",
+        (username, display_name or username, pw_hash, role, is_sales_person)
     )
     conn.commit()
-    row = conn.execute("SELECT id, username, display_name, role, active, created_at FROM users WHERE id = ?",
-                       (cur.lastrowid,)).fetchone()
+    row = conn.execute(
+        "SELECT id, username, display_name, role, active, is_sales_person, created_at "
+        "FROM users WHERE id = ?",
+        (cur.lastrowid,)
+    ).fetchone()
     conn.close()
     return jsonify(dict(row)), 201
 
@@ -1167,10 +1250,17 @@ def update_user(uid):
     display_name = data.get('display_name', existing['display_name']).strip()
     role = data.get('role', existing['role'])
     active = int(data.get('active', existing['active']))
+    if 'is_sales_person' in data:
+        is_sales_person = 1 if bool(data.get('is_sales_person')) else 0
+    else:
+        is_sales_person = existing['is_sales_person'] if 'is_sales_person' in existing.keys() else 0
 
     if role not in ('admin', 'editor', 'supervisor', 'viewer'):
         conn.close()
         return jsonify({'error': 'Invalid role'}), 400
+    if not _valid_email(username):
+        conn.close()
+        return jsonify({'error': 'Username must be a valid email address'}), 400
 
     # Check username conflict
     conflict = conn.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, uid)).fetchone()
@@ -1178,8 +1268,10 @@ def update_user(uid):
         conn.close()
         return jsonify({'error': 'Username already taken'}), 409
 
-    conn.execute("UPDATE users SET username=?, display_name=?, role=?, active=? WHERE id=?",
-                 (username, display_name, role, active, uid))
+    conn.execute(
+        "UPDATE users SET username=?, display_name=?, role=?, active=?, is_sales_person=? WHERE id=?",
+        (username, display_name, role, active, is_sales_person, uid)
+    )
 
     # Optional password reset
     new_pw = data.get('password', '')
@@ -1191,8 +1283,11 @@ def update_user(uid):
                      (generate_password_hash(new_pw, method='pbkdf2:sha256'), uid))
 
     conn.commit()
-    row = conn.execute("SELECT id, username, display_name, role, active, created_at FROM users WHERE id = ?",
-                       (uid,)).fetchone()
+    row = conn.execute(
+        "SELECT id, username, display_name, role, active, is_sales_person, created_at "
+        "FROM users WHERE id = ?",
+        (uid,)
+    ).fetchone()
     conn.close()
     return jsonify(dict(row))
 
@@ -1262,7 +1357,8 @@ def get_parts():
     where = "WHERE " + " AND ".join(conds) if conds else ""
 
     # Sorting
-    SORT_ALLOWED = {'sku', 'location', 'fitment_vehicle', 'updated_at', 'product_number', 'sold', 'flagged'}
+    SORT_ALLOWED = {'sku', 'location', 'fitment_vehicle', 'updated_at', 'product_number',
+                    'sold', 'flagged', 'needs_audit', 'posted_to_web'}
     sort_by = request.args.get('sort_by', 'sku')
     sort_dir = request.args.get('sort_dir', 'desc').lower()
     if sort_by not in SORT_ALLOWED:
@@ -1278,6 +1374,19 @@ def get_parts():
         total = len(parts)
         offset = (page - 1) * per_page
         page_parts = parts[offset:offset + per_page]
+    elif sort_by == 'posted_to_web':
+        # Field lives inside the custom_data JSON blob (per-category toggle).
+        # Truthy = any non-empty, non-'0' string.
+        total = conn.execute(f"SELECT COUNT(*) as n FROM parts {where}", params).fetchone()['n']
+        offset = (page - 1) * per_page
+        rows = conn.execute(
+            f"SELECT * FROM parts {where} "
+            f"ORDER BY (CASE WHEN COALESCE(json_extract(custom_data, '$.posted_to_web'), '') "
+            f"NOT IN ('', '0') THEN 1 ELSE 0 END) {sort_dir.upper()}, id DESC "
+            f"LIMIT ? OFFSET ?",
+            params + [per_page, offset]
+        ).fetchall()
+        page_parts = [dict(r) for r in rows]
     else:
         total = conn.execute(f"SELECT COUNT(*) as n FROM parts {where}", params).fetchone()['n']
         offset = (page - 1) * per_page
@@ -2362,7 +2471,7 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding'}
 
 
 def _get_setting(conn, key, default):
@@ -2412,14 +2521,30 @@ def _normalize_priority(p):
     return {'name': name, 'color': color}
 
 
+def _derive_salespeople(conn):
+    """Salespeople for work orders are users flagged is_sales_person.
+    Returns [{name: display_name or username, email: username, user_id}, ...]."""
+    rows = conn.execute(
+        "SELECT id, username, display_name FROM users "
+        "WHERE is_sales_person = 1 AND active = 1 "
+        "ORDER BY COALESCE(NULLIF(display_name, ''), username) COLLATE NOCASE"
+    ).fetchall()
+    out = []
+    for r in rows:
+        display = (r['display_name'] or '').strip() or r['username']
+        out.append({'name': display, 'email': r['username'], 'user_id': r['id']})
+    return out
+
+
 @app.route('/api/settings/work-order', methods=['GET'])
 @login_required
 def get_wo_settings():
     """Return work-order related settings (locations, salespeople, priorities).
-    Salespeople emails are stripped for non-admins."""
+    Salespeople are derived from users with is_sales_person=1; emails are stripped
+    for non-admins."""
     conn = get_db()
     locations = _get_setting(conn, 'wo_locations', [])
-    salespeople = _get_setting(conn, 'wo_salespeople', [])
+    salespeople = _derive_salespeople(conn)
     raw_priorities = _get_setting(conn, 'wo_priorities', ['Normal', 'Next Day Air'])
     priorities = [_normalize_priority(p) for p in raw_priorities if _normalize_priority(p)['name']]
     conn.close()
@@ -2440,14 +2565,8 @@ def update_wo_settings():
     if 'locations' in data:
         locs = [str(x).strip() for x in (data['locations'] or []) if str(x).strip()]
         _set_setting(conn, 'wo_locations', locs)
-    if 'salespeople' in data:
-        sp = []
-        for s in (data['salespeople'] or []):
-            name = str(s.get('name', '')).strip()
-            email = str(s.get('email', '')).strip()
-            if name:
-                sp.append({'name': name, 'email': email})
-        _set_setting(conn, 'wo_salespeople', sp)
+    # 'salespeople' is now derived from the users table (is_sales_person flag).
+    # Silently ignore any client-supplied list so stale callers don't error.
     if 'priorities' in data:
         pr = []
         for x in (data['priorities'] or []):
@@ -2588,6 +2707,130 @@ def update_turnstile_settings():
     return jsonify({'success': True})
 
 
+#
+# Custom branding (login-screen logo)
+# ─────────────────────────────────────────────────────────────
+# Stored as app_setting branding = {'logo_filename': '<uuid>.<ext>'}.
+# Files live in UPLOAD_DIR/branding/ so they don't collide with part uploads.
+#
+
+BRANDING_DIR = os.path.join(UPLOAD_DIR, 'branding')
+os.makedirs(BRANDING_DIR, exist_ok=True)
+BRANDING_EXTS = {'png', 'svg'}
+
+
+def _branding_filename(conn):
+    cfg = _get_setting(conn, 'branding', {})
+    return str((cfg or {}).get('logo_filename', '') or '')
+
+
+def _branding_logo_width(conn):
+    """Width (px) the login page renders the branding logo at. Clamped to [40, 600]."""
+    cfg = _get_setting(conn, 'branding', {}) or {}
+    try:
+        w = int(cfg.get('logo_width', 180) or 180)
+    except (TypeError, ValueError):
+        w = 180
+    return max(40, min(600, w))
+
+
+@app.route('/branding/logo')
+def serve_branding_logo():
+    """Public — the login page needs it before the user is authenticated."""
+    conn = get_db()
+    fname = _branding_filename(conn)
+    conn.close()
+    if not fname:
+        return '', 404
+    return send_from_directory(BRANDING_DIR, fname)
+
+
+@app.route('/api/settings/branding', methods=['GET'])
+@login_required
+def get_branding_settings():
+    conn = get_db()
+    fname = _branding_filename(conn)
+    width = _branding_logo_width(conn)
+    conn.close()
+    return jsonify({
+        'logo_filename': fname,
+        'logo_url': '/branding/logo' if fname else '',
+        'logo_width': width,
+    })
+
+
+@app.route('/api/settings/branding', methods=['PUT'])
+@admin_required
+def update_branding_settings():
+    """Update branding metadata — currently just the login-page logo width."""
+    data = request.get_json() or {}
+    conn = get_db()
+    cfg = _get_setting(conn, 'branding', {}) or {}
+    if 'logo_width' in data:
+        try:
+            w = int(data.get('logo_width'))
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({'error': 'logo_width must be a number'}), 400
+        cfg['logo_width'] = max(40, min(600, w))
+    _set_setting(conn, 'branding', cfg)
+    conn.commit()
+    new_width = _branding_logo_width(conn)
+    conn.close()
+    return jsonify({'logo_width': new_width})
+
+
+@app.route('/api/settings/branding/logo', methods=['POST'])
+@admin_required
+def upload_branding_logo():
+    f = request.files.get('logo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No file uploaded'}), 400
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    if ext not in BRANDING_EXTS:
+        return jsonify({'error': 'Logo must be a PNG or SVG'}), 400
+
+    conn = get_db()
+    cfg = _get_setting(conn, 'branding', {}) or {}
+    old = str(cfg.get('logo_filename', '') or '')
+    new_fname = f"logo-{uuid.uuid4().hex}.{ext}"
+    f.save(os.path.join(BRANDING_DIR, new_fname))
+    # Remove the previous logo file (if any) so old uploads don't accumulate
+    if old:
+        try:
+            prev = os.path.join(BRANDING_DIR, old)
+            if os.path.exists(prev):
+                os.remove(prev)
+        except Exception:
+            pass
+    cfg['logo_filename'] = new_fname
+    _set_setting(conn, 'branding', cfg)
+    conn.commit()
+    width = _branding_logo_width(conn)
+    conn.close()
+    return jsonify({'logo_filename': new_fname, 'logo_url': '/branding/logo', 'logo_width': width})
+
+
+@app.route('/api/settings/branding/logo', methods=['DELETE'])
+@admin_required
+def delete_branding_logo():
+    conn = get_db()
+    cfg = _get_setting(conn, 'branding', {}) or {}
+    old = str(cfg.get('logo_filename', '') or '')
+    if old:
+        try:
+            prev = os.path.join(BRANDING_DIR, old)
+            if os.path.exists(prev):
+                os.remove(prev)
+        except Exception:
+            pass
+    cfg['logo_filename'] = ''
+    _set_setting(conn, 'branding', cfg)
+    conn.commit()
+    conn.close()
+    return jsonify({'logo_filename': '', 'logo_url': ''})
+
+
 @app.route('/api/settings/smtp/test', methods=['POST'])
 @admin_required
 def test_smtp():
@@ -2691,12 +2934,30 @@ def _format_parts_for_email(parts_json):
 
 
 def _lookup_salesperson_email(conn, name):
+    """Resolve a salesperson's display name (as stored on work_orders.sales_person)
+    to their email, which is their user username. Users with is_sales_person=1 win
+    first; falls back to any active user, since legacy WOs were created before the
+    flag existed. Matches on display_name first, then username."""
     if not name:
         return ''
-    sp = _get_setting(conn, 'wo_salespeople', [])
-    for s in sp:
-        if str(s.get('name', '')).strip().lower() == str(name).strip().lower():
-            return str(s.get('email', '')).strip()
+    n = str(name).strip()
+    # Prefer flagged sales people
+    row = conn.execute(
+        "SELECT username FROM users WHERE active = 1 AND is_sales_person = 1 "
+        "AND (LOWER(display_name) = LOWER(?) OR LOWER(username) = LOWER(?)) LIMIT 1",
+        (n, n)
+    ).fetchone()
+    if row:
+        return row['username']
+    # Fallback: any active user by name (legacy records may reference a user that
+    # hasn't been flagged as a salesperson yet)
+    row = conn.execute(
+        "SELECT username FROM users WHERE active = 1 "
+        "AND (LOWER(display_name) = LOWER(?) OR LOWER(username) = LOWER(?)) LIMIT 1",
+        (n, n)
+    ).fetchone()
+    if row:
+        return row['username']
     return ''
 
 
@@ -2748,7 +3009,9 @@ def _work_order_to_dict(conn, row):
     import json as json_mod
     d = dict(row)
     notes_rows = conn.execute(
-        "SELECT id, note, author, note_type, created_at FROM work_order_notes WHERE work_order_id = ? ORDER BY created_at DESC, id DESC",
+        "SELECT id, note, author, author_user_id, parent_id, note_type, created_at "
+        "FROM work_order_notes WHERE work_order_id = ? "
+        "ORDER BY created_at DESC, id DESC",
         (d['id'],)
     ).fetchall()
     d['notes_log'] = [dict(n) for n in notes_rows]
@@ -3306,34 +3569,135 @@ def add_work_order_note(wid):
     return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
 
 
+def _collect_note_recipients(conn, wo_row, parent_id, current_email):
+    """Return a sorted list of email recipients for a new note or reply.
+    Always includes the WO's salesperson email + every unique user who has
+    already posted in the thread. The current author is excluded."""
+    emails = []
+    seen = set()
+
+    def add(email):
+        if not email:
+            return
+        key = email.strip().lower()
+        if not key or key == (current_email or '').strip().lower() or key in seen:
+            return
+        seen.add(key)
+        emails.append(email.strip())
+
+    # Salesperson on the WO
+    sp_email = _lookup_salesperson_email(conn, wo_row['sales_person']) if wo_row else ''
+    add(sp_email)
+
+    # Prior participants in this thread (only matters for replies)
+    if parent_id is not None:
+        rows = conn.execute(
+            "SELECT u.username AS email FROM work_order_notes n "
+            "LEFT JOIN users u ON u.id = n.author_user_id "
+            "WHERE n.work_order_id = ? AND (n.id = ? OR n.parent_id = ?) "
+            "  AND u.username IS NOT NULL",
+            (wo_row['id'], parent_id, parent_id)
+        ).fetchall()
+        for r in rows:
+            add(r['email'])
+
+    return emails
+
+
+def _send_note_email(wo_row, author_name, note_text, parent_id, recipients, is_reply):
+    """Fire off the notification email for a new note / reply."""
+    if not recipients:
+        return False, 'no_recipients'
+    wo_num = wo_row['wo_number']
+    label = 'Reply' if is_reply else 'Note'
+    subject = f"[{label}] Work Order {wo_num}"
+    lines = [
+        f"Work Order: {wo_num}",
+        f"Customer: {wo_row['customer_name'] or '—'}",
+        f"Vehicle: {wo_row['vehicle'] or '—'}",
+        '',
+        f"{author_name} added a {'reply' if is_reply else 'note'}:",
+        '',
+        note_text,
+        '',
+        'Log in to Warehouse Manager to reply.',
+    ]
+    body = '\n'.join(lines) + '\n'
+    last_ok, last_err = False, None
+    for to in recipients:
+        ok, err = _send_email(to, subject, body)
+        if ok:
+            last_ok = True
+        elif err:
+            last_err = err
+    return last_ok, last_err
+
+
 @app.route('/api/work-orders/<int:wid>/general-notes', methods=['POST'])
 @editor_required
 def add_general_note(wid):
-    """Append a running work-order note (not tied to flagging / emails)."""
+    """Append a running work-order note. Optionally `parent_id` threads it as a
+    reply to an existing note. Sends a notification email to the salesperson +
+    every prior participant in the thread (minus the current author)."""
     data = request.get_json() or {}
     note = str(data.get('note', '') or '').strip()
     if not note:
         return jsonify({'error': 'Note is required'}), 400
 
+    parent_id = data.get('parent_id')
+    try:
+        parent_id = int(parent_id) if parent_id not in (None, '', 0, '0') else None
+    except (TypeError, ValueError):
+        parent_id = None
+
     conn = get_db()
-    row = conn.execute("SELECT id FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     if not row:
         conn.close()
         return jsonify({'error': 'Not found'}), 404
 
+    # If this is a reply, make sure the parent exists on this WO and resolve to
+    # the root of the thread (flat one-level threading).
+    if parent_id is not None:
+        parent = conn.execute(
+            "SELECT id, parent_id FROM work_order_notes WHERE id = ? AND work_order_id = ?",
+            (parent_id, wid)
+        ).fetchone()
+        if not parent:
+            conn.close()
+            return jsonify({'error': 'Parent note not found'}), 404
+        # Re-parent replies-to-replies to the root so the thread stays flat
+        if parent['parent_id']:
+            parent_id = parent['parent_id']
+
     author = current_user.display_name or current_user.username
+    author_user_id = current_user.id
     conn.execute(
-        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
-        (wid, note, author)
+        "INSERT INTO work_order_notes "
+        "(work_order_id, note, author, author_user_id, note_type, parent_id) "
+        "VALUES (?, ?, ?, ?, 'general', ?)",
+        (wid, note, author, author_user_id, parent_id)
     )
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
-    _log_wo_audit(conn, wid, 'note_added', f"Note: {note}")
+    _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else 'Note'}: {note}")
     conn.commit()
+
+    # Determine recipients and send
+    current_email = current_user.username
+    recipients = _collect_note_recipients(conn, row, parent_id, current_email)
+    email_sent, email_error = _send_note_email(
+        row, author, note, parent_id, recipients, is_reply=(parent_id is not None)
+    )
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, new_row)
     conn.close()
-    return jsonify(wo)
+    return jsonify({
+        'work_order': wo,
+        'email_sent': email_sent,
+        'email_error': None if email_sent else (email_error or 'no_recipients'),
+        'email_recipients': recipients,
+    })
 
 
 @app.route('/api/work-orders/<int:wid>', methods=['DELETE'])
@@ -3460,9 +3824,14 @@ def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_
     )
     _recompute_wo_status(conn, wid, parts, row['status'])
     if history_note:
+        # Tag the note with the acting user so replies in the thread can email
+        # them back. Flag notes live in the same thread as general notes so
+        # teammates can reply to "Part flagged — …" directly.
+        author_user_id = current_user.id if current_user.is_authenticated else None
         conn.execute(
-            "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, ?)",
-            (wid, history_note, _actor(), history_note_type)
+            "INSERT INTO work_order_notes (work_order_id, note, author, author_user_id, note_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (wid, history_note, _actor(), author_user_id, history_note_type)
         )
     _log_wo_audit(conn, wid, 'edited', audit_desc)
     conn.commit()
@@ -3554,6 +3923,9 @@ def set_part_flag(wid, idx):
     was_flagged = bool(parts[idx].get('flagged'))
     old_note = str(parts[idx].get('flag_note', '') or '')
 
+    # History-note type defaults to 'flag' (which styles red in the thread).
+    # Unflag events are neutral activity, so they use 'general'.
+    history_note_type = 'flag'
     if flagged:
         updates = {'flagged': True, 'flag_note': note}
         if was_flagged and old_note == note:
@@ -3579,11 +3951,13 @@ def set_part_flag(wid, idx):
         subj = None
         body_extra = None
         history_note = f"Part unflagged — {part_desc}"
+        history_note_type = 'general'
 
     wo, email_sent, email_error = _update_part_field(
         wid, idx, updates, audit_desc=audit_desc,
         email_subject=subj, email_body_extra=body_extra,
         history_note=history_note,
+        history_note_type=history_note_type,
     )
     if wo is None:
         return jsonify({'error': 'Work order not found'}), 404

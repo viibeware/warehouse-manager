@@ -195,6 +195,71 @@ body {
     text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
     padding: 0.75rem 0.75rem 0.35rem;
 }
+/* Inline "?" help trigger that reveals a tooltip on hover/focus */
+.section-help {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text-muted);
+    font-family: var(--font); font-size: 0.62rem; font-weight: 600;
+    line-height: 1; cursor: help;
+    transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.section-help:hover, .section-help:focus-visible {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    outline: none;
+}
+.section-help-tip {
+    position: absolute;
+    /* Anchor the top of the tooltip near the icon so long content extends
+       downward — a vertically-centered tooltip overflows above the viewport
+       on page headings. */
+    left: 20px; top: 0;
+    width: min(600px, calc(100vw - 48px));
+    padding: 14px 16px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    font-family: var(--font); font-size: 0.86rem; font-weight: 400;
+    text-transform: none; letter-spacing: 0;
+    line-height: 1.5;
+    text-align: left;  /* override the <button>'s inherited center alignment */
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--transition);
+    z-index: 120;
+    white-space: normal;
+    /* Never exceed the viewport height; scroll internally if the content is tall. */
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+}
+.section-help-tip strong { color: var(--accent); font-weight: 600; }
+.section-help-tip em { font-style: normal; color: var(--text-secondary); }
+.section-help:hover .section-help-tip,
+.section-help:focus-visible .section-help-tip { opacity: 1; pointer-events: auto; }
+/* Larger flavor for a page-heading (next to an <h2>) */
+.section-help.page-help {
+    width: 20px; height: 20px;
+    font-size: 0.78rem;
+}
+.section-help.page-help .section-help-tip { left: 28px; }
+/* Small arrow notch pointing back at the ? icon (vertically aligned with
+   the icon, which sits at the top-left of the tooltip) */
+.section-help-tip::before {
+    content: ''; position: absolute;
+    left: -5px; top: 9px;
+    width: 8px; height: 8px;
+    transform: rotate(45deg);
+    background: var(--bg-card);
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
 .nav-item {
     display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem;
     border-radius: var(--radius); color: var(--text-secondary); font-size: 0.85rem;
@@ -384,6 +449,19 @@ body {
 .part-card.is-sold { opacity: 0.7; }
 .part-card.is-sold:hover { opacity: 0.85; }
 
+/* Needs-Audit badge on card image — surfaces the audit state for every
+   category, mirrors the ⚠ AUDIT badge used in the table view */
+.card-audit-badge {
+    position: absolute; bottom: 10px; left: 10px; padding: 3px 10px;
+    background: var(--engine); color: #000;
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.05em; border-radius: 10px; cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    transition: transform var(--transition);
+}
+.card-audit-badge:hover { transform: translateY(-1px); }
+.part-card.needs-audit { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--engine) 55%, transparent); }
+
 /* ── RADIO PILLS ── */
 .radio-pill {
     font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
@@ -405,6 +483,22 @@ body {
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
     border-bottom: 1px solid var(--border); white-space: nowrap;
 }
+.parts-table th .th-sort {
+    display: inline-flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+    transition: color var(--transition);
+}
+.parts-table th .th-sort:hover { color: var(--text-primary); }
+.parts-table th .th-sort.active { color: var(--accent); }
+.parts-table th .th-sort-arrow {
+    display: inline-flex; opacity: 0.35;
+    transition: transform 0.18s ease, opacity var(--transition);
+    transform: rotate(-90deg);  /* default (inactive) = sideways */
+}
+.parts-table th .th-sort:hover .th-sort-arrow { opacity: 0.7; }
+.parts-table th .th-sort-arrow.active { opacity: 1; }
+.parts-table th .th-sort-arrow.asc { transform: rotate(180deg); }
+.parts-table th .th-sort-arrow.desc { transform: rotate(0deg); }
 .parts-table td {
     padding: 7px 11px; border-bottom: 1px solid var(--border);
     color: var(--text-secondary); vertical-align: middle;
@@ -806,20 +900,6 @@ body {
     .dashboard-grid { grid-template-columns: 1fr; }
 }
 
-/* ── WORK ORDER DETAIL — sticky footer so actions stay visible ── */
-#woDetailModal .modal {
-    display: flex; flex-direction: column; overflow: hidden;
-}
-#woDetailModal .modal-body {
-    overflow-y: auto; flex: 1; min-height: 0;
-}
-#woDetailModal .modal-footer {
-    flex-direction: column; align-items: stretch; gap: 0.4rem; justify-content: flex-start;
-}
-#woDetailModal .modal-footer .wo-footer-row {
-    display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
-}
-
 /* ── WORK ORDERS ── */
 .wo-header {
     display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; gap: 0.5rem; flex-wrap: wrap;
@@ -838,10 +918,10 @@ body {
 .wo-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .wo-card {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    padding: 0.85rem 1rem; cursor: pointer; transition: all var(--transition);
+    padding: 0.85rem 1rem; transition: all var(--transition);
     display: flex; flex-direction: column; gap: 0.5rem;
 }
-.wo-card:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+.wo-card:hover { border-color: var(--accent); }
 /* Admin-configurable priority tint via CSS custom property --prio-color; theme-aware pale blend */
 .wo-card.has-priority-color {
     background: color-mix(in srgb, var(--bg-card) 82%, var(--prio-color) 18%);
@@ -969,6 +1049,85 @@ body {
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden;
 }
+
+/* Threaded notes block on WO cards + detail modal */
+.wo-notes-thread {
+    margin-top: 0.55rem; padding-top: 0.55rem;
+    border-top: 1px dashed var(--border);
+    font-size: 0.82rem;
+}
+.wo-notes-thread-label {
+    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin-bottom: 6px;
+}
+/* Scrollable list — roughly five notes visible before scrolling. Newest
+   notes always at the top (render path sorts roots desc + replies asc). */
+.wo-notes-thread-list {
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;  /* keep the scrollbar off the note cards */
+}
+.wo-notes-thread-list::-webkit-scrollbar { width: 8px; }
+.wo-notes-thread-list::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 6px;
+}
+.wo-notes-thread-list::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+}
+.wo-note {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 0.5rem 0.65rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 6px;
+}
+.wo-note-reply { margin-left: 22px; background: var(--bg-card); border-style: dashed; }
+.wo-note.wo-note-flag {
+    border-left: 3px solid var(--danger);
+    background: color-mix(in srgb, var(--bg-input) 88%, var(--danger) 12%);
+}
+.wo-note-flag-badge {
+    font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    padding: 1px 6px; border-radius: 10px;
+}
+.wo-note-head {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    font-size: 0.74rem;
+}
+.wo-note-author { font-weight: 600; color: var(--text-primary); }
+.wo-note-time {
+    font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted);
+}
+.wo-note-text {
+    color: var(--text-primary); font-size: 0.82rem; line-height: 1.4;
+    white-space: pre-wrap; word-break: break-word;
+}
+.wo-note-actions { display: flex; gap: 6px; margin-top: 2px; }
+.wo-note-reply-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    padding: 3px 9px; border-radius: 10px; cursor: pointer;
+    transition: all var(--transition);
+}
+.wo-note-reply-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* Disclaimer inside the Add Note / Reply modal explaining the email */
+.wo-note-disclaimer {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin-top: 0.6rem; padding: 0.55rem 0.7rem;
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: var(--radius);
+    font-size: 0.76rem; color: var(--text-secondary); line-height: 1.4;
+}
+.wo-note-disclaimer svg { color: var(--accent); }
 
 /* Card parts list */
 .wo-card-parts {
@@ -1175,6 +1334,34 @@ body {
     padding: 0.5rem 0.6rem; font-size: 0.75rem; color: var(--text-muted);
     border: 1px dashed var(--border); border-radius: var(--radius); text-align: center;
 }
+/* Informational block in the WO form explaining what triggers a salesperson email */
+.wo-email-info {
+    margin-top: 0.5rem;
+    padding: 0.8rem 0.95rem;
+    background: var(--accent-dim);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: var(--radius);
+}
+.wo-email-info-title {
+    font-family: var(--mono); font-size: 0.64rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--accent); margin-bottom: 0.35rem;
+}
+.wo-email-info-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 0.5rem; }
+.wo-email-info-list {
+    list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-direction: column; gap: 4px;
+}
+.wo-email-info-list li {
+    position: relative;
+    padding-left: 16px;
+    font-size: 0.78rem; color: var(--text-primary); line-height: 1.45;
+}
+.wo-email-info-list li::before {
+    content: ''; position: absolute; left: 4px; top: 8px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+.wo-email-info-list li strong { color: var(--accent); font-weight: 600; }
+.wo-email-info-note { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
 .wo-parts-table {
     width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.82rem;
 }
@@ -1665,6 +1852,8 @@ body {
             <option value="fitment_vehicle">Fitment</option>
             <option value="sold">Sold</option>
             <option value="flagged">Flagged</option>
+            <option value="needs_audit">Audit</option>
+            <option value="posted_to_web">Posted to Web</option>
         </select>
         <button class="sort-dir-btn" id="sortDirBtn" onclick="toggleSortDir()" title="Toggle sort direction">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
@@ -1762,6 +1951,7 @@ body {
             <div class="settings-tabs">
                 <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
                 <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Admin</button>
+                <button class="settings-tab" id="settingsBrandingTab" style="display:none;" onclick="switchSettingsTab('branding', this)">Branding</button>
                 <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
                 <button class="settings-tab" id="settingsAboutTab" style="display:none;" onclick="switchSettingsTab('about', this)">About</button>
             </div>
@@ -1845,6 +2035,43 @@ body {
                         <div class="settings-desc">Bot challenge on the login page (free from Cloudflare)</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openTurnstileModal();">Configure</button>
+                </div>
+            </div>
+
+            <!-- Branding Tab -->
+            <div class="settings-tab-content" id="settingsTabBranding">
+                <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;">
+                    <div>
+                        <div class="settings-label">Login Screen Logo</div>
+                        <div class="settings-desc">Upload a PNG or SVG logo to display at the bottom of the left panel on the login screen. Leave empty to show no custom branding.</div>
+                    </div>
+                    <div style="display:flex;align-items:flex-start;gap:1.25rem;flex-wrap:wrap;">
+                        <!-- Preview: shown at the actual render width for a true WYSIWYG -->
+                        <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-start;">
+                            <div id="brandingLogoPreviewFrame" style="min-width:200px;min-height:110px;max-width:620px;border:1px dashed var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, #1a3a8a 0%, #2e6bff 100%);padding:14px;">
+                                <img id="brandingLogoPreviewImg" src="" alt="" style="display:none;height:auto;max-width:100%;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.35));">
+                                <span id="brandingLogoPreviewEmpty" style="color:rgba(255,255,255,0.75);font-size:0.78rem;">No logo uploaded</span>
+                            </div>
+                            <div style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">Live preview at <span id="brandingLogoWidthReadout">180</span> px wide</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:0.5rem;min-width:200px;">
+                            <label class="btn btn-ghost btn-sm" style="cursor:pointer;text-align:center;">
+                                <input type="file" id="brandingLogoFile" accept="image/png,image/svg+xml,.png,.svg" style="display:none;" onchange="uploadBrandingLogo(this)">
+                                Upload Logo
+                            </label>
+                            <button class="btn btn-ghost btn-sm" id="brandingLogoRemoveBtn" style="color:var(--danger);display:none;" onclick="removeBrandingLogo()">Remove Logo</button>
+                            <span style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">PNG or SVG</span>
+                            <div style="display:flex;flex-direction:column;gap:4px;margin-top:0.4rem;">
+                                <label class="form-label" for="brandingLogoWidth" style="font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Logo width (px)</label>
+                                <input type="range" id="brandingLogoWidth" min="40" max="600" step="2" value="180"
+                                       oninput="onBrandingWidthInput(this.value)">
+                                <input type="number" id="brandingLogoWidthNum" min="40" max="600" step="1" value="180"
+                                       class="form-input" style="width:100px;padding:6px 8px;font-size:0.85rem;"
+                                       oninput="onBrandingWidthInput(this.value)">
+                            </div>
+                            <button class="btn btn-primary btn-sm" id="brandingSaveBtn" onclick="saveBrandingSettings()" style="margin-top:0.4rem;">Save</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2231,7 +2458,7 @@ body {
         <div class="modal-body">
             <div class="form-grid" style="grid-template-columns:1fr;">
                 <input type="hidden" id="ufId">
-                <div class="form-group"><label class="form-label">Username (email address)</label><input class="form-input" type="text" id="ufUsername" autocomplete="off"></div>
+                <div class="form-group"><label class="form-label">Username (email address)</label><input class="form-input" type="email" id="ufUsername" autocomplete="off" placeholder="name@example.com" required><span class="form-hint">Used for login and for salesperson email notifications.</span></div>
                 <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" type="text" id="ufDisplayName"></div>
                 <div class="form-group"><label class="form-label">Role</label>
                     <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select>
@@ -2263,6 +2490,11 @@ body {
                     <span class="form-hint">Supervisors get every editor permission plus the audit-trail view.</span>
                 </div>
                 <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">Minimum 4 characters</span></div>
+                <div class="form-group">
+                    <label class="form-label">Sales Person</label>
+                    <div class="toggle-row"><span class="toggle-label-text" id="ufSalesText">No</span><label class="toggle-switch"><input type="checkbox" id="ufSalesPerson" onchange="document.getElementById('ufSalesText').textContent=this.checked?'Yes':'No'"><span class="toggle-track"></span></label></div>
+                    <span class="form-hint">If enabled, this user appears in the work-order sales-person dropdown and receives email notifications.</span>
+                </div>
                 <div class="form-group" id="ufActiveGroup" style="display:none;">
                     <label class="form-label">Account Status</label>
                     <div class="toggle-row"><span class="toggle-label-text" id="ufActiveText">Active</span><label class="toggle-switch"><input type="checkbox" id="ufActive" checked onchange="document.getElementById('ufActiveText').textContent=this.checked?'Active':'Disabled'"><span class="toggle-track"></span></label></div>
@@ -2405,6 +2637,21 @@ body {
                     </div>
                     <div id="woFormPartsList"></div>
                 </div>
+                <div class="form-group full-width wo-email-info">
+                    <div class="wo-email-info-title">Emails to the sales person</div>
+                    <div class="wo-email-info-desc">
+                        The selected sales person receives an automatic email (to their account email address) whenever one of these events happens. Photos and flag notes are included in the messages so they stay in the loop without opening the app.
+                    </div>
+                    <ul class="wo-email-info-list">
+                        <li><strong>Part flagged</strong> — any part on the work order is flagged. The flag description is required and posted into the Notes thread so anyone can reply.</li>
+                        <li><strong>Flag note updated</strong> — the flag note on a flagged part is edited.</li>
+                        <li><strong>Note added</strong> — starts a new thread; emails the salesperson. Every reply emails every participant in that thread.</li>
+                        <li><strong>Photo added to a part</strong> — resized JPEG attached; any comment you wrote is included.</li>
+                        <li><strong>Marked delivered</strong> — one-time notification that the order is complete.</li>
+                        <li><strong>Manual Email Update</strong> — the "Email Update" button sends a full current-status snapshot on demand.</li>
+                    </ul>
+                    <div class="wo-email-info-note">No email is sent for creating a work order, editing fields, unflagging, archiving, or reopening.</div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -2414,35 +2661,33 @@ body {
     </div>
 </div>
 
-<!-- ═══ WORK ORDER DETAIL MODAL ═══ -->
-<div class="modal-overlay" id="woDetailModal">
-    <div class="modal" style="max-width:768px;">
-        <div class="modal-header">
-            <h2 id="woDetailTitle">Work Order</h2>
-            <button class="modal-close" onclick="closeModal('woDetailModal')">&times;</button>
-        </div>
-        <div class="modal-body" id="woDetailBody"></div>
-        <div class="modal-footer" id="woDetailFooter"></div>
-    </div>
-</div>
+<!-- (Work Order detail modal removed — the list view now renders the full
+     work-order content inline, including the Notes & Activity thread,
+     part photos, and all action buttons.) -->
 
 <!-- ═══ GENERAL (RUNNING) NOTE MODAL ═══ -->
 <div class="modal-overlay" id="woGeneralNoteModal" style="z-index:210;">
-    <div class="modal" style="max-width:460px;">
+    <div class="modal" style="max-width:480px;">
         <div class="modal-header">
-            <h2>Add Note</h2>
+            <h2 id="woGeneralNoteTitle">Add Note</h2>
             <button class="modal-close" onclick="closeModal('woGeneralNoteModal')">&times;</button>
         </div>
         <div class="modal-body">
             <input type="hidden" id="woGeneralNoteId">
+            <input type="hidden" id="woGeneralNoteParentId">
+            <div id="woGeneralNoteReplyContext" style="display:none;margin-bottom:0.7rem;padding:0.55rem 0.7rem;border-left:3px solid var(--accent);background:var(--accent-dim);border-radius:4px;font-size:0.76rem;color:var(--text-secondary);"></div>
             <div class="form-group">
                 <label class="form-label" id="woGeneralNoteLabel">Note</label>
                 <textarea class="form-textarea" id="woGeneralNoteText" rows="4" placeholder="Add a note about this work order as you work on it…"></textarea>
             </div>
+            <div class="wo-note-disclaimer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span id="woGeneralNoteDisclaimer">Saving this note will email the salesperson on this work order.</span>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('woGeneralNoteModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="submitGeneralNote()">Add Note</button>
+            <button class="btn btn-primary" id="woGeneralNoteSaveBtn" onclick="submitGeneralNote()">Add Note</button>
         </div>
     </div>
 </div>
@@ -2565,7 +2810,6 @@ body {
 
             <div class="wm-tabs">
                 <button class="wm-tab active" onclick="switchWoListTab('locations', this)">Locations</button>
-                <button class="wm-tab" onclick="switchWoListTab('salespeople', this)">Sales People</button>
                 <button class="wm-tab" onclick="switchWoListTab('priorities', this)">Priorities</button>
             </div>
 
@@ -2574,14 +2818,13 @@ body {
                 <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addLocationRow()">+ Add Location</button>
             </div>
 
-            <div class="wm-tab-content" id="woListTabSalespeople">
-                <div id="woListSalespeople"></div>
-                <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addSalesPersonRow()">+ Add Sales Person</button>
-            </div>
-
             <div class="wm-tab-content" id="woListTabPriorities">
                 <div id="woListPriorities"></div>
                 <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addPriorityRow()">+ Add Priority</button>
+            </div>
+
+            <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);">
+                Sales people are now managed from the <strong>User Management</strong> screen — flip the <em>Sales Person</em> toggle on any active user and their display name will appear in the work-order dropdown, using their email for notifications.
             </div>
         </div>
         <div class="modal-footer">
@@ -2837,6 +3080,7 @@ function openSettingsModal(tab) {
     const btnSelector = {
         general: '.settings-tab',
         admin: '#settingsAdminTab',
+        branding: '#settingsBrandingTab',
         data: '#settingsDataTab',
         about: '.settings-tabs .settings-tab:last-child',
     }[tab] || '.settings-tab';
@@ -2849,9 +3093,112 @@ function switchSettingsTab(tab, btn) {
     document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    const tabMap = { general: 'settingsTabGeneral', admin: 'settingsTabAdmin', data: 'settingsTabData', about: 'settingsTabAbout' };
+    const tabMap = {
+        general: 'settingsTabGeneral',
+        admin: 'settingsTabAdmin',
+        branding: 'settingsTabBranding',
+        data: 'settingsTabData',
+        about: 'settingsTabAbout',
+    };
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
+    if (tab === 'branding') refreshBrandingPreview();
+}
+
+async function refreshBrandingPreview() {
+    try {
+        const cfg = await (await fetch('/api/settings/branding')).json();
+        const img = document.getElementById('brandingLogoPreviewImg');
+        const empty = document.getElementById('brandingLogoPreviewEmpty');
+        const rm = document.getElementById('brandingLogoRemoveBtn');
+        const slider = document.getElementById('brandingLogoWidth');
+        const num = document.getElementById('brandingLogoWidthNum');
+        const readout = document.getElementById('brandingLogoWidthReadout');
+        const width = cfg && cfg.logo_width ? parseInt(cfg.logo_width, 10) : 180;
+        if (slider) slider.value = width;
+        if (num) num.value = width;
+        if (readout) readout.textContent = width;
+        if (img && empty) {
+            if (cfg && cfg.logo_url) {
+                // Cache-bust so a freshly-uploaded logo replaces the old one in the preview
+                img.src = `${cfg.logo_url}?t=${Date.now()}`;
+                img.style.width = width + 'px';
+                img.style.display = '';
+                empty.style.display = 'none';
+                if (rm) rm.style.display = '';
+            } else {
+                img.style.display = 'none';
+                empty.style.display = '';
+                if (rm) rm.style.display = 'none';
+            }
+        }
+    } catch {}
+}
+
+function _clampBrandingWidth(v) {
+    const n = parseInt(v, 10);
+    if (Number.isNaN(n)) return 180;
+    return Math.max(40, Math.min(600, n));
+}
+
+function onBrandingWidthInput(v) {
+    const w = _clampBrandingWidth(v);
+    const slider = document.getElementById('brandingLogoWidth');
+    const num = document.getElementById('brandingLogoWidthNum');
+    const readout = document.getElementById('brandingLogoWidthReadout');
+    const img = document.getElementById('brandingLogoPreviewImg');
+    if (slider && slider.value != w) slider.value = w;
+    if (num && num.value != w) num.value = w;
+    if (readout) readout.textContent = w;
+    if (img) img.style.width = w + 'px';
+}
+
+async function saveBrandingSettings() {
+    const w = _clampBrandingWidth(document.getElementById('brandingLogoWidth').value);
+    const btn = document.getElementById('brandingSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+        const res = await fetch('/api/settings/branding', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logo_width: w }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Save failed', 'error'); return; }
+        showToast('Branding saved', 'success');
+    } catch { showToast('Connection error', 'error'); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = 'Save'; } }
+}
+
+async function uploadBrandingLogo(input) {
+    if (!input.files || !input.files.length) return;
+    const file = input.files[0];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['png', 'svg'].includes(ext)) {
+        showToast('Logo must be a PNG or SVG', 'error');
+        input.value = '';
+        return;
+    }
+    const fd = new FormData();
+    fd.append('logo', file);
+    try {
+        const res = await fetch('/api/settings/branding/logo', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Upload failed', 'error'); return; }
+        showToast('Logo uploaded — visible on the login screen', 'success');
+        await refreshBrandingPreview();
+    } catch { showToast('Connection error', 'error'); }
+    finally { input.value = ''; }
+}
+
+async function removeBrandingLogo() {
+    if (!confirm('Remove the custom login logo?')) return;
+    try {
+        const res = await fetch('/api/settings/branding/logo', { method: 'DELETE' });
+        if (!res.ok) { showToast('Failed to remove logo', 'error'); return; }
+        showToast('Logo removed', 'success');
+        await refreshBrandingPreview();
+    } catch { showToast('Connection error', 'error'); }
 }
 
 // ══════════════════════════════════════════
@@ -2891,6 +3238,7 @@ async function loadCurrentUser() {
         }
         if (currentUserData.role === 'admin') {
             document.getElementById('settingsAdminTab').style.display = '';
+            document.getElementById('settingsBrandingTab').style.display = '';
             document.getElementById('settingsAboutTab').style.display = '';
         }
     } catch { window.location.href = '/login'; }
@@ -2933,12 +3281,13 @@ async function loadUsers() {
         document.getElementById('adminUserCount').textContent = `${users.length} user${users.length!==1?'s':''}`;
         const isSelf = (id) => currentUserData && currentUserData.id === id;
         document.getElementById('adminUserTable').innerHTML = `
-            <table class="admin-table"><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
+            <table class="admin-table"><thead><tr><th>User</th><th>Role</th><th>Sales&nbsp;Person</th><th>Status</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
             ${users.map(u => `<tr>
                 <td><span class="username-cell">${esc(u.display_name || u.username)}</span>
-                    ${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">@${esc(u.username)}</span>` : ''}
+                    ${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">${esc(u.username)}</span>` : ''}
                     ${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</td>
                 <td><span class="role-badge ${u.role}">${u.role}</span></td>
+                <td>${u.is_sales_person ? '<span class="role-badge" style="background:var(--accent-dim);color:var(--accent);">Yes</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
                 <td><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</td>
                 <td style="font-family:var(--mono);font-size:0.72rem;color:var(--text-muted);">${u.created_at?u.created_at.split(' ')[0]:''}</td>
                 <td><div class="table-actions" style="justify-content:flex-end;">
@@ -2955,6 +3304,9 @@ function openUserForm(user) {
     document.getElementById('ufPassword').value = '';
     document.getElementById('ufActive').checked = user ? !!user.active : true;
     document.getElementById('ufActiveText').textContent = (!user || user.active) ? 'Active' : 'Disabled';
+    const sp = user ? !!user.is_sales_person : false;
+    document.getElementById('ufSalesPerson').checked = sp;
+    document.getElementById('ufSalesText').textContent = sp ? 'Yes' : 'No';
     if (user) {
         document.getElementById('userFormTitle').textContent = 'Edit User';
         document.getElementById('ufSaveBtn').textContent = 'Save Changes';
@@ -2972,9 +3324,18 @@ function openUserForm(user) {
 }
 async function saveUser() {
     const id = document.getElementById('ufId').value;
-    const body = { username: document.getElementById('ufUsername').value.trim(), display_name: document.getElementById('ufDisplayName').value.trim(), role: document.getElementById('ufRole').value, active: document.getElementById('ufActive').checked ? 1 : 0 };
+    const body = {
+        username: document.getElementById('ufUsername').value.trim(),
+        display_name: document.getElementById('ufDisplayName').value.trim(),
+        role: document.getElementById('ufRole').value,
+        active: document.getElementById('ufActive').checked ? 1 : 0,
+        is_sales_person: document.getElementById('ufSalesPerson').checked ? 1 : 0,
+    };
     const pw = document.getElementById('ufPassword').value;
     if (!body.username) { showToast('Username is required', 'error'); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.username)) {
+        showToast('Username must be a valid email address', 'error'); return;
+    }
     if (!id && !pw) { showToast('Password is required for new users', 'error'); return; }
     if (pw) { if (pw.length < 4) { showToast('Password must be at least 4 characters', 'error'); return; } body.password = pw; }
     try {
@@ -3095,7 +3456,7 @@ async function loadStats() {
 }
 
 function renderCard(p) {
-    const cat = p.category, title = getTitle(p), isSold = !!p.sold, isFlagged = !!p.flagged;
+    const cat = p.category, title = getTitle(p), isSold = !!p.sold, isFlagged = !!p.flagged, needsAudit = !!p.needs_audit;
     const catLabel = getCatLabel(cat), catColor = getCatColor(cat);
     const img = p.image_filename ? `<img src="/uploads/${p.image_filename}" alt="${esc(title)}" loading="lazy">` : `<svg class="placeholder-icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
     const soldOverlay = isSold ? `<div class="card-sold-overlay"><div class="card-sold-banner">SOLD</div></div>` : '';
@@ -3117,7 +3478,10 @@ function renderCard(p) {
         }
     }).join('');
     const flagBtn = `<button class="flag-btn card-flag${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button>`;
-    return `<div class="part-card${isSold?' is-sold':''}" onclick="openDetail(${p.id})"><div class="card-image">${img}${soldOverlay}<span class="card-badge" style="background:${catColor};color:#000;">${esc(catLabel)}</span>${flagBtn}</div><div class="card-body"><div class="card-title">${esc(title)}</div><div class="card-meta">${meta}</div>${pills?`<div class="card-toggles">${pills}</div>`:''}</div></div>`;
+    const auditBadge = needsAudit
+        ? `<span class="card-audit-badge" onclick="openPartAuditModal(${p.id}, true); event.stopPropagation();" title="${esc(p.audit_note || 'Needs audited — click to edit')}">⚠ AUDIT</span>`
+        : '';
+    return `<div class="part-card${isSold?' is-sold':''}${needsAudit?' needs-audit':''}" onclick="openDetail(${p.id})"><div class="card-image">${img}${soldOverlay}<span class="card-badge" style="background:${catColor};color:#000;">${esc(catLabel)}</span>${flagBtn}${auditBadge}</div><div class="card-body"><div class="card-title">${esc(title)}</div><div class="card-meta">${meta}</div>${pills?`<div class="card-toggles">${pills}</div>`:''}</div></div>`;
 }
 
 function _parseCustomData(p) {
@@ -3130,11 +3494,12 @@ function renderTable(parts) {
     const canEdit = currentUserData && currentUserData.can_edit;
     let h = `<div class="parts-table-wrap"><table class="parts-table"><thead><tr>`;
     if (canEdit) h += `<th class="cb-cell"><input type="checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>`;
-    h += `<th style="width:28px;" title="Flag"></th>`;
-    h += `<th>${cols[0].label}</th><th>WM #</th>`;
+    h += `<th style="width:28px;" title="Flag">${sortHeaderArrow('flagged')}</th>`;
+    h += `<th>${sortHeaderHtml(cols[0].key, cols[0].label)}</th>`;
+    h += `<th>${sortHeaderHtml('product_number', 'WM #')}</th>`;
     if (showType) h += `<th>Type</th>`;
-    for (let i=1;i<cols.length;i++) h += `<th>${cols[i].label}</th>`;
-    h += `<th title="Needs Audited">Audit</th>`;
+    for (let i=1;i<cols.length;i++) h += `<th>${sortHeaderHtml(cols[i].key, cols[i].label)}</th>`;
+    h += `<th title="Needs Audited">${sortHeaderHtml('needs_audit', 'Audit')}</th>`;
     h += `</tr></thead><tbody>`;
     for (const p of parts) {
         const isSold = !!p.sold;
@@ -3225,8 +3590,62 @@ function setCategoryBySlug(slug, push) {
     document.getElementById('sidebar').classList.remove('open');
 }
 function setView(mode) { currentView=mode;currentPage=1;selectedRows.clear();document.getElementById('viewCards').classList.toggle('active',mode==='cards');document.getElementById('viewTable').classList.toggle('active',mode==='table');loadParts(); }
-function onSortChange() { currentSortBy=document.getElementById('sortSelect').value;currentSortDir=['updated_at','sold','flagged'].includes(currentSortBy)?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
-function toggleSortDir() { currentSortDir=currentSortDir==='asc'?'desc':'asc';document.getElementById('sortDirBtn').classList.toggle('desc',currentSortDir==='desc');currentPage=1;loadParts(); }
+const SORTABLE_KEYS = new Set([
+    'sku','location','fitment_vehicle','updated_at','product_number',
+    'sold','flagged','needs_audit','posted_to_web'
+]);
+const DESC_DEFAULT_KEYS = new Set(['updated_at','sold','flagged','needs_audit','posted_to_web']);
+
+function onSortChange() {
+    currentSortBy = document.getElementById('sortSelect').value;
+    currentSortDir = DESC_DEFAULT_KEYS.has(currentSortBy) ? 'desc' : 'asc';
+    document.getElementById('sortDirBtn').classList.toggle('desc', currentSortDir === 'desc');
+    currentPage = 1;
+    loadParts();
+}
+function toggleSortDir() {
+    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    document.getElementById('sortDirBtn').classList.toggle('desc', currentSortDir === 'desc');
+    currentPage = 1;
+    loadParts();
+}
+
+// Header-click sort: clicking a sortable column header toggles direction if
+// it's the active key, otherwise switches to that key with its default direction.
+function setSortByColumn(key) {
+    if (!SORTABLE_KEYS.has(key)) return;
+    if (currentSortBy === key) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortBy = key;
+        currentSortDir = DESC_DEFAULT_KEYS.has(key) ? 'desc' : 'asc';
+    }
+    // Keep the header dropdown + direction pill in sync
+    const sel = document.getElementById('sortSelect');
+    if (sel) {
+        const hasOpt = [...sel.options].some(o => o.value === key);
+        if (hasOpt) sel.value = key;
+    }
+    document.getElementById('sortDirBtn').classList.toggle('desc', currentSortDir === 'desc');
+    currentPage = 1;
+    loadParts();
+}
+
+function sortHeaderArrow(key) {
+    if (!SORTABLE_KEYS.has(key)) return '';
+    const active = currentSortBy === key;
+    const dirCls = active ? (currentSortDir === 'desc' ? 'desc' : 'asc') : '';
+    return `<span class="th-sort-arrow ${active ? 'active' : ''} ${dirCls}" aria-hidden="true">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>`;
+}
+function sortHeaderHtml(key, label) {
+    if (!SORTABLE_KEYS.has(key)) return esc(label);
+    const active = currentSortBy === key;
+    return `<span class="th-sort ${active ? 'active' : ''}" onclick="setSortByColumn('${key}')" title="Sort by ${esc(label)}">
+        ${esc(label)} ${sortHeaderArrow(key)}
+    </span>`;
+}
 
 // ══════════════════════════════════════════
 //  PARTS — FORM
@@ -4163,7 +4582,7 @@ function renderRecentWos(orders) {
     if (!orders.length) { el.innerHTML = '<div class="widget-empty">No active work orders</div>'; return; }
     el.innerHTML = orders.map(wo => {
         const when = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
-        return `<div class="widget-row" onclick="openWorkOrderDetail(${wo.id})">
+        return `<div class="widget-row" onclick="showWorkOrdersView('active')">
             <div></div>
             <div class="widget-row-text">
                 <div class="widget-row-title"><span class="wo-number">${esc(wo.wo_number)}</span>${esc(wo.customer_name || '—')}</div>
@@ -4218,7 +4637,18 @@ async function renderWorkOrdersView() {
         : '';
     woc.innerHTML = `
         <div class="wo-header">
-            <h2>${title}</h2>
+            <h2 style="display:inline-flex;align-items:center;gap:8px;">
+                ${title}
+                <button type="button" class="section-help page-help" tabindex="0" aria-label="About Work Orders">?
+                    <span class="section-help-tip" role="tooltip">
+                        <strong>Work Orders</strong> track parts requests from sales to warehouse.<br><br>
+                        <strong>Flagged</strong> — any part marked with the flag icon needs attention (wrong SKU, missing, damaged). The flag description you enter is required and is posted into the card's Notes thread so anyone can reply to it. The whole work order shows a red <em>Flagged</em> pill and the salesperson gets an email with the flag note. Clearing the last flag returns it to <em>Requested</em>.<br><br>
+                        <strong>Delivered</strong> — the Mark Delivered button signals the order is fulfilled. The salesperson gets a delivery email. It stays visible in the active list (pale green) until tonight at <strong>23:00 local time</strong>, when it auto-archives. <em>Archive Now</em> moves it immediately; <em>Reopen</em> sends it back to Requested.<br><br>
+                        <strong>Notes &amp; replies</strong> — adding a note starts a thread and emails the salesperson. Any reply emails every prior participant plus the salesperson so the conversation stays in email.<br><br>
+                        <strong>Archive</strong> holds every delivered work order for historical reference and reporting.
+                    </span>
+                </button>
+            </h2>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">${filters}${newBtn}</div>
         </div>
         <div class="wo-toolbar">
@@ -4293,9 +4723,9 @@ function renderWorkOrderCard(wo) {
     const canViewAudit = currentUserData && currentUserData.can_view_audit;
     const prioClass = (wo.priority || '').toLowerCase().replace(/\s+/g, '-');
     const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
-    const flagBlock = (wo.status === 'flagged' && wo.flag_note)
-        ? `<div class="wo-flag-note"><strong>Flagged:</strong> ${esc(wo.flag_note)}</div>`
-        : '';
+    // The old "Flagged: …" alert bar was removed — flag notes now live in the
+    // Notes thread below (same render path as Add Note / Reply), so they can
+    // be replied to and don't duplicate a static banner at the top of the card.
     const notesBlock = (wo.notes || '').trim()
         ? `<div class="wo-notes-block">
             <div class="notes-label">Request Details</div>
@@ -4311,9 +4741,9 @@ function renderWorkOrderCard(wo) {
     const isArchived = !!wo.archived_at;
     const isDeliveredPending = wo.status === 'delivered' && !isArchived;
     const readOnly = isArchived || isDeliveredPending;
+    const notesThreadBlock = renderWorkOrderNotesThread(wo, !readOnly);
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            <button class="table-btn" title="Open the full work-order details" onclick="openWorkOrderDetail(${wo.id})">View</button>
             ${!readOnly ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
             ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
             ${isDeliveredPending ? `<button class="table-btn" title="Archive immediately (skip the 23:00 sweep)" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
@@ -4324,10 +4754,11 @@ function renderWorkOrderCard(wo) {
             ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
             ${!readOnly ? `<button class="table-btn btn-mark-delivered wo-action-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : ''}
           </div>`
-        : `<div class="wo-card-actions" onclick="event.stopPropagation();">
-            <button class="table-btn" title="Open the full work-order details" onclick="openWorkOrderDetail(${wo.id})">View</button>
-            ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
-          </div>`;
+        : (canViewAudit
+            ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
+                <button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>
+               </div>`
+            : '');
     // Only tint the card in the active list; archive stays neutral
     // Tint: priority color for active (not archive); delivered-pending overrides to pale green
     const isDeliveredPendingCard = wo.status === 'delivered' && !wo.archived_at;
@@ -4345,7 +4776,7 @@ function renderWorkOrderCard(wo) {
              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
            </button>`;
     return `
-    <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle} onclick="openWorkOrderDetail(${wo.id})">
+    <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle}>
         <div class="wo-card-main">
             <div class="wo-card-top">
                 <span class="wo-number">${esc(wo.wo_number)}</span>
@@ -4365,8 +4796,8 @@ function renderWorkOrderCard(wo) {
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
             <div class="wo-card-collapsible">
-                ${flagBlock}
                 ${notesBlock}
+                ${notesThreadBlock}
                 ${partsBlock}
             </div>
         </div>
@@ -4379,6 +4810,73 @@ function toggleWoCardCollapse(wid, event) {
     const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
     if (!card) return;
     card.classList.toggle('wo-collapsed');
+}
+
+function _fmtNoteTime(ts) {
+    if (!ts) return '';
+    return ts.replace('T', ' ').split('.')[0].substring(0, 16);
+}
+
+function renderWorkOrderNotesThread(wo, canReply) {
+    // Thread shows both general (running) notes and flag notes so teammates can
+    // reply to part-flag messages too. Flag notes render with a red accent and
+    // a "Flag" badge.
+    const all = wo.notes_log || [];
+    if (!all.length) return '';
+    // Group by parent: roots are notes with parent_id=null, children are replies.
+    const roots = [];
+    const childMap = new Map();
+    for (const n of all) {
+        if (!n.parent_id) {
+            roots.push(n);
+        } else {
+            const arr = childMap.get(n.parent_id) || [];
+            arr.push(n);
+            childMap.set(n.parent_id, arr);
+        }
+    }
+    // Show newest threads first. Within a thread, replies oldest→newest under
+    // the root so the conversation reads top-to-bottom.
+    roots.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+    const noteHtml = n => {
+        // JSON-encode the preview for the onclick attribute so quotes are safe.
+        const preview = `${n.author || ''} • ${_fmtNoteTime(n.created_at)}\n${n.note || ''}`;
+        const previewAttr = JSON.stringify(preview).replace(/"/g, '&quot;');
+        const isReply = !!n.parent_id;
+        const isFlag = (n.note_type || 'flag') === 'flag';
+        const replyTarget = n.parent_id || n.id;
+        const replyBtn = canReply
+            ? `<button type="button" class="wo-note-reply-btn" onclick="openReplyModal(${wo.id}, ${replyTarget}, ${previewAttr}); event.stopPropagation();" title="Reply — triggers an email to every participant in the thread">Reply</button>`
+            : '';
+        const cls = ['wo-note'];
+        if (isReply) cls.push('wo-note-reply');
+        if (isFlag) cls.push('wo-note-flag');
+        const flagBadge = isFlag ? '<span class="wo-note-flag-badge">Flag</span>' : '';
+        return `<div class="${cls.join(' ')}" data-note-id="${n.id}" onclick="event.stopPropagation();">
+            <div class="wo-note-head">
+                ${flagBadge}
+                <span class="wo-note-author">${esc(n.author || 'Unknown')}</span>
+                <span class="wo-note-time">${esc(_fmtNoteTime(n.created_at))}</span>
+                ${isReply ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted);">↳ reply</span>' : ''}
+            </div>
+            <div class="wo-note-text">${esc(n.note || '')}</div>
+            ${replyBtn ? `<div class="wo-note-actions">${replyBtn}</div>` : ''}
+        </div>`;
+    };
+
+    let html = `<div class="wo-notes-thread" onclick="event.stopPropagation();">
+        <div class="wo-notes-thread-label">Notes and Activity</div>
+        <div class="wo-notes-thread-list">`;
+    for (const root of roots) {
+        html += noteHtml(root);
+        const kids = (childMap.get(root.id) || []).sort((a, b) =>
+            (a.created_at || '').localeCompare(b.created_at || '')
+        );
+        for (const k of kids) html += noteHtml(k);
+    }
+    html += `</div></div>`;
+    return html;
 }
 
 function renderPartsHeader() {
@@ -4507,7 +5005,7 @@ async function togglePartPulled(wid, idx, pulled, rowEl) {
         // Let the flash finish before re-rendering (which would tear down its DOM)
         if (flashEl) await new Promise(r => setTimeout(r, 1020));
         if (currentWoView) await loadWorkOrders();
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
     } catch { showToast('Connection error', 'error'); }
@@ -4544,7 +5042,7 @@ async function submitPartFlag(wid, idx, flagged, note) {
         else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
         showToast(msg, 'success');
         if (currentWoView) await loadWorkOrders();
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data.work_order);
         }
         loadWoCounts();
@@ -4586,7 +5084,7 @@ async function submitWorkOrderPartPhoto() {
         else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
         showToast(msg, 'success');
         const wo = data.work_order || data;
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(wo);
         }
         if (currentWoView) await loadWorkOrders();
@@ -4616,7 +5114,7 @@ async function submitWorkOrderPartPhotoComment() {
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         closeModal('woPhotoEditModal');
         showToast('Comment updated', 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
     } catch { showToast('Connection error', 'error'); }
@@ -4629,7 +5127,7 @@ async function deleteWorkOrderPartPhoto(wid, photoId) {
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         showToast('Photo deleted', 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
         if (currentWoView) await loadWorkOrders();
@@ -4673,9 +5171,8 @@ async function openEditWorkOrderModal(wid) {
 }
 
 async function _prepareWoForm(wo) {
-    if (!woSettings || !woSettings.priorities) {
-        await loadWoSettings();
-    }
+    // Always pull fresh settings so newly-flagged sales people appear immediately.
+    await loadWoSettings();
     const isEdit = !!wo;
     document.getElementById('woFormTitle').textContent = isEdit ? `Edit Work Order ${wo.wo_number}` : 'New Work Order Request';
     document.getElementById('woFormSaveBtn').textContent = isEdit ? 'Save Changes' : 'Create Request';
@@ -4819,127 +5316,13 @@ async function saveWorkOrder() {
         showToast(id ? 'Work order updated' : `Created ${data.wo_number}`, 'success');
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
-        // If editing, re-open the detail modal so the user sees the latest record
-        if (id) {
-            renderWorkOrderDetail(data);
-            openModal('woDetailModal');
-        }
     } catch { showToast('Connection error', 'error'); }
 }
 
-async function openWorkOrderDetail(wid) {
-    try {
-        const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
-        if (!wo || wo.error) { showToast('Work order not found', 'error'); return; }
-        renderWorkOrderDetail(wo);
-        openModal('woDetailModal');
-    } catch { showToast('Failed to load', 'error'); }
-}
-
-function renderWorkOrderDetail(wo) {
-    document.getElementById('woDetailTitle').textContent = `${wo.wo_number} — ${wo.customer_name || ''}`;
-    const canEdit = currentUserData && currentUserData.can_edit;
-    const canDelete = currentUserData && currentUserData.role === 'admin';
-    const canViewAudit = currentUserData && currentUserData.can_view_audit;
-    const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
-    const compDate = wo.completed_at ? (wo.completed_at || '').split('.')[0].replace('T', ' ').substring(0, 16) : '';
-    const notesHist = (wo.notes_log && wo.notes_log.length)
-        ? `<div class="wo-notes-history">
-             <div class="detail-label">Notes &amp; Activity</div>
-             ${wo.notes_log.map(n => {
-                 const t = n.note_type === 'general' ? 'general' : 'flag';
-                 const badge = t === 'general' ? 'Note' : 'Flag';
-                 return `<div class="wo-note-item ${t}">
-                    <div class="wo-note-meta">
-                        <span class="wo-note-badge ${t}">${badge}</span>
-                        <span>${esc((n.created_at || '').split('.')[0].replace('T',' '))} — ${esc(n.author || '')}</span>
-                    </div>
-                    <div>${esc(n.note)}</div>
-                </div>`;
-             }).join('')}
-           </div>`
-        : '';
-    const isArchived = !!wo.archived_at;
-    const isDeliveredPending = wo.status === 'delivered' && !isArchived;
-    const readOnly = isArchived || isDeliveredPending;
-    const role = currentUserData && currentUserData.role;
-    const isAdmin = role === 'admin';
-    const isSupervisor = role === 'supervisor';
-    // Deletion gating:
-    //   currently delivered (pending or archived) → admin only
-    //   previously archived, now reopened         → admin or supervisor
-    //   never archived, active                    → editor+ (already inside canEdit)
-    let canDeleteThis = false;
-    let showReArchive = false;
-    if (canEdit) {
-        if (wo.status === 'delivered') {
-            canDeleteThis = isAdmin;
-        } else if (wo.was_archived) {
-            canDeleteThis = isAdmin || isSupervisor;
-            showReArchive = !canDeleteThis;
-        } else {
-            canDeleteThis = true;
-        }
-    }
-    let statusButtons;
-    if (canEdit) {
-        const deliverBtn = !readOnly
-            ? `<button class="btn btn-sm btn-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
-            : (isArchived
-                ? `<button class="btn btn-ghost btn-sm" title="Reopen this archived work order" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
-                : `<button class="btn btn-ghost btn-sm" title="Archive immediately (skip the 23:00 sweep)" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>
-                   <button class="btn btn-ghost btn-sm" title="Reopen back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`);
-        // Edit / Add Note / Email Update are hidden once delivered (pending or archived)
-        const row1 = readOnly
-            ? `<button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-               <button class="btn btn-ghost btn-sm" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`
-            : `<button class="btn btn-ghost btn-sm" title="Edit fields, parts, and details" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
-               <button class="btn btn-ghost btn-sm" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
-               <button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-               <button class="btn btn-ghost btn-sm" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>
-               <button class="btn btn-ghost btn-sm" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`;
-        statusButtons = `
-            <div class="wo-footer-row">${row1}</div>
-            <div class="wo-footer-row">
-                ${deliverBtn}
-                ${canViewAudit ? `<button class="btn btn-ghost btn-sm" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
-                ${canDeleteThis
-                    ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" style="color:var(--danger);" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
-                    : (showReArchive
-                        ? `<span style="flex:1;"></span><button class="btn btn-ghost btn-sm" title="Mark delivered and archive this work order immediately" onclick="reArchiveWorkOrder(${wo.id})">Re-Archive</button>`
-                        : '')}
-            </div>`;
-    } else {
-        statusButtons = `<div class="wo-footer-row">
-                <button class="btn btn-ghost btn-sm" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-            </div>`;
-    }
-    document.getElementById('woDetailFooter').innerHTML = statusButtons;
-    document.getElementById('woDetailBody').innerHTML = `
-        <div style="margin-bottom:0.85rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
-            <span class="wo-status-badge ${wo.status}">${wo.status}</span>
-            ${wo.priority ? `<span class="wo-priority-badge ${(wo.priority||'').toLowerCase().replace(/\s+/g,'-')}">${esc(wo.priority)}</span>` : ''}
-        </div>
-        <div class="wo-detail-grid">
-            <div><div class="detail-label">Work Order #</div><div class="detail-value" style="font-family:var(--mono);">${esc(wo.wo_number)}</div></div>
-            <div><div class="detail-label">Request Date</div><div class="detail-value">${esc(reqDate)}</div></div>
-            <div><div class="detail-label">Customer</div><div class="detail-value">${esc(wo.customer_name || '—')}</div></div>
-            <div><div class="detail-label">Sales Person</div><div class="detail-value">${esc(wo.sales_person || '—')}</div></div>
-            <div><div class="detail-label">Warehouse Location</div><div class="detail-value">${esc(wo.warehouse_location || '—')}</div></div>
-            <div><div class="detail-label">Quote / Invoice #</div>${wo.quote_invoice ? `<div class="detail-value wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);">${esc(wo.quote_invoice)}</div>` : `<div class="detail-value">—</div>`}</div>
-            <div><div class="detail-label">Vehicle</div><div class="detail-value">${esc(wo.vehicle || '—')}</div></div>
-            <div><div class="detail-label">VIN</div><div class="detail-value" style="font-family:var(--mono);font-size:0.82rem;">${esc(wo.vin || '—')}</div></div>
-            ${wo.created_by ? `<div><div class="detail-label">Created By</div><div class="detail-value">${esc(wo.created_by)}</div></div>` : ''}
-            ${compDate ? `<div><div class="detail-label">Completed</div><div class="detail-value">${esc(compDate)}</div></div>` : ''}
-        </div>
-        ${(wo.notes || '').trim() ? `<div class="wo-notes-block" style="margin-top:0.85rem;">
-            <div class="notes-label">Request Details</div>
-            <div class="notes-text">${esc(wo.notes)}</div>
-        </div>` : ''}
-        ${renderWorkOrderPartsTable(wo.id, wo.parts, canEdit)}
-        ${notesHist}
-    `;
-}
+// The detail modal is gone — the list view renders the full work-order
+// content inline. These stubs keep any lingering callsites harmless.
+function openWorkOrderDetail() { /* no-op */ }
+function renderWorkOrderDetail() { /* no-op */ }
 
 function renderWorkOrderPartsTable(wid, parts, canEdit) {
     if (!parts || !parts.length) return '';
@@ -4952,29 +5335,66 @@ function renderWorkOrderPartsTable(wid, parts, canEdit) {
     </div>`;
 }
 
-function openGeneralNoteModal(wid) {
+function openGeneralNoteModal(wid, parentId, parentPreview) {
     document.getElementById('woGeneralNoteId').value = wid;
+    document.getElementById('woGeneralNoteParentId').value = parentId || '';
     document.getElementById('woGeneralNoteText').value = '';
+    const ctx = document.getElementById('woGeneralNoteReplyContext');
+    const title = document.getElementById('woGeneralNoteTitle');
+    const label = document.getElementById('woGeneralNoteLabel');
+    const saveBtn = document.getElementById('woGeneralNoteSaveBtn');
+    const disc = document.getElementById('woGeneralNoteDisclaimer');
+    if (parentId) {
+        title.textContent = 'Reply to Note';
+        label.textContent = 'Your reply';
+        saveBtn.textContent = 'Send Reply';
+        ctx.style.display = '';
+        ctx.textContent = parentPreview || '';
+        disc.textContent = 'Sending this reply will email every participant in the thread (and the salesperson).';
+    } else {
+        title.textContent = 'Add Note';
+        label.textContent = 'Note';
+        saveBtn.textContent = 'Add Note';
+        ctx.style.display = 'none';
+        ctx.textContent = '';
+        disc.textContent = 'Saving this note will email the salesperson on this work order.';
+    }
     openModal('woGeneralNoteModal');
     setTimeout(() => { const el = document.getElementById('woGeneralNoteText'); if (el) el.focus(); }, 50);
 }
 
+function openReplyModal(wid, parentId, parentPreview) {
+    openGeneralNoteModal(wid, parentId, parentPreview);
+}
+
 async function submitGeneralNote() {
     const wid = document.getElementById('woGeneralNoteId').value;
+    const parentIdRaw = document.getElementById('woGeneralNoteParentId').value;
+    const parentId = parentIdRaw ? parseInt(parentIdRaw, 10) : null;
     const note = document.getElementById('woGeneralNoteText').value.trim();
     if (!note) { showToast('Note is required', 'error'); return; }
     try {
+        const body = { note };
+        if (parentId) body.parent_id = parentId;
         const res = await fetch(`/api/work-orders/${wid}/general-notes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note }),
+            body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         closeModal('woGeneralNoteModal');
-        showToast('Note added', 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
-            renderWorkOrderDetail(data);
+        let msg = parentId ? 'Reply sent' : 'Note added';
+        if (data.email_sent) {
+            const n = (data.email_recipients || []).length;
+            msg += ` — email sent${n ? ` to ${n} recipient${n === 1 ? '' : 's'}` : ''}`;
+        } else if (data.email_error && data.email_error !== 'no_recipients') {
+            msg += ` — email not sent (${data.email_error})`;
+        }
+        showToast(msg, 'success');
+        const wo = data.work_order || data;
+        if (false) {  // detail modal removed; kept branch harmless
+            renderWorkOrderDetail(wo);
         }
         if (currentWoView) await loadWorkOrders();
     } catch { showToast('Connection error', 'error'); }
@@ -5037,7 +5457,7 @@ async function markDelivered(wid) {
         if (data.email_sent) msg += ' — email sent';
         else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
         showToast(msg, 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data.work_order);
         }
         // Let the animation finish before the list refresh tears the card down
@@ -5066,7 +5486,7 @@ async function reArchiveWorkOrder(wid) {
             return;
         }
         showToast(`Re-archived ${data.wo_number}`, 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
         if (card) await new Promise(r => setTimeout(r, 1200));
@@ -5091,7 +5511,7 @@ async function archiveNowWorkOrder(wid) {
             return;
         }
         showToast(`Archived ${data.wo_number}`, 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
         if (card) await new Promise(r => setTimeout(r, 1200));
@@ -5114,7 +5534,7 @@ async function reopenWorkOrder(wid) {
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         showToast('Work order reopened', 'success');
-        if (document.getElementById('woDetailModal').classList.contains('active')) {
+        if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data.work_order);
         }
         if (currentWoView) await loadWorkOrders();
@@ -5170,9 +5590,6 @@ async function duplicateWorkOrder(wid) {
         showToast(`Duplicated to ${data.wo_number}`, 'success');
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
-        // Pop the new WO's detail so the user can edit immediately
-        renderWorkOrderDetail(data);
-        openModal('woDetailModal');
     } catch { showToast('Connection error', 'error'); }
 }
 
@@ -5202,7 +5619,7 @@ function switchWoListTab(name, btn) {
     document.querySelectorAll('#woListsModal .wm-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('#woListsModal .wm-tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
-    const map = { locations: 'woListTabLocations', salespeople: 'woListTabSalespeople', priorities: 'woListTabPriorities' };
+    const map = { locations: 'woListTabLocations', priorities: 'woListTabPriorities' };
     const el = document.getElementById(map[name]);
     if (el) el.classList.add('active');
 }
@@ -5211,15 +5628,6 @@ function renderWoListRows() {
     const locs = document.getElementById('woListLocations');
     locs.innerHTML = (woSettings.locations || []).map(l =>
         `<div class="wo-list-row"><input class="form-input" type="text" value="${esc(l)}"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`
-    ).join('') || '';
-
-    const sps = document.getElementById('woListSalespeople');
-    sps.innerHTML = (woSettings.salespeople || []).map(s =>
-        `<div class="wo-list-row">
-            <input class="form-input" type="text" placeholder="Name" value="${esc(s.name || '')}" style="flex:1;">
-            <input class="form-input" type="email" placeholder="email@example.com" value="${esc(s.email || '')}" style="flex:1.3;">
-            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
-        </div>`
     ).join('') || '';
 
     const prs = document.getElementById('woListPriorities');
@@ -5239,15 +5647,6 @@ function addLocationRow() {
     const el = document.getElementById('woListLocations');
     el.insertAdjacentHTML('beforeend',
         `<div class="wo-list-row"><input class="form-input" type="text" placeholder="e.g. Main Warehouse"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`);
-}
-function addSalesPersonRow() {
-    const el = document.getElementById('woListSalespeople');
-    el.insertAdjacentHTML('beforeend',
-        `<div class="wo-list-row">
-            <input class="form-input" type="text" placeholder="Name" style="flex:1;">
-            <input class="form-input" type="email" placeholder="email@example.com" style="flex:1.3;">
-            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
-        </div>`);
 }
 function addPriorityRow() {
     const el = document.getElementById('woListPriorities');
@@ -5269,19 +5668,16 @@ async function saveWoLists() {
         const color = (colorInput && colorInput.dataset.hasColor === '1') ? (colorInput.value || '') : '';
         return { name, color };
     }).filter(p => p.name);
-    const salespeople = [...document.querySelectorAll('#woListSalespeople .wo-list-row')].map(row => {
-        const inputs = row.querySelectorAll('input');
-        return { name: inputs[0].value.trim(), email: (inputs[1].value || '').trim() };
-    }).filter(s => s.name);
     try {
         const res = await fetch('/api/settings/work-order', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ locations, salespeople, priorities }),
+            body: JSON.stringify({ locations, priorities }),
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        woSettings = { locations, salespeople, priorities };
+        woSettings.locations = locations;
+        woSettings.priorities = priorities;
         closeSubModal('woListsModal');
         openSettingsModal('admin');
         showToast('Work order lists saved', 'success');
@@ -5406,7 +5802,7 @@ async function sendSmtpTest() {
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('active'); }
 
 // Map of sub-modals reachable from the Settings modal → which tab to restore.
 // Used by closeSubModal() so users land back on Settings when they X-out / Cancel.
