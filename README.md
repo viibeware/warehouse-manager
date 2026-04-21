@@ -221,6 +221,10 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.2.11
+- **"Mark Delivered" button restyled** — yellow pale fill / dark-yellow text at rest, transitions to pale green + green text on hover (previews the delivered state). Applies to both the inline card button and the detail-modal footer button.
+- **"Deliver" → "Mark Delivered"** on the list card (was already named that way in the detail modal).
+
 ### v1.2.8
 - **Sub-modals return to Settings** — Closing any settings-reached modal (Work Order Lists, SMTP, Turnstile, User Management, Category Manager, Import, Change Password) via save, cancel, or X returns you to the main Settings modal on the appropriate tab instead of dumping you back to the dashboard.
 - **Role permissions matrix** — The User form modal now shows a 12-row permission grid for all four roles (Viewer / Editor / Supervisor / Admin) so admins can see what each role can and can't do at a glance.

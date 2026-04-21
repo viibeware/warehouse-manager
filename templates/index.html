@@ -879,6 +879,20 @@ body {
 .wo-invoice.clickable:hover {
     color: var(--accent); background: var(--accent-dim);
 }
+
+/* "Mark Delivered" — yellow by default, flips to green on hover to preview the delivered state */
+.btn-mark-delivered {
+    background: color-mix(in srgb, #eab308 18%, transparent);
+    border: 1px solid color-mix(in srgb, #eab308 45%, transparent);
+    color: #ca8a04;
+    font-weight: 600;
+    transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+.btn-mark-delivered:hover {
+    background: color-mix(in srgb, var(--yes) 22%, transparent);
+    border-color: var(--yes);
+    color: var(--yes);
+}
 .wo-card-main { min-width: 0; }
 .wo-card-top {
     display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.35rem; flex-wrap: wrap;
@@ -1807,6 +1821,13 @@ body {
                 </div>
                 <h3 class="about-sub">Changelog</h3>
                 <div style="max-height:280px;overflow-y:auto;">
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.2.11</div>
+                        <ul class="changelog-list">
+                            <li><strong>Mark Delivered button</strong> — Pale yellow at rest, flips to pale green on hover</li>
+                            <li><strong>Deliver → Mark Delivered</strong> — Consistent label on card &amp; modal</li>
+                        </ul>
+                    </div>
                     <div class="changelog-entry">
                         <div class="changelog-version">v1.2.8</div>
                         <ul class="changelog-list">
@@ -4132,7 +4153,7 @@ function renderWorkOrderCard(wo) {
             ${!readOnly ? `<button class="table-btn" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
             ${!readOnly ? `<button class="table-btn" onclick="openFlagModal(${wo.id}, '${wo.status==='flagged'?'update':'flag'}')">${wo.status==='flagged'?'Update Note':'Flag'}</button>` : ''}
             ${wo.status === 'flagged' ? `<button class="table-btn" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
-            ${!readOnly ? `<button class="table-btn" onclick="markDelivered(${wo.id})">Deliver</button>` : ''}
+            ${!readOnly ? `<button class="table-btn btn-mark-delivered" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : ''}
             ${isDeliveredPending ? `<button class="table-btn" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
             ${(isArchived || isDeliveredPending) ? `<button class="table-btn" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
             ${!readOnly ? `<button class="table-btn" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
@@ -4510,7 +4531,7 @@ function renderWorkOrderDetail(wo) {
                <button class="btn btn-ghost btn-sm" onclick="unflagWorkOrder(${wo.id})">Unflag</button>`
             : (!readOnly ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'flag')">Flag</button>` : '');
         const deliverBtn = !readOnly
-            ? `<button class="btn btn-primary btn-sm" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
+            ? `<button class="btn btn-sm btn-mark-delivered" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
             : (isArchived
                 ? `<button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
                 : `<button class="btn btn-ghost btn-sm" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>
