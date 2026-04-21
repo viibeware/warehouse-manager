@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.5
+- <strong>Data tab restricted to admins</strong> — Import / Export now only shows in Settings for admin users. Supervisors and editors no longer see the tab, and the server-side gating on <code>/api/import/upload</code>, <code>/api/import/preview</code>, <code>/api/import/execute</code>, and <code>/api/export/csv</code> was upgraded from <code>editor_required</code> to <code>admin_required</code> so direct API access is blocked too. Role-permissions matrix in the User form updated to match.
+- <strong>Delete button on WO cards</strong> — Permission-gated Delete button sits immediately to the left of Mark Delivered in the action row (admins on delivered, admins + supervisors on previously-archived reopened, editors+ on never-archived). Red text/border, red fill on hover.
+
 ## v1.5.4
 - <strong>Un-pull cleans the thread</strong> — When a part is unmarked as pulled, the matching "Part pulled — …" note is removed from the Notes &amp; Activity thread if nobody has replied to it. Replies preserve the original note and post an explicit "Part unmarked pulled" entry instead. The audit log always records both events regardless.
 - <strong>New WO modal: sticky header + footer</strong> — Title/close and Cancel/Create Request rows stay pinned; only the form body scrolls. Opening a new request always starts scrolled to the top.

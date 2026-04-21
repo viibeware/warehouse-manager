@@ -1036,7 +1036,19 @@ body {
     padding-top: 0.5rem;
     border-top: 1px solid var(--border);
 }
-.wo-card-actions .wo-action-mark-delivered { margin-left: auto; }
+.wo-card-actions .wo-actions-trailing {
+    margin-left: auto;
+    display: inline-flex; gap: 0.35rem; align-items: center;
+}
+.wo-card-actions .wo-action-delete {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.wo-card-actions .wo-action-delete:hover {
+    background: var(--danger);
+    color: #fff;
+    border-color: var(--danger);
+}
 
 /* Right-aligned cluster on the card header: status, priority, chevron */
 .wo-card-top-right {
@@ -2300,6 +2312,7 @@ body {
                             <tr><td class="perm-label">Delete never-archived work orders</td><td>–</td><td>✓</td><td>✓</td><td>✓</td></tr>
                             <tr><td class="perm-label">Delete previously-archived reopened</td><td>–</td><td>–</td><td>✓</td><td>✓</td></tr>
                             <tr><td class="perm-label">Delete delivered / archived</td><td>–</td><td>–</td><td>–</td><td>✓</td></tr>
+                            <tr><td class="perm-label">Import / export data (Data tab)</td><td>–</td><td>–</td><td>–</td><td>✓</td></tr>
                             <tr><td class="perm-label">Manage users, categories, SMTP, Turnstile</td><td>–</td><td>–</td><td>–</td><td>✓</td></tr>
                         </tbody>
                     </table>
@@ -3128,12 +3141,12 @@ async function loadCurrentUser() {
         if (currentUserData.can_edit) {
             document.getElementById('navAddPart').style.display = '';
             document.getElementById('actionsLabel').style.display = '';
-            document.getElementById('settingsDataTab').style.display = '';
             document.getElementById('navNewRequest').style.display = '';
         }
         if (currentUserData.role === 'admin') {
             document.getElementById('settingsAdminTab').style.display = '';
             document.getElementById('settingsBrandingTab').style.display = '';
+            document.getElementById('settingsDataTab').style.display = '';
             document.getElementById('settingsAboutTab').style.display = '';
         }
     } catch { window.location.href = '/login'; }
@@ -4703,6 +4716,28 @@ function renderWorkOrderCard(wo) {
     const isDeliveredPending = wo.status === 'delivered' && !isArchived;
     const readOnly = isArchived || isDeliveredPending;
     const notesThreadBlock = renderWorkOrderNotesThread(wo, !readOnly);
+    // Delete gating (mirrors the backend rules):
+    //   delivered (pending or archived) → admin only
+    //   previously archived, now reopened → admin or supervisor
+    //   never archived, active → editor+
+    const role = currentUserData && currentUserData.role;
+    const isAdmin = role === 'admin';
+    const isSupervisor = role === 'supervisor';
+    let canDeleteThis = false;
+    if (canEdit) {
+        if (wo.status === 'delivered') canDeleteThis = isAdmin;
+        else if (wo.was_archived) canDeleteThis = isAdmin || isSupervisor;
+        else canDeleteThis = true;
+    }
+    const deleteBtn = canDeleteThis
+        ? `<button class="table-btn wo-action-delete" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
+        : '';
+    const markDeliveredBtn = !readOnly
+        ? `<button class="table-btn btn-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
+        : '';
+    const trailingGroup = (deleteBtn || markDeliveredBtn)
+        ? `<span class="wo-actions-trailing">${deleteBtn}${markDeliveredBtn}</span>`
+        : '';
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
             ${!readOnly ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
@@ -4713,7 +4748,7 @@ function renderWorkOrderCard(wo) {
             <button class="table-btn" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
             <button class="table-btn" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>
             ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
-            ${!readOnly ? `<button class="table-btn btn-mark-delivered wo-action-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : ''}
+            ${trailingGroup}
           </div>`
         : (canViewAudit
             ? `<div class="wo-card-actions" onclick="event.stopPropagation();">

@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.4'
+APP_VERSION = '1.5.5'
 
 app = Flask(__name__)
 
@@ -2114,7 +2114,7 @@ def import_fields():
 
 
 @app.route('/api/import/upload', methods=['POST'])
-@editor_required
+@admin_required
 def import_upload():
     """Upload an Excel or CSV file, return sheet names, column headers, and sample rows."""
     import csv as csv_module
@@ -2188,7 +2188,7 @@ def import_upload():
 
 
 @app.route('/api/import/preview', methods=['POST'])
-@editor_required
+@admin_required
 def import_preview():
     """Dry run: apply column mapping and return preview of what would be imported."""
     data = request.get_json()
@@ -2272,7 +2272,7 @@ def import_preview():
 
 
 @app.route('/api/import/execute', methods=['POST'])
-@editor_required
+@admin_required
 def import_execute():
     """Execute the import: insert all mapped rows into the database."""
     data = request.get_json()
@@ -2371,7 +2371,7 @@ def import_execute():
 # ══════════════════════════════════════════
 
 @app.route('/api/export/csv', methods=['GET'])
-@editor_required
+@admin_required
 def export_csv():
     """Export entire inventory as CSV."""
     import csv as csv_module
