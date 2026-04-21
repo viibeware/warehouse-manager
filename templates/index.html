@@ -1045,10 +1045,35 @@ body {
     color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 45%, transparent);
 }
-.wo-card-actions .wo-action-delete:hover {
+.wo-card-actions .wo-action-delete:hover:not(:disabled) {
     background: var(--danger);
     color: #fff;
     border-color: var(--danger);
+}
+.wo-card-actions .wo-action-delete:disabled {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: var(--bg-input);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.wo-card-actions .wo-action-archive {
+    color: var(--text-secondary);
+    border-color: var(--border);
+}
+.wo-card-actions .wo-action-archive:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+/* "Not Delivered" pill for archived records that never reached delivery */
+.wo-not-delivered-badge {
+    font-family: var(--mono); font-size: 0.58rem; font-weight: 700;
+    padding: 2px 7px; border-radius: 10px; text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--engine);
+    border: 1px solid color-mix(in srgb, var(--engine) 35%, transparent);
 }
 
 /* Right-aligned cluster on the card header: status, priority, chevron */
@@ -4715,33 +4740,52 @@ function renderWorkOrderCard(wo) {
     const isDeliveredPending = wo.status === 'delivered' && !isArchived;
     const readOnly = isArchived || isDeliveredPending;
     const notesThreadBlock = renderWorkOrderNotesThread(wo, !readOnly);
-    // Delete gating (mirrors the backend rules):
-    //   delivered (pending or archived) → admin only
-    //   previously archived, now reopened → admin or supervisor
-    //   never archived, active → editor+
+
+    // ── Delete button gating ────────────────────────────────────────
+    //  Base rule: only the originator, admins, or supervisors can delete.
+    //  Reopened-from-delivered (was_delivered && currently active): greyed
+    //    out with tooltip — user should Archive instead.
+    //  Currently delivered / archived: admin-only.
     const role = currentUserData && currentUserData.role;
     const isAdmin = role === 'admin';
     const isSupervisor = role === 'supervisor';
-    let canDeleteThis = false;
+    const isOriginator = currentUserData && wo.created_by_user_id
+        && currentUserData.id === wo.created_by_user_id;
+    const reopenedFromDelivered = wo.was_delivered && !readOnly;
+    let deleteBtn = '';
     if (canEdit) {
-        if (wo.status === 'delivered') canDeleteThis = isAdmin;
-        else if (wo.was_archived) canDeleteThis = isAdmin || isSupervisor;
-        else canDeleteThis = true;
+        if (reopenedFromDelivered) {
+            deleteBtn = `<button class="table-btn wo-action-delete" disabled
+                title="Delivered work orders cannot be deleted once completed. Use Archive instead.">Delete</button>`;
+        } else if (readOnly) {
+            // delivered-pending or currently archived — admin only
+            if (isAdmin) {
+                deleteBtn = `<button class="table-btn wo-action-delete" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`;
+            }
+        } else {
+            // Active (never delivered, may be reopened from a non-delivered archive)
+            if (isAdmin || isSupervisor || isOriginator) {
+                deleteBtn = `<button class="table-btn wo-action-delete" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`;
+            }
+        }
     }
-    const deleteBtn = canDeleteThis
-        ? `<button class="table-btn wo-action-delete" title="Permanently delete this work order" onclick="deleteWorkOrder(${wo.id})">Delete</button>`
+
+    // Archive button — works from any state (requested / flagged / delivered)
+    // as long as the WO isn't already archived. Preserves existing "Archive Now"
+    // for delivered-pending when the scheduler would otherwise handle it.
+    const archiveBtn = (canEdit && !isArchived)
+        ? `<button class="table-btn wo-action-archive" title="Archive this work order (works from any status)" onclick="archiveWorkOrder(${wo.id})">Archive</button>`
         : '';
     const markDeliveredBtn = !readOnly
         ? `<button class="table-btn btn-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
         : '';
-    const trailingGroup = (deleteBtn || markDeliveredBtn)
-        ? `<span class="wo-actions-trailing">${deleteBtn}${markDeliveredBtn}</span>`
+    const trailingGroup = (deleteBtn || archiveBtn || markDeliveredBtn)
+        ? `<span class="wo-actions-trailing">${deleteBtn}${archiveBtn}${markDeliveredBtn}</span>`
         : '';
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
             ${!readOnly ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>` : ''}
             ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
-            ${isDeliveredPending ? `<button class="table-btn" title="Archive immediately (skip the 23:00 sweep)" onclick="archiveNowWorkOrder(${wo.id})">Archive Now</button>` : ''}
             ${(isArchived || isDeliveredPending) ? `<button class="table-btn" title="Reopen this work order back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
             ${!readOnly ? `<button class="table-btn" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
             <button class="table-btn" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
@@ -4780,6 +4824,7 @@ function renderWorkOrderCard(wo) {
                 <span class="wo-card-top-right">
                     <span class="wo-status-badge ${wo.status}">${wo.status}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
+                    ${(isArchived && !wo.was_delivered) ? `<span class="wo-not-delivered-badge" title="Archived without being marked delivered">Not Delivered</span>` : ''}
                     ${collapseToggle}
                 </span>
             </div>
@@ -5516,9 +5561,30 @@ async function archiveNowWorkOrder(wid) {
             return;
         }
         showToast(`Archived ${data.wo_number}`, 'success');
-        if (false) {  // detail modal removed; kept branch harmless
-            renderWorkOrderDetail(data);
+        if (card) await new Promise(r => setTimeout(r, 1200));
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch {
+        if (card) card.classList.remove('flash-archiving');
+        showToast('Connection error', 'error');
+    }
+}
+
+// Archive in any state — requested / flagged / delivered. Not-delivered
+// archives show a "Not Delivered" flag on the archive list.
+async function archiveWorkOrder(wid) {
+    if (!confirm('Archive this work order? You can reopen it later from the Archive view.')) return;
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (card) card.classList.add('flash-archiving');
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/archive`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            if (card) card.classList.remove('flash-archiving');
+            showToast(data.error || 'Archive failed', 'error');
+            return;
         }
+        showToast(`Archived ${data.wo_number}`, 'success');
         if (card) await new Promise(r => setTimeout(r, 1200));
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();

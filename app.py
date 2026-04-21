@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.6'
+APP_VERSION = '1.5.7'
 
 app = Flask(__name__)
 
@@ -786,6 +786,40 @@ def migrate_v24(conn):
     ''')
 
 
+def migrate_v29(conn):
+    """Add was_delivered + created_by_user_id to work_orders so delete gating
+    can distinguish reopened-from-delivered (never delete-able) from
+    reopened-from-undelivered-archive (deletable), and so delete can check
+    the originator reliably instead of fuzzy-matching display names.
+    Backfills was_delivered=1 for anything previously delivered/archived and
+    resolves created_by_user_id by display_name/username match."""
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN was_delivered INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN created_by_user_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    # Anything currently delivered, previously completed, or archived was once
+    # delivered under the legacy rules (archive used to require delivery).
+    conn.execute(
+        "UPDATE work_orders SET was_delivered = 1 "
+        "WHERE status = 'delivered' OR completed_at IS NOT NULL OR archived_at IS NOT NULL"
+    )
+    conn.execute("""
+        UPDATE work_orders
+           SET created_by_user_id = (
+               SELECT u.id FROM users u
+                WHERE LOWER(u.display_name) = LOWER(work_orders.created_by)
+                   OR LOWER(u.username) = LOWER(work_orders.created_by)
+                LIMIT 1
+           )
+         WHERE created_by_user_id IS NULL
+           AND created_by IS NOT NULL AND created_by != ''
+    """)
+
+
 def migrate_v28(conn):
     """Account-lockout state on users. After too many failed logins we set
     locked_until; admins can clear it. failed_login_count decays to zero on
@@ -914,6 +948,7 @@ MIGRATIONS = [
     (26, migrate_v26),
     (27, migrate_v27),
     (28, migrate_v28),
+    (29, migrate_v29),
 ]
 
 
@@ -3664,8 +3699,8 @@ def create_work_order():
     cur = conn.execute('''
         INSERT INTO work_orders
             (wo_number, warehouse_location, customer_name, quote_invoice, sales_person,
-             vehicle, vin, priority, notes, status, created_by, parts_json)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+             vehicle, vin, priority, notes, status, created_by, created_by_user_id, parts_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     ''', (
         wo_num,
         str(data.get('warehouse_location', '')).strip(),
@@ -3678,6 +3713,7 @@ def create_work_order():
         str(data.get('notes', '')).strip(),
         'requested',
         created_by,
+        current_user.id,
         json_mod.dumps(parts),
     ))
     wid = cur.lastrowid
@@ -3712,6 +3748,39 @@ def archive_now_work_order(wid):
     conn.execute(
         "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
         (wid, "Manually archived.", _actor())
+    )
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/archive', methods=['POST'])
+@editor_required
+def archive_work_order(wid):
+    """Archive a work order in *any* status (requested, flagged, delivered).
+    Non-delivered archives keep was_delivered=0 so the archive view can flag
+    them 'Not Delivered'. Reopening (via the existing status endpoint) will
+    put it back to requested/flagged with was_delivered still at 0."""
+    conn = get_db()
+    row = conn.execute("SELECT id, status, archived_at, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    if row['archived_at']:
+        conn.close()
+        return jsonify({'error': 'Work order is already archived'}), 400
+    conn.execute(
+        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
+        "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (wid,)
+    )
+    desc = "Archived" if row['status'] == 'delivered' else f"Archived (status: {row['status']}, not delivered)"
+    _log_wo_audit(conn, wid, 'status_changed', desc)
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (wid, desc + '.', _actor())
     )
     conn.commit()
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
@@ -3765,8 +3834,8 @@ def duplicate_work_order(wid):
     cur = conn.execute('''
         INSERT INTO work_orders
             (wo_number, warehouse_location, customer_name, quote_invoice, sales_person,
-             vehicle, vin, priority, notes, status, created_by, parts_json)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+             vehicle, vin, priority, notes, status, created_by, created_by_user_id, parts_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     ''', (
         wo_num,
         src['warehouse_location'] or '',
@@ -3779,6 +3848,7 @@ def duplicate_work_order(wid):
         src['notes'] or '',
         'requested',
         created_by,
+        (current_user.id if current_user.is_authenticated else None),
         json_mod.dumps(fresh_parts),
     ))
     new_id = cur.lastrowid
@@ -3874,10 +3944,12 @@ def set_work_order_status(wid):
     if new_status == 'delivered':
         # Schedule auto-archival for 23:00 local time on the day of delivery.
         # archived_at stays NULL so the WO stays in Active until the sweep (or the
-        # Archive Now button) flips it.
+        # Archive Now button) flips it. was_delivered latches ON so delete gating
+        # can tell "reopened-from-delivered" apart from "reopened-from-archive".
         conn.execute(
             "UPDATE work_orders SET status = ?, completed_at = CURRENT_TIMESTAMP, "
-            "archive_after = ?, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "archive_after = ?, archived_at = NULL, was_delivered = 1, "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (new_status, _compute_archive_after(), wid)
         )
     else:
@@ -4124,24 +4196,45 @@ def add_general_note(wid):
 @editor_required
 def delete_work_order(wid):
     """Delete a work order. Gating:
-      - delivered (pending or archived)       → admin only
-      - previously archived, now reopened     → admin or supervisor
-      - never archived, active                → editor+ (decorator-level)"""
+      * Base rule: only the originator, admins, and supervisors may delete.
+      * Reopened-from-delivered (was_delivered=1, currently active): NO delete
+        for anyone — users can Archive instead.
+      * Currently delivered (pending or archived): admin only.
+    """
     conn = get_db()
     existing = conn.execute(
-        "SELECT id, wo_number, status, was_archived FROM work_orders WHERE id = ?", (wid,)
+        "SELECT id, wo_number, status, was_archived, was_delivered, archived_at, "
+        "created_by_user_id FROM work_orders WHERE id = ?", (wid,)
     ).fetchone()
     if not existing:
         conn.close()
         return jsonify({'error': 'Not found'}), 404
-    if existing['status'] == 'delivered' and not current_user.is_admin:
-        conn.close()
-        return jsonify({'error': 'Archived work orders can only be deleted by an admin'}), 403
-    if existing['was_archived'] and current_user.role not in ('admin', 'supervisor'):
+
+    is_admin = current_user.is_admin
+    is_supervisor = current_user.role == 'supervisor'
+    is_originator = existing['created_by_user_id'] == current_user.id
+    is_currently_archived = bool(existing['archived_at'])
+    is_delivered = existing['status'] == 'delivered'
+
+    # Reopened-from-delivered lock: no one can delete, even admin.
+    if (existing['was_delivered'] and not is_delivered and not is_currently_archived):
         conn.close()
         return jsonify({
-            'error': 'Previously-archived work orders can only be deleted by an admin or supervisor — please Re-Archive instead'
+            'error': 'Delivered work orders cannot be deleted once completed — use Archive instead.'
         }), 403
+
+    if is_delivered or is_currently_archived:
+        if not is_admin:
+            conn.close()
+            return jsonify({
+                'error': 'Delivered / archived work orders can only be deleted by an admin.'
+            }), 403
+    else:
+        if not (is_admin or is_supervisor or is_originator):
+            conn.close()
+            return jsonify({
+                'error': 'Only the originator, an admin, or a supervisor can delete this work order.'
+            }), 403
     _log_wo_audit(conn, wid, 'deleted', f"Work order {existing['wo_number']} deleted")
     # Clean up per-part photo files from disk before removing rows
     photo_rows = conn.execute(
@@ -4169,7 +4262,7 @@ def re_archive_work_order(wid):
         return jsonify({'error': 'Not found'}), 404
     conn.execute(
         "UPDATE work_orders SET status = 'delivered', completed_at = CURRENT_TIMESTAMP, "
-        "archive_after = ?, archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
+        "archive_after = ?, archived_at = CURRENT_TIMESTAMP, was_archived = 1, was_delivered = 1, "
         "flag_note = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         (_compute_archive_after(), wid)
     )

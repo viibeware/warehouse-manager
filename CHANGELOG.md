@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.5.7
+- <strong>Archive in any state</strong> — New <strong>Archive</strong> button on every active card (between Delete and Mark Delivered) archives the work order regardless of status. Non-delivered archives keep <code>was_delivered = 0</code> and show an orange <strong>Not Delivered</strong> pill in the Archive list. New endpoint <code>POST /api/work-orders/&lt;id&gt;/archive</code>.
+- <strong>Smarter delete gating</strong> — Migration v29 adds <code>was_delivered</code> (latches ON once delivered) and <code>created_by_user_id</code> (authoritative originator). Delete is now allowed for the <strong>originator</strong>, admins, and supervisors only; editors without originator match are blocked. Reopened-from-delivered records show a greyed-out Delete with a tooltip "Delivered work orders cannot be deleted once completed. Use Archive instead." The backend <code>DELETE /api/work-orders/&lt;id&gt;</code> enforces the same rules.
+- <strong>Originator tracking</strong> — <code>create_work_order</code> and <code>duplicate_work_order</code> record <code>created_by_user_id = current_user.id</code>; existing WOs back-filled by display-name/username match.
+
 ## v1.5.6
 - <strong>Click-to-copy WO #</strong> — The work-order number in each card header now copies to the clipboard on click, with the same hover pill treatment as the invoice number. A toast confirms the copied value.
 - <strong>Quieter WO cards</strong> — Removed the horizontal divider lines between sections inside each card (above Notes &amp; Activity, above the parts grid, below the parts-head column labels, and above the action row). Sections now separate via spacing only.
