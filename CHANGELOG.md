@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.5.6
+- <strong>Quieter WO cards</strong> — Removed the horizontal divider lines between sections inside each card (above Notes &amp; Activity, above the parts grid, below the parts-head column labels, and above the action row). Sections now separate via spacing only.
+- <strong>Flagged parts blend in</strong> — Dropped the red row-background tint from flagged parts. The red flag icon, flag-note pill, and red thread badge still mark flagged parts; the row itself is neutral.
+- <strong>Photo strip</strong> — Removed the dotted line above per-part photo thumbnails. Padding retained for breathing room.
+
 ## v1.5.5
 - <strong>Data tab restricted to admins</strong> — Import / Export now only shows in Settings for admin users. Supervisors and editors no longer see the tab, and the server-side gating on <code>/api/import/upload</code>, <code>/api/import/preview</code>, <code>/api/import/execute</code>, and <code>/api/export/csv</code> was upgraded from <code>editor_required</code> to <code>admin_required</code> so direct API access is blocked too. Role-permissions matrix in the User form updated to match.
 - <strong>Delete button on WO cards</strong> — Permission-gated Delete button sits immediately to the left of Mark Delivered in the action row (admins on delivered, admins + supervisors on previously-archived reopened, editors+ on never-archived). Red text/border, red fill on hover.

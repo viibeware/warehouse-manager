@@ -1034,7 +1034,6 @@ body {
     display: flex; gap: 0.35rem; flex-wrap: wrap;
     justify-content: flex-start;
     padding-top: 0.5rem;
-    border-top: 1px solid var(--border);
 }
 .wo-card-actions .wo-actions-trailing {
     margin-left: auto;
@@ -1092,7 +1091,6 @@ body {
 /* Threaded notes block on WO cards + detail modal */
 .wo-notes-thread {
     margin-top: 0.55rem; padding-top: 0.55rem;
-    border-top: 1px dashed var(--border);
     font-size: 0.82rem;
 }
 .wo-notes-thread-label {
@@ -1170,7 +1168,7 @@ body {
 
 /* Card parts list */
 .wo-card-parts {
-    margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px dashed var(--border);
+    margin-top: 0.55rem; padding-top: 0.55rem;
     display: flex; flex-direction: column; gap: 0.2rem;
 }
 .wo-parts-head, .wo-part-line {
@@ -1186,7 +1184,7 @@ body {
 .wo-parts-head .hd:first-child { padding-right: 0; }
 .wo-parts-head {
     padding-top: 0; padding-bottom: 0;
-    border-bottom: 1px solid var(--border); padding-bottom: 3px; margin-bottom: 2px;
+    margin-bottom: 2px;
 }
 .wo-parts-head .hd {
     font-family: var(--mono); font-size: 0.56rem;
@@ -1194,7 +1192,7 @@ body {
     text-align: center;
 }
 .wo-parts-head .hd.left { text-align: left; }
-.wo-part-line.flagged { background: rgba(239,68,68,0.06); }
+/* Flagged parts keep the flag icon + note styling; no tinted row background. */
 /* Pale green flash used on the work-order block when a part is pulled */
 .flash-pulled-block { animation: flashPulledBlock 1000ms ease-out; }
 @keyframes flashPulledBlock {
@@ -1260,7 +1258,6 @@ body {
 .wo-part-photos-full {
     grid-column: 1 / 5;
     margin-top: 6px; padding-top: 6px;
-    border-top: 1px dashed var(--border);
     display: flex; flex-direction: column; gap: 6px;
 }
 .wo-part-photos-grid {
