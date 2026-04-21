@@ -7,6 +7,9 @@
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+{% if turnstile_enabled and turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -185,11 +188,28 @@ body {
                     </button>
                 </div>
             </div>
+            {% if turnstile_enabled and turnstile_site_key %}
+            <div class="form-group" style="display:flex;justify-content:center;">
+                <div class="cf-turnstile" id="cfTurnstile"
+                     data-sitekey="{{ turnstile_site_key }}"
+                     data-theme="dark"
+                     data-callback="onTurnstileSuccess"
+                     data-expired-callback="onTurnstileExpired"
+                     data-error-callback="onTurnstileError"></div>
+            </div>
+            {% endif %}
             <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
         </form>
     </div>
 </div>
 <script>
+const TURNSTILE_ENABLED = {{ 'true' if turnstile_enabled and turnstile_site_key else 'false' }};
+let turnstileToken = '';
+
+function onTurnstileSuccess(token) { turnstileToken = token; }
+function onTurnstileExpired() { turnstileToken = ''; }
+function onTurnstileError() { turnstileToken = ''; }
+
 function togglePassword() {
     const pw = document.getElementById('password');
     pw.type = pw.type === 'password' ? 'text' : 'password';
@@ -199,16 +219,25 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const btn = document.getElementById('loginBtn');
     const errBox = document.getElementById('errorBox');
     const errText = document.getElementById('errorText');
+
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+        errText.textContent = 'Please complete the challenge';
+        errBox.style.display = 'flex';
+        return;
+    }
+
     btn.disabled = true; btn.textContent = 'Signing in…';
     errBox.style.display = 'none';
     try {
+        const body = {
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+        };
+        if (TURNSTILE_ENABLED) body['cf-turnstile-response'] = turnstileToken;
         const res = await fetch('/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value
-            })
+            body: JSON.stringify(body),
         });
         const data = await res.json();
         if (data.success) {
@@ -217,6 +246,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             errText.textContent = data.error || 'Login failed';
             errBox.style.display = 'flex';
             btn.disabled = false; btn.textContent = 'Sign In';
+            if (TURNSTILE_ENABLED && window.turnstile) {
+                try { window.turnstile.reset('#cfTurnstile'); } catch {}
+                turnstileToken = '';
+            }
         }
     } catch {
         errText.textContent = 'Connection error';

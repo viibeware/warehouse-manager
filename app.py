@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '0.1.40'
+APP_VERSION = '1.1.1'
 
 app = Flask(__name__)
 
@@ -37,7 +37,13 @@ else:
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+# 90 days — keep users signed in long-term. Both values matter:
+#   PERMANENT_SESSION_LIFETIME  → the Flask session cookie
+#   REMEMBER_COOKIE_DURATION    → Flask-Login's "remember me" cookie that re-authenticates
+app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 24 * 90  # 90 days
+app.config['REMEMBER_COOKIE_DURATION'] = 60 * 60 * 24 * 90  # 90 days
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -70,7 +76,11 @@ class User(UserMixin):
 
     @property
     def can_edit(self):
-        return self.role in ('admin', 'editor')
+        return self.role in ('admin', 'editor', 'supervisor')
+
+    @property
+    def can_view_audit(self):
+        return self.role in ('admin', 'supervisor')
 
     def is_active(self):
         return bool(self.is_active_user)
@@ -98,12 +108,23 @@ def admin_required(f):
 
 
 def editor_required(f):
-    """Decorator: requires admin or editor role."""
+    """Decorator: requires admin, editor, or supervisor role."""
     @wraps(f)
     @login_required
     def decorated(*args, **kwargs):
         if not current_user.can_edit:
             return jsonify({'error': 'Editor access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def audit_view_required(f):
+    """Decorator: requires admin or supervisor role (audit trail access)."""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not current_user.can_view_audit:
+            return jsonify({'error': 'Audit access required'}), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -556,6 +577,138 @@ def migrate_v14(conn):
         conn.execute("UPDATE parts SET product_number = ? WHERE id = ?", (pn, row['id']))
 
 
+def migrate_v15(conn):
+    """Add work_orders, work_order_notes, app_settings tables for the work order system."""
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS work_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            wo_number TEXT NOT NULL UNIQUE,
+            request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            warehouse_location TEXT DEFAULT '',
+            customer_name TEXT DEFAULT '',
+            quote_invoice TEXT DEFAULT '',
+            sales_person TEXT DEFAULT '',
+            vehicle TEXT DEFAULT '',
+            vin TEXT DEFAULT '',
+            priority TEXT DEFAULT 'Normal',
+            notes TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'requested' CHECK(status IN ('requested','flagged','delivered')),
+            flag_note TEXT DEFAULT '',
+            created_by TEXT DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);
+        CREATE INDEX IF NOT EXISTS idx_wo_request_date ON work_orders(request_date);
+
+        CREATE TABLE IF NOT EXISTS work_order_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            note TEXT DEFAULT '',
+            author TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_won_wo ON work_order_notes(work_order_id);
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT DEFAULT ''
+        );
+    ''')
+
+    import json as json_mod
+    defaults = {
+        'wo_locations': json_mod.dumps([]),
+        'wo_salespeople': json_mod.dumps([]),  # [{name, email}, ...]
+        'wo_priorities': json_mod.dumps(['Normal', 'Next Day Air']),
+        'smtp_config': json_mod.dumps({
+            'host': '', 'port': 587, 'username': '', 'password': '',
+            'use_tls': True, 'from_email': '', 'from_name': 'Warehouse Manager'
+        }),
+    }
+    for k, v in defaults.items():
+        existing = conn.execute("SELECT key FROM app_settings WHERE key = ?", (k,)).fetchone()
+        if not existing:
+            conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (k, v))
+
+
+def migrate_v16(conn):
+    """Add parts_json column to work_orders for the repeatable parts-requested list."""
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN parts_json TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+
+
+def migrate_v21(conn):
+    """Add needs_audit + audit_note columns to parts."""
+    try:
+        conn.execute("ALTER TABLE parts ADD COLUMN needs_audit INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE parts ADD COLUMN audit_note TEXT DEFAULT ''")
+    except Exception:
+        pass
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_parts_needs_audit ON parts(needs_audit)")
+
+
+def migrate_v20(conn):
+    """Add 'supervisor' to the users role CHECK constraint (editor perms + audit view)."""
+    conn.executescript('''
+        CREATE TABLE users_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            display_name TEXT DEFAULT '',
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('admin', 'editor', 'supervisor', 'viewer')),
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO users_new (id, username, display_name, password_hash, role, active, created_at)
+            SELECT id, username, display_name, password_hash, role, active, created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+    ''')
+
+
+def migrate_v19(conn):
+    """Add note_type to work_order_notes so flag notes and general running notes
+    can be distinguished. Existing entries are tagged 'flag'."""
+    try:
+        conn.execute("ALTER TABLE work_order_notes ADD COLUMN note_type TEXT DEFAULT 'flag'")
+    except Exception:
+        pass
+
+
+def migrate_v18(conn):
+    """Reformat work-order numbers from WO##### to WO-##### for existing records."""
+    rows = conn.execute(
+        "SELECT id, wo_number FROM work_orders WHERE wo_number LIKE 'WO%' AND wo_number NOT LIKE 'WO-%'"
+    ).fetchall()
+    for r in rows:
+        num_part = r['wo_number'][2:]  # drop 'WO'
+        new_num = f"WO-{num_part}"
+        conn.execute("UPDATE work_orders SET wo_number = ? WHERE id = ?", (new_num, r['id']))
+
+
+def migrate_v17(conn):
+    """Add work_order_audit table for per-record change history."""
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS work_order_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            actor TEXT DEFAULT '',
+            description TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_woa_wo ON work_order_audit(work_order_id);
+        CREATE INDEX IF NOT EXISTS idx_woa_created ON work_order_audit(created_at);
+    ''')
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -574,7 +727,13 @@ MIGRATIONS = [
     (12, migrate_v12),
     (13, migrate_v13),
     (14, migrate_v14),
-    # (15, migrate_v15),  ← your next change goes here
+    (15, migrate_v15),
+    (16, migrate_v16),
+    (17, migrate_v17),
+    (18, migrate_v18),
+    (19, migrate_v19),
+    (20, migrate_v20),
+    (21, migrate_v21),
 ]
 
 
@@ -629,12 +788,12 @@ ALL_SEARCH_COLS = list(set(col for cols in SEARCH_COLS.values() for col in cols)
 
 ALL_FIELDS = [
     'category','sku','location','fitment_vehicle','notes','image_filename',
-    'sold','sold_date','flagged',
+    'sold','sold_date','flagged','needs_audit','audit_note',
     'head_engine','head_part','foundry_number','foundry','head_number','head_type','head_old_number',
     'engine_name','engine_head','engine_litre','engine_date_stamp','engine_turns',
     'trans_gear_condition','trans_spins','trans_shifts','trans_date_code','trans_stamped_numbers',
 ]
-INT_FIELDS = {'sold', 'flagged'}
+INT_FIELDS = {'sold', 'flagged', 'needs_audit'}
 RADIO_FIELDS = {'engine_turns', 'trans_spins', 'trans_shifts'}
 
 # Importable fields per category (used by import system)
@@ -754,16 +913,26 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
+    # Pull turnstile config once per request so GET and POST both see it
+    conn_ts = get_db()
+    ts_cfg = _get_setting(conn_ts, 'turnstile_config', {})
+    conn_ts.close()
+    ts_ctx = {
+        'turnstile_enabled': bool(ts_cfg.get('enabled')),
+        'turnstile_site_key': ts_cfg.get('site_key', '') if ts_cfg.get('enabled') else '',
+    }
+
     if request.method == 'POST':
-        # Try JSON first, fall back to form data
         username = ''
         password = ''
+        turnstile_token = ''
         is_ajax = False
         try:
             data = request.get_json(force=True, silent=True)
             if data and isinstance(data, dict) and 'username' in data:
                 username = data.get('username', '').strip()
                 password = data.get('password', '')
+                turnstile_token = data.get('cf-turnstile-response', '') or data.get('turnstile_token', '')
                 is_ajax = True
         except Exception:
             pass
@@ -771,8 +940,15 @@ def login():
         if not is_ajax:
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '')
-            # Check if this was an AJAX request by header
+            turnstile_token = request.form.get('cf-turnstile-response', '')
             is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        # Verify Turnstile first (no-op if not enabled)
+        ok_ts, ts_err = _verify_turnstile(turnstile_token, request.remote_addr)
+        if not ok_ts:
+            if is_ajax:
+                return jsonify({'error': ts_err or 'Challenge failed'}), 403
+            return render_template('login.html', error=ts_err or 'Challenge failed', **ts_ctx)
 
         conn = get_db()
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
@@ -789,9 +965,9 @@ def login():
 
         if is_ajax:
             return jsonify({'error': 'Invalid username or password'}), 401
-        return render_template('login.html', error='Invalid username or password')
+        return render_template('login.html', error='Invalid username or password', **ts_ctx)
 
-    return render_template('login.html', error=None)
+    return render_template('login.html', error=None, **ts_ctx)
 
 
 @app.route('/logout')
@@ -810,6 +986,7 @@ def auth_me():
         'display_name': current_user.display_name,
         'role': current_user.role,
         'can_edit': current_user.can_edit,
+        'can_view_audit': current_user.can_view_audit,
         'version': APP_VERSION,
     })
 
@@ -863,7 +1040,7 @@ def create_user():
         return jsonify({'error': 'Username and password are required'}), 400
     if len(password) < 4:
         return jsonify({'error': 'Password must be at least 4 characters'}), 400
-    if role not in ('admin', 'editor', 'viewer'):
+    if role not in ('admin', 'editor', 'supervisor', 'viewer'):
         return jsonify({'error': 'Invalid role'}), 400
 
     conn = get_db()
@@ -908,7 +1085,7 @@ def update_user(uid):
     role = data.get('role', existing['role'])
     active = int(data.get('active', existing['active']))
 
-    if role not in ('admin', 'editor', 'viewer'):
+    if role not in ('admin', 'editor', 'supervisor', 'viewer'):
         conn.close()
         return jsonify({'error': 'Invalid role'}), 400
 
@@ -960,8 +1137,13 @@ def delete_user(uid):
 # ══════════════════════════════════════════
 
 @app.route('/')
+@app.route('/dashboard')
+@app.route('/workorders')
+@app.route('/workorders/archive')
+@app.route('/parts')
+@app.route('/parts/<slug>')
 @login_required
-def index():
+def index(slug=None):
     return render_template('index.html')
 
 
@@ -1065,7 +1247,7 @@ def create_part():
     import json as json_mod
 
     # Shared fields go in SQL columns; category-specific fields go in custom_data
-    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged'}
+    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged', 'needs_audit', 'audit_note'}
     fields = [fld for fld in ALL_FIELDS if fld != 'image_filename']
     vals = [form_val(fld) for fld in fields] + ['']
 
@@ -1143,7 +1325,7 @@ def update_part(pid):
 
     # Handle custom_data - all categories use it now
     import json as json_mod
-    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged'}
+    shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged', 'needs_audit', 'audit_note'}
     cat_fields = conn.execute(
         "SELECT field_key FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
     ).fetchall()
@@ -1214,6 +1396,26 @@ def delete_part(pid):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+@app.route('/api/parts/<int:pid>/audit', methods=['POST'])
+@editor_required
+def set_part_audit(pid):
+    data = request.get_json() or {}
+    needs = bool(data.get('needs_audit', False))
+    note = str(data.get('audit_note', '') or '').strip()
+    conn = get_db()
+    row = conn.execute("SELECT id FROM parts WHERE id = ?", (pid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    conn.execute(
+        "UPDATE parts SET needs_audit = ?, audit_note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (1 if needs else 0, note if needs else '', pid)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'needs_audit': 1 if needs else 0, 'audit_note': note if needs else ''})
 
 
 @app.route('/api/parts/<int:pid>/flag', methods=['POST'])
@@ -2071,6 +2273,1174 @@ def batch_labels_pdf():
         mimetype='application/pdf',
         headers={'Content-Disposition': 'inline; filename=labels-batch.pdf'}
     )
+
+
+# ══════════════════════════════════════════
+#  APP SETTINGS (key/value, JSON-encoded values)
+# ══════════════════════════════════════════
+
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config'}
+
+
+def _get_setting(conn, key, default):
+    import json as json_mod
+    row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    if not row:
+        return default
+    try:
+        return json_mod.loads(row['value'])
+    except Exception:
+        return default
+
+
+def _set_setting(conn, key, value):
+    import json as json_mod
+    existing = conn.execute("SELECT key FROM app_settings WHERE key = ?", (key,)).fetchone()
+    v = json_mod.dumps(value)
+    if existing:
+        conn.execute("UPDATE app_settings SET value = ? WHERE key = ?", (v, key))
+    else:
+        conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, v))
+
+
+@app.route('/api/settings/work-order', methods=['GET'])
+@login_required
+def get_wo_settings():
+    """Return work-order related settings (locations, salespeople, priorities).
+    Salespeople emails are stripped for non-admins."""
+    conn = get_db()
+    locations = _get_setting(conn, 'wo_locations', [])
+    salespeople = _get_setting(conn, 'wo_salespeople', [])
+    priorities = _get_setting(conn, 'wo_priorities', ['Normal', 'Next Day Air'])
+    conn.close()
+    if not current_user.is_admin:
+        salespeople = [{'name': s.get('name', '')} for s in salespeople]
+    return jsonify({
+        'locations': locations,
+        'salespeople': salespeople,
+        'priorities': priorities,
+    })
+
+
+@app.route('/api/settings/work-order', methods=['PUT'])
+@admin_required
+def update_wo_settings():
+    data = request.get_json() or {}
+    conn = get_db()
+    if 'locations' in data:
+        locs = [str(x).strip() for x in (data['locations'] or []) if str(x).strip()]
+        _set_setting(conn, 'wo_locations', locs)
+    if 'salespeople' in data:
+        sp = []
+        for s in (data['salespeople'] or []):
+            name = str(s.get('name', '')).strip()
+            email = str(s.get('email', '')).strip()
+            if name:
+                sp.append({'name': name, 'email': email})
+        _set_setting(conn, 'wo_salespeople', sp)
+    if 'priorities' in data:
+        pr = [str(x).strip() for x in (data['priorities'] or []) if str(x).strip()]
+        _set_setting(conn, 'wo_priorities', pr)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/settings/smtp', methods=['GET'])
+@admin_required
+def get_smtp_settings():
+    conn = get_db()
+    cfg = _get_setting(conn, 'smtp_config', {})
+    conn.close()
+    # Mask password in response
+    masked = dict(cfg)
+    if masked.get('password'):
+        masked['password'] = '********'
+    return jsonify(masked)
+
+
+@app.route('/api/settings/smtp', methods=['PUT'])
+@admin_required
+def update_smtp_settings():
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = _get_setting(conn, 'smtp_config', {})
+    cfg = {
+        'host': str(data.get('host', existing.get('host', ''))).strip(),
+        'port': int(data.get('port', existing.get('port', 587)) or 587),
+        'username': str(data.get('username', existing.get('username', ''))).strip(),
+        'use_tls': bool(data.get('use_tls', existing.get('use_tls', True))),
+        'from_email': str(data.get('from_email', existing.get('from_email', ''))).strip(),
+        'from_name': str(data.get('from_name', existing.get('from_name', 'Warehouse Manager'))).strip(),
+    }
+    # Only update password if a non-empty non-masked value is provided
+    pw = data.get('password', None)
+    if pw is None or pw == '********':
+        cfg['password'] = existing.get('password', '')
+    else:
+        cfg['password'] = str(pw)
+    _set_setting(conn, 'smtp_config', cfg)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# ── Cloudflare Turnstile ──
+
+def _verify_turnstile(token, remote_ip=None):
+    """Verify a Turnstile response token. Returns (ok: bool, error: str|None).
+    If Turnstile is not enabled in settings, returns (True, None)."""
+    import urllib.request
+    import urllib.parse
+    import json as json_mod
+
+    conn = get_db()
+    cfg = _get_setting(conn, 'turnstile_config', {})
+    conn.close()
+
+    if not cfg.get('enabled'):
+        return True, None
+    secret = (cfg.get('secret_key') or '').strip()
+    if not secret:
+        return False, 'Turnstile enabled but secret not configured'
+    if not token:
+        return False, 'Please complete the challenge'
+
+    try:
+        data = urllib.parse.urlencode({
+            'secret': secret,
+            'response': token,
+            'remoteip': remote_ip or '',
+        }).encode()
+        req = urllib.request.Request(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            data=data, method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json_mod.loads(resp.read().decode())
+        if result.get('success'):
+            return True, None
+        errs = ','.join(result.get('error-codes') or []) or 'verification failed'
+        return False, f"Challenge verification failed: {errs}"
+    except Exception as e:
+        return False, f"Turnstile verification error: {e}"
+
+
+@app.route('/api/auth/turnstile-config', methods=['GET'])
+def public_turnstile_config():
+    """Public endpoint — returns site_key + enabled flag for the login page."""
+    conn = get_db()
+    cfg = _get_setting(conn, 'turnstile_config', {})
+    conn.close()
+    enabled = bool(cfg.get('enabled'))
+    return jsonify({
+        'enabled': enabled,
+        'site_key': cfg.get('site_key', '') if enabled else '',
+    })
+
+
+@app.route('/api/settings/turnstile', methods=['GET'])
+@admin_required
+def get_turnstile_settings():
+    conn = get_db()
+    cfg = _get_setting(conn, 'turnstile_config', {'enabled': False, 'site_key': '', 'secret_key': ''})
+    conn.close()
+    masked = {
+        'enabled': bool(cfg.get('enabled', False)),
+        'site_key': cfg.get('site_key', ''),
+        'secret_key': '********' if cfg.get('secret_key') else '',
+    }
+    return jsonify(masked)
+
+
+@app.route('/api/settings/turnstile', methods=['PUT'])
+@admin_required
+def update_turnstile_settings():
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = _get_setting(conn, 'turnstile_config', {})
+    cfg = {
+        'enabled': bool(data.get('enabled', existing.get('enabled', False))),
+        'site_key': str(data.get('site_key', existing.get('site_key', ''))).strip(),
+    }
+    sk = data.get('secret_key', None)
+    if sk is None or sk == '********':
+        cfg['secret_key'] = existing.get('secret_key', '')
+    else:
+        cfg['secret_key'] = str(sk).strip()
+    _set_setting(conn, 'turnstile_config', cfg)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/settings/smtp/test', methods=['POST'])
+@admin_required
+def test_smtp():
+    data = request.get_json() or {}
+    to_email = str(data.get('to', '')).strip()
+    if not to_email:
+        return jsonify({'error': 'Recipient email required'}), 400
+    ok, err = _send_email(
+        to_email,
+        'Warehouse Manager — SMTP Test',
+        'This is a test email from Warehouse Manager. If you received this, SMTP is working.'
+    )
+    if ok:
+        return jsonify({'success': True})
+    return jsonify({'error': err or 'Send failed'}), 500
+
+
+# ══════════════════════════════════════════
+#  EMAIL (SMTP)
+# ══════════════════════════════════════════
+
+def _send_email(to_email, subject, body):
+    """Send a plain-text email via configured SMTP. Returns (success, error_msg)."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.utils import formataddr
+
+    if not to_email:
+        return False, 'no recipient'
+
+    conn = get_db()
+    cfg = _get_setting(conn, 'smtp_config', {})
+    conn.close()
+
+    host = cfg.get('host', '')
+    if not host:
+        return False, 'SMTP not configured'
+
+    port = int(cfg.get('port', 587) or 587)
+    username = cfg.get('username', '')
+    password = cfg.get('password', '')
+    use_tls = bool(cfg.get('use_tls', True))
+    from_email = cfg.get('from_email', '') or username
+    from_name = cfg.get('from_name', 'Warehouse Manager')
+
+    if not from_email:
+        return False, 'SMTP from_email not configured'
+
+    try:
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From'] = formataddr((from_name, from_email))
+        msg['To'] = to_email
+
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            server = smtplib.SMTP(host, port, timeout=15)
+            if use_tls:
+                server.starttls()
+        if username:
+            server.login(username, password)
+        server.sendmail(from_email, [to_email], msg.as_string())
+        server.quit()
+        return True, None
+    except Exception as e:
+        app.logger.warning(f"SMTP send failed: {e}")
+        return False, str(e)
+
+
+def _format_parts_for_email(parts_json):
+    import json as json_mod
+    try:
+        parts = json_mod.loads(parts_json or '[]') or []
+    except Exception:
+        parts = []
+    if not parts:
+        return ''
+    lines = ['\nParts Requested:']
+    for p in parts:
+        lines.append(f"  - {p.get('quantity', 1)} × {p.get('description', '')}")
+    return '\n'.join(lines) + '\n'
+
+
+def _lookup_salesperson_email(conn, name):
+    if not name:
+        return ''
+    sp = _get_setting(conn, 'wo_salespeople', [])
+    for s in sp:
+        if str(s.get('name', '')).strip().lower() == str(name).strip().lower():
+            return str(s.get('email', '')).strip()
+    return ''
+
+
+# ══════════════════════════════════════════
+#  WORK ORDERS API
+# ══════════════════════════════════════════
+
+def _assign_wo_number(conn):
+    """Generate next work-order number: WO-00001 ... WO-99999, then WO-100000+
+    Tolerant of both old (WO#####) and new (WO-#####) stored formats when scanning for max."""
+    rows = conn.execute("SELECT wo_number FROM work_orders WHERE wo_number LIKE 'WO%'").fetchall()
+    max_num = 0
+    for r in rows:
+        s = (r['wo_number'] or '').replace('WO-', '').replace('WO', '')
+        try:
+            n = int(s)
+            if n > max_num:
+                max_num = n
+        except ValueError:
+            continue
+    next_num = max_num + 1
+    if next_num < 100000:
+        return f"WO-{next_num:05d}"
+    return f"WO-{next_num}"
+
+
+def _work_order_to_dict(conn, row):
+    import json as json_mod
+    d = dict(row)
+    notes_rows = conn.execute(
+        "SELECT id, note, author, note_type, created_at FROM work_order_notes WHERE work_order_id = ? ORDER BY created_at DESC, id DESC",
+        (d['id'],)
+    ).fetchall()
+    d['notes_log'] = [dict(n) for n in notes_rows]
+    try:
+        raw_parts = json_mod.loads(d.get('parts_json') or '[]') or []
+    except Exception:
+        raw_parts = []
+    # Backfill per-part state fields so legacy rows have consistent shape
+    parts = []
+    for p in raw_parts:
+        if not isinstance(p, dict):
+            continue
+        parts.append({
+            'description': str(p.get('description', '')),
+            'quantity': int(p.get('quantity', 1) or 1),
+            'pulled': bool(p.get('pulled', False)),
+            'pulled_at': str(p.get('pulled_at', '') or ''),
+            'flagged': bool(p.get('flagged', False)),
+            'flag_note': str(p.get('flag_note', '') or ''),
+        })
+    d['parts'] = parts
+    return d
+
+
+def _normalize_parts(raw):
+    """Coerce a client-supplied parts list into validated
+    [{description, quantity, pulled, flagged, flag_note}, ...]."""
+    out = []
+    for p in (raw or []):
+        if not isinstance(p, dict):
+            continue
+        desc = str(p.get('description', '')).strip()
+        try:
+            qty = int(p.get('quantity', 1) or 1)
+        except (TypeError, ValueError):
+            qty = 1
+        if qty < 1:
+            qty = 1
+        if desc:
+            out.append({
+                'description': desc,
+                'quantity': qty,
+                'pulled': bool(p.get('pulled', False)),
+                'pulled_at': str(p.get('pulled_at', '') or ''),
+                'flagged': bool(p.get('flagged', False)),
+                'flag_note': str(p.get('flag_note', '') or '').strip(),
+            })
+    return out
+
+
+def _actor():
+    return (current_user.display_name or current_user.username) if current_user.is_authenticated else 'system'
+
+
+def _log_wo_audit(conn, wid, action, description):
+    """Record a single audit entry. Caller owns the transaction (we do not commit)."""
+    conn.execute(
+        "INSERT INTO work_order_audit (work_order_id, action, actor, description) VALUES (?, ?, ?, ?)",
+        (wid, action, _actor(), description)
+    )
+
+
+_WO_FIELD_LABELS = {
+    'warehouse_location': 'Warehouse Location',
+    'customer_name': 'Customer',
+    'quote_invoice': 'Quote/Invoice',
+    'sales_person': 'Sales Person',
+    'vehicle': 'Vehicle',
+    'vin': 'VIN',
+    'priority': 'Priority',
+    'notes': 'Request Details',
+}
+
+
+def _diff_wo_fields(old_row, new_data):
+    """Return a list of human-readable change strings for fields that changed."""
+    changes = []
+    for key, label in _WO_FIELD_LABELS.items():
+        if key not in new_data:
+            continue
+        old = (old_row[key] or '') if key in old_row.keys() else ''
+        new = str(new_data.get(key, '') or '').strip()
+        if str(old).strip() == new:
+            continue
+        if key == 'notes':
+            # Request details can be long — just say "updated"
+            changes.append(f"{label} updated")
+        else:
+            changes.append(f"{label}: '{old or '—'}' → '{new or '—'}'")
+    return changes
+
+
+def _diff_parts(old_json, new_list):
+    """Return a brief summary of parts-list changes, or empty string if unchanged."""
+    import json as json_mod
+    try:
+        old_parts = json_mod.loads(old_json or '[]') or []
+    except Exception:
+        old_parts = []
+    # Normalize for comparison
+    norm = lambda ps: [(p.get('quantity', 1), (p.get('description') or '').strip()) for p in ps]
+    if norm(old_parts) == norm(new_list):
+        return ''
+    return f"Parts list updated ({len(old_parts)} → {len(new_list)} item{'s' if len(new_list) != 1 else ''})"
+
+
+@app.route('/api/work-orders', methods=['GET'])
+@login_required
+def list_work_orders():
+    """List work orders. Optional ?status=requested,flagged,delivered or ?archived=1"""
+    status_filter = request.args.get('status', '')
+    archived = request.args.get('archived', '') == '1'
+
+    conn = get_db()
+    conds, params = [], []
+    if archived:
+        conds.append("status = 'delivered'")
+    elif status_filter:
+        wanted = [s.strip() for s in status_filter.split(',') if s.strip()]
+        if wanted:
+            placeholders = ','.join(['?'] * len(wanted))
+            conds.append(f"status IN ({placeholders})")
+            params.extend(wanted)
+    else:
+        # default: active (non-archived)
+        conds.append("status IN ('requested','flagged')")
+
+    where = "WHERE " + " AND ".join(conds) if conds else ""
+    search = request.args.get('search', '').strip()
+    if search:
+        term = f"%{search}%"
+        search_cols = ['wo_number', 'customer_name', 'quote_invoice', 'sales_person',
+                       'vehicle', 'vin', 'warehouse_location', 'notes', 'parts_json']
+        where = (where + " AND " if where else "WHERE ") + "(" + " OR ".join(f"{c} LIKE ?" for c in search_cols) + ")"
+        params.extend([term] * len(search_cols))
+
+    SORT_ALLOWED = {'request_date', 'customer_name', 'priority', 'wo_number', 'status'}
+    sort_by = request.args.get('sort_by', 'request_date')
+    sort_dir = request.args.get('sort_dir', 'desc').lower()
+    if sort_by not in SORT_ALLOWED:
+        sort_by = 'request_date'
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = 'desc'
+
+    rows = conn.execute(
+        f"SELECT * FROM work_orders {where} ORDER BY {sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}",
+        params
+    ).fetchall()
+    result = [_work_order_to_dict(conn, r) for r in rows]
+    conn.close()
+    return jsonify(result)
+
+
+@app.route('/api/work-orders/counts', methods=['GET'])
+@login_required
+def work_order_counts():
+    conn = get_db()
+    rows = conn.execute("SELECT status, COUNT(*) as n FROM work_orders GROUP BY status").fetchall()
+    conn.close()
+    counts = {'requested': 0, 'flagged': 0, 'delivered': 0}
+    for r in rows:
+        counts[r['status']] = r['n']
+    counts['active'] = counts['requested'] + counts['flagged']
+    return jsonify(counts)
+
+
+@app.route('/api/work-orders/<int:wid>', methods=['GET'])
+@login_required
+def get_work_order(wid):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders', methods=['POST'])
+@editor_required
+def create_work_order():
+    import json as json_mod
+    data = request.get_json() or {}
+    conn = get_db()
+    wo_num = _assign_wo_number(conn)
+    created_by = current_user.display_name or current_user.username
+    parts = _normalize_parts(data.get('parts'))
+    cur = conn.execute('''
+        INSERT INTO work_orders
+            (wo_number, warehouse_location, customer_name, quote_invoice, sales_person,
+             vehicle, vin, priority, notes, status, created_by, parts_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    ''', (
+        wo_num,
+        str(data.get('warehouse_location', '')).strip(),
+        str(data.get('customer_name', '')).strip(),
+        str(data.get('quote_invoice', '')).strip(),
+        str(data.get('sales_person', '')).strip(),
+        str(data.get('vehicle', '')).strip(),
+        str(data.get('vin', '')).strip(),
+        str(data.get('priority', 'Normal')).strip() or 'Normal',
+        str(data.get('notes', '')).strip(),
+        'requested',
+        created_by,
+        json_mod.dumps(parts),
+    ))
+    wid = cur.lastrowid
+    _log_wo_audit(conn, wid, 'created', f"Work order created as {wo_num}")
+    conn.commit()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+    return jsonify(wo), 201
+
+
+@app.route('/api/work-orders/<int:wid>', methods=['PUT'])
+@editor_required
+def update_work_order(wid):
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    import json as json_mod
+    editable = ['warehouse_location', 'customer_name', 'quote_invoice', 'sales_person',
+                'vehicle', 'vin', 'priority', 'notes']
+    # Compute diff before applying
+    change_parts = _diff_wo_fields(existing, data)
+    new_parts_list = None
+    if 'parts' in data:
+        new_parts_list = _normalize_parts(data.get('parts'))
+        parts_diff = _diff_parts(existing['parts_json'] if 'parts_json' in existing.keys() else '[]', new_parts_list)
+        if parts_diff:
+            change_parts.append(parts_diff)
+
+    sets, vals = [], []
+    for k in editable:
+        if k in data:
+            sets.append(f"{k}=?")
+            vals.append(str(data.get(k, '')).strip())
+    if new_parts_list is not None:
+        sets.append("parts_json=?")
+        vals.append(json_mod.dumps(new_parts_list))
+    if sets:
+        sets.append("updated_at=CURRENT_TIMESTAMP")
+        vals.append(wid)
+        conn.execute(f"UPDATE work_orders SET {', '.join(sets)} WHERE id=?", vals)
+        if change_parts:
+            _log_wo_audit(conn, wid, 'edited', '; '.join(change_parts))
+        conn.commit()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/status', methods=['POST'])
+@editor_required
+def set_work_order_status(wid):
+    data = request.get_json() or {}
+    new_status = str(data.get('status', '')).strip().lower()
+    if new_status not in ('requested', 'flagged', 'delivered'):
+        return jsonify({'error': 'Invalid status'}), 400
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    old_status = row['status']
+    flag_note = str(data.get('flag_note', '')).strip()
+
+    if new_status == 'flagged' and not flag_note:
+        conn.close()
+        return jsonify({'error': 'Flag note is required'}), 400
+
+    if new_status == 'delivered':
+        conn.execute(
+            "UPDATE work_orders SET status = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_status, wid)
+        )
+    else:
+        # Moving out of delivered back to active clears completed_at
+        conn.execute(
+            "UPDATE work_orders SET status = ?, completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_status, wid)
+        )
+    # Clear flag_note when transitioning out of flagged so stale reasons don't linger
+    if old_status == 'flagged' and new_status != 'flagged':
+        conn.execute("UPDATE work_orders SET flag_note = '' WHERE id = ?", (wid,))
+
+    # If flagging, store the flag_note on the work order and log it as a note
+    if new_status == 'flagged' and flag_note:
+        conn.execute("UPDATE work_orders SET flag_note = ? WHERE id = ?", (flag_note, wid))
+        author = current_user.display_name or current_user.username
+        conn.execute(
+            "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'flag')",
+            (wid, flag_note, author)
+        )
+
+    # Audit log the status change
+    if new_status != old_status:
+        if new_status == 'flagged':
+            audit_desc = f"Status: {old_status} → flagged — {flag_note}"
+        elif new_status == 'delivered':
+            audit_desc = f"Status: {old_status} → delivered"
+        else:
+            audit_desc = f"Status: {old_status} → {new_status} (reopened)"
+        _log_wo_audit(conn, wid, 'status_changed', audit_desc)
+
+    conn.commit()
+
+    # Send status-change email to salesperson (only for flagged or delivered changes)
+    email_sent = False
+    email_error = None
+    if new_status in ('flagged', 'delivered') and new_status != old_status:
+        sp_email = _lookup_salesperson_email(conn, row['sales_person'])
+        if sp_email:
+            wo_num = row['wo_number']
+            customer = row['customer_name']
+            parts_block = _format_parts_for_email(row['parts_json'] if 'parts_json' in row.keys() else '[]')
+            if new_status == 'flagged':
+                subject = f"[Flagged] Work Order {wo_num}"
+                body = (
+                    f"Work Order: {wo_num}\n"
+                    f"Customer: {customer}\n"
+                    f"Vehicle: {row['vehicle']}\n"
+                    f"Status: FLAGGED\n"
+                    f"{parts_block}"
+                    f"\nReason:\n{flag_note}\n"
+                )
+            else:
+                subject = f"[Delivered] Work Order {wo_num}"
+                body = (
+                    f"Work Order: {wo_num}\n"
+                    f"Customer: {customer}\n"
+                    f"Vehicle: {row['vehicle']}\n"
+                    f"Status: DELIVERED / COMPLETE\n"
+                    f"{parts_block}"
+                )
+            email_sent, email_error = _send_email(sp_email, subject, body)
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+
+
+@app.route('/api/work-orders/<int:wid>/notes', methods=['POST'])
+@editor_required
+def add_work_order_note(wid):
+    data = request.get_json() or {}
+    note = str(data.get('note', '')).strip()
+    if not note:
+        return jsonify({'error': 'Note is required'}), 400
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    author = current_user.display_name or current_user.username
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'flag')",
+        (wid, note, author)
+    )
+    # Keep flag_note mirrored with the latest note
+    conn.execute("UPDATE work_orders SET flag_note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (note, wid))
+    _log_wo_audit(conn, wid, 'note_added', f"Flag note added: {note}")
+    conn.commit()
+
+    # If work order is flagged, send an email update on every new note
+    email_sent = False
+    email_error = None
+    if row['status'] == 'flagged':
+        sp_email = _lookup_salesperson_email(conn, row['sales_person'])
+        if sp_email:
+            subject = f"[Flagged — Update] Work Order {row['wo_number']}"
+            body = (
+                f"Work Order: {row['wo_number']}\n"
+                f"Customer: {row['customer_name']}\n"
+                f"Vehicle: {row['vehicle']}\n"
+                f"Status: FLAGGED (new update)\n\n"
+                f"New note from {author}:\n{note}\n"
+            )
+            email_sent, email_error = _send_email(sp_email, subject, body)
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+
+
+@app.route('/api/work-orders/<int:wid>/general-notes', methods=['POST'])
+@editor_required
+def add_general_note(wid):
+    """Append a running work-order note (not tied to flagging / emails)."""
+    data = request.get_json() or {}
+    note = str(data.get('note', '') or '').strip()
+    if not note:
+        return jsonify({'error': 'Note is required'}), 400
+
+    conn = get_db()
+    row = conn.execute("SELECT id FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    author = current_user.display_name or current_user.username
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'general')",
+        (wid, note, author)
+    )
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    _log_wo_audit(conn, wid, 'note_added', f"Note: {note}")
+    conn.commit()
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>', methods=['DELETE'])
+@admin_required
+def delete_work_order(wid):
+    conn = get_db()
+    existing = conn.execute("SELECT id, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    _log_wo_audit(conn, wid, 'deleted', f"Work order {existing['wo_number']} deleted")
+    conn.execute("DELETE FROM work_order_notes WHERE work_order_id = ?", (wid,))
+    conn.execute("DELETE FROM work_orders WHERE id = ?", (wid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_body_extra=None, history_note=None, history_note_type='flag'):
+    """Shared helper: load WO, mutate parts[idx] with updates dict, persist, audit-log.
+    If history_note is provided, also insert into work_order_notes so it shows up in
+    the flag notes history (use history_note_type to pick 'flag' or 'general').
+    Returns (wo_dict, email_sent, email_error)."""
+    import json as json_mod
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return None, False, 'not_found'
+    try:
+        parts = json_mod.loads(row['parts_json'] or '[]') or []
+    except Exception:
+        parts = []
+    if idx < 0 or idx >= len(parts):
+        conn.close()
+        return None, False, 'bad_index'
+    part = parts[idx]
+    for k, v in updates.items():
+        part[k] = v
+    parts[idx] = part
+    conn.execute(
+        "UPDATE work_orders SET parts_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (json_mod.dumps(parts), wid)
+    )
+    if history_note:
+        conn.execute(
+            "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, ?)",
+            (wid, history_note, _actor(), history_note_type)
+        )
+    _log_wo_audit(conn, wid, 'edited', audit_desc)
+    conn.commit()
+
+    email_sent, email_error = False, None
+    if email_subject:
+        sp_email = _lookup_salesperson_email(conn, row['sales_person'])
+        if sp_email:
+            body = (
+                f"Work Order: {row['wo_number']}\n"
+                f"Customer: {row['customer_name']}\n"
+                f"Vehicle: {row['vehicle']}\n"
+                f"{email_body_extra or ''}"
+            )
+            email_sent, email_error = _send_email(sp_email, email_subject, body)
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return wo, email_sent, email_error
+
+
+@app.route('/api/work-orders/<int:wid>/parts/<int:idx>/pulled', methods=['POST'])
+@editor_required
+def set_part_pulled(wid, idx):
+    from datetime import datetime
+    import json as json_mod
+    data = request.get_json() or {}
+    pulled = bool(data.get('pulled', True))
+    pulled_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') if pulled else ''
+
+    # Pull the part description for a human-readable activity note
+    conn = get_db()
+    row = conn.execute("SELECT parts_json FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    try:
+        parts = json_mod.loads(row['parts_json'] or '[]') or []
+    except Exception:
+        parts = []
+    if idx < 0 or idx >= len(parts):
+        return jsonify({'error': 'Invalid part index'}), 400
+    part_desc = f"{parts[idx].get('quantity', 1)} × {parts[idx].get('description', '')}"
+
+    if pulled:
+        history_note = f"Part pulled — {part_desc}"
+    else:
+        history_note = f"Part unmarked pulled — {part_desc}"
+
+    wo, _, err = _update_part_field(
+        wid, idx,
+        {'pulled': pulled, 'pulled_at': pulled_at},
+        audit_desc=f"Part {idx+1} marked {'pulled at ' + pulled_at if pulled else 'not pulled'}",
+        history_note=history_note,
+        history_note_type='general',
+    )
+    if wo is None:
+        return jsonify({'error': 'Not found' if err == 'not_found' else 'Invalid part index'}), 404 if err == 'not_found' else 400
+    return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/parts/<int:idx>/flag', methods=['POST'])
+@editor_required
+def set_part_flag(wid, idx):
+    data = request.get_json() or {}
+    flagged = bool(data.get('flagged', True))
+    note = str(data.get('flag_note', '') or '').strip()
+    if flagged and not note:
+        return jsonify({'error': 'Flag note is required'}), 400
+
+    # Fetch part description for audit/email context
+    conn = get_db()
+    row = conn.execute("SELECT parts_json FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    import json as json_mod
+    try:
+        parts = json_mod.loads(row['parts_json'] or '[]') or []
+    except Exception:
+        parts = []
+    if idx < 0 or idx >= len(parts):
+        return jsonify({'error': 'Invalid part index'}), 400
+    part_desc = f"{parts[idx].get('quantity', 1)} × {parts[idx].get('description', '')}"
+
+    if flagged:
+        updates = {'flagged': True, 'flag_note': note}
+        audit_desc = f"Part {idx+1} ({part_desc}) flagged — {note}"
+        subj = f"[Part Flagged] Work Order — part needs attention"
+        body_extra = f"Part: {part_desc}\nStatus: PART FLAGGED\n\nReason:\n{note}\n"
+        history_note = f"Part flagged — {part_desc}: {note}"
+    else:
+        updates = {'flagged': False, 'flag_note': ''}
+        audit_desc = f"Part {idx+1} ({part_desc}) unflagged"
+        subj = None
+        body_extra = None
+        history_note = f"Part unflagged — {part_desc}"
+
+    wo, email_sent, email_error = _update_part_field(
+        wid, idx, updates, audit_desc=audit_desc,
+        email_subject=subj, email_body_extra=body_extra,
+        history_note=history_note,
+    )
+    if wo is None:
+        return jsonify({'error': 'Work order not found'}), 404
+    return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+
+
+def _build_update_email_body(wo):
+    """Compose a full-status plain-text email body for a work order."""
+    status_label = {
+        'requested': 'REQUESTED',
+        'flagged': 'FLAGGED',
+        'delivered': 'DELIVERED / COMPLETE',
+    }.get(wo.get('status'), (wo.get('status') or '').upper())
+    req_date = (wo.get('request_date') or '').split('.')[0].replace('T', ' ')
+    comp_date = (wo.get('completed_at') or '').split('.')[0].replace('T', ' ') if wo.get('completed_at') else ''
+
+    lines = []
+    lines.append(f"Work Order: {wo.get('wo_number', '')}")
+    lines.append(f"Status: {status_label}")
+    if wo.get('priority'):
+        lines.append(f"Priority: {wo.get('priority')}")
+    lines.append('')
+    lines.append(f"Customer: {wo.get('customer_name') or '—'}")
+    lines.append(f"Sales Person: {wo.get('sales_person') or '—'}")
+    lines.append(f"Warehouse: {wo.get('warehouse_location') or '—'}")
+    lines.append(f"Vehicle: {wo.get('vehicle') or '—'}")
+    lines.append(f"VIN: {wo.get('vin') or '—'}")
+    if wo.get('quote_invoice'):
+        lines.append(f"Quote/Invoice #: {wo.get('quote_invoice')}")
+    lines.append(f"Requested: {req_date}")
+    if comp_date:
+        lines.append(f"Completed: {comp_date}")
+
+    if (wo.get('notes') or '').strip():
+        lines.append('')
+        lines.append('Request Details:')
+        lines.append(wo.get('notes').strip())
+
+    if wo.get('status') == 'flagged' and (wo.get('flag_note') or '').strip():
+        lines.append('')
+        lines.append(f"Current flag reason: {wo.get('flag_note').strip()}")
+
+    parts = wo.get('parts') or []
+    if parts:
+        lines.append('')
+        lines.append('Parts Requested:')
+        for p in parts:
+            box = '[x]' if p.get('pulled') else '[ ]'
+            flag = ' ⚑' if p.get('flagged') else ''
+            row = f"  {box} {p.get('quantity', 1)} × {p.get('description', '')}{flag}"
+            if p.get('pulled') and p.get('pulled_at'):
+                row += f"  (pulled {p['pulled_at']})"
+            if p.get('flagged') and p.get('flag_note'):
+                row += f"\n       FLAGGED: {p['flag_note']}"
+            lines.append(row)
+
+    notes_hist = wo.get('notes_log') or []
+    if notes_hist:
+        lines.append('')
+        lines.append('Notes & Activity:')
+        for n in notes_hist:
+            when = (n.get('created_at') or '').split('.')[0].replace('T', ' ')
+            tag = '[FLAG] ' if n.get('note_type') == 'flag' else ''
+            lines.append(f"  {when} — {n.get('author', '')}: {tag}{n.get('note', '')}")
+
+    return '\n'.join(lines) + '\n'
+
+
+@app.route('/api/work-orders/<int:wid>/send-update', methods=['POST'])
+@editor_required
+def send_work_order_update(wid):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+
+    wo = _work_order_to_dict(conn, row)
+    sp_email = _lookup_salesperson_email(conn, row['sales_person'])
+    if not sp_email:
+        conn.close()
+        return jsonify({'error': 'No email configured for this sales person'}), 400
+
+    subject = f"[Update] Work Order {wo['wo_number']} — {wo.get('status', '').title()}"
+    body = _build_update_email_body(wo)
+    ok, err = _send_email(sp_email, subject, body)
+
+    desc = f"Update email sent to {sp_email}" if ok else f"Update email FAILED to {sp_email}: {err or 'unknown error'}"
+    _log_wo_audit(conn, wid, 'edited', desc)
+    conn.commit()
+    conn.close()
+
+    if ok:
+        return jsonify({'success': True, 'to': sp_email})
+    return jsonify({'error': err or 'Send failed'}), 500
+
+
+@app.route('/api/work-orders/<int:wid>/audit', methods=['GET'])
+@audit_view_required
+def get_work_order_audit(wid):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, action, actor, description, created_at FROM work_order_audit WHERE work_order_id = ? ORDER BY created_at DESC, id DESC",
+        (wid,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/work-orders/<int:wid>/pdf')
+@login_required
+def work_order_pdf(wid):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas as pdf_canvas
+    from io import BytesIO
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+
+    buf = BytesIO()
+    c = pdf_canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+
+    # Header
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(0.6 * inch, h - 0.75 * inch, "Work Order")
+    c.setFont("Helvetica-Bold", 14)
+    c.drawRightString(w - 0.6 * inch, h - 0.75 * inch, wo['wo_number'])
+
+    # Status badge text
+    status_label = {
+        'requested': 'REQUESTED',
+        'flagged': 'FLAGGED',
+        'delivered': 'DELIVERED / COMPLETE',
+    }.get(wo['status'], wo['status'].upper())
+    c.setFont("Helvetica", 10)
+    c.drawRightString(w - 0.6 * inch, h - 1.0 * inch, f"Status: {status_label}")
+
+    # Divider
+    c.setStrokeColorRGB(0.7, 0.7, 0.7)
+    c.line(0.6 * inch, h - 1.15 * inch, w - 0.6 * inch, h - 1.15 * inch)
+
+    # Field table
+    y = h - 1.5 * inch
+    line_h = 0.26 * inch
+
+    def _kv(label, value):
+        nonlocal y
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(0.6 * inch, y, f"{label}:")
+        c.setFont("Helvetica", 10)
+        c.drawString(2.2 * inch, y, str(value or '—'))
+        y -= line_h
+
+    _kv("Request Date", (wo.get('request_date') or '').split('.')[0])
+    _kv("Warehouse Location", wo.get('warehouse_location'))
+    _kv("Customer Name", wo.get('customer_name'))
+    _kv("Quote / Invoice #", wo.get('quote_invoice'))
+    _kv("Sales Person", wo.get('sales_person'))
+    _kv("Vehicle", wo.get('vehicle'))
+    _kv("VIN", wo.get('vin'))
+    _kv("Priority", wo.get('priority'))
+    _kv("Created By", wo.get('created_by'))
+    if wo.get('completed_at'):
+        _kv("Completed", (wo.get('completed_at') or '').split('.')[0])
+
+    # Parts requested
+    parts = wo.get('parts') or []
+    if parts:
+        y -= line_h * 0.25
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(0.6 * inch, y, "Parts Requested")
+        y -= 0.22 * inch
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(0.6 * inch, y, "Qty")
+        c.drawString(1.2 * inch, y, "Description")
+        y -= 0.18 * inch
+        c.setFont("Helvetica", 10)
+        for p in parts:
+            if y < 1.2 * inch:
+                c.showPage()
+                y = h - 0.75 * inch
+            c.drawString(0.6 * inch, y, str(p.get('quantity', 1)))
+            desc_lines = _wrap_text(str(p.get('description', '')), 80)
+            for i, line in enumerate(desc_lines):
+                if y < 1.2 * inch:
+                    c.showPage()
+                    y = h - 0.75 * inch
+                c.drawString(1.2 * inch, y, line)
+                y -= 0.2 * inch
+
+    # Request details block
+    y -= line_h * 0.25
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(0.6 * inch, y, "Request Details")
+    y -= 0.2 * inch
+    c.setFont("Helvetica", 10)
+    notes_text = (wo.get('notes') or '').strip() or '—'
+    for line in _wrap_text(notes_text, 90):
+        if y < 1.2 * inch:
+            c.showPage()
+            y = h - 0.75 * inch
+        c.drawString(0.6 * inch, y, line)
+        y -= 0.2 * inch
+
+    # Activity & notes log
+    if wo.get('notes_log'):
+        y -= 0.1 * inch
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(0.6 * inch, y, "Notes & Activity")
+        y -= 0.22 * inch
+        c.setFont("Helvetica", 9)
+        for n in wo['notes_log']:
+            header = f"[{(n.get('created_at') or '').split('.')[0]}] {n.get('author', '')}"
+            if y < 1.2 * inch:
+                c.showPage()
+                y = h - 0.75 * inch
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(0.6 * inch, y, header)
+            y -= 0.18 * inch
+            c.setFont("Helvetica", 9)
+            for line in _wrap_text(n.get('note', ''), 100):
+                if y < 1.2 * inch:
+                    c.showPage()
+                    y = h - 0.75 * inch
+                c.drawString(0.75 * inch, y, line)
+                y -= 0.18 * inch
+            y -= 0.05 * inch
+
+    # Footer
+    c.setFont("Helvetica", 7)
+    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.drawString(0.6 * inch, 0.5 * inch, f"Warehouse Manager v{APP_VERSION}")
+
+    c.save()
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype='application/pdf',
+        headers={'Content-Disposition': f'inline; filename=work-order-{wo["wo_number"]}.pdf'}
+    )
+
+
+def _wrap_text(text, width):
+    """Simple word-wrap to a character width. Preserves blank lines."""
+    out = []
+    for para in (text or '').split('\n'):
+        if not para.strip():
+            out.append('')
+            continue
+        words = para.split(' ')
+        line = ''
+        for w in words:
+            if len(line) + len(w) + 1 <= width:
+                line = (line + ' ' + w).strip()
+            else:
+                if line:
+                    out.append(line)
+                line = w
+        if line:
+            out.append(line)
+    return out or ['']
 
 
 # ══════════════════════════════════════════

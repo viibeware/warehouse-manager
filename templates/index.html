@@ -69,6 +69,95 @@
     --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
 }
 
+/* ── NEOBRUTAL LIGHT ── */
+[data-theme="neobrutal-light"] {
+    --bg-primary: #fef9c3;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #fef3c7;
+    --bg-input: #fef3c7;
+    --bg-sidebar: #ffffff;
+    --border: #0a0a0a;
+    --border-focus: #ec4899;
+    --text-primary: #0a0a0a;
+    --text-secondary: #3f3f46;
+    --text-muted: #6b7280;
+    --accent: #ec4899;
+    --accent-hover: #db2777;
+    --accent-dim: rgba(236, 72, 153, 0.18);
+    --shadow: 4px 4px 0 0 #0a0a0a;
+    --shadow-lg: 6px 6px 0 0 #0a0a0a;
+}
+
+/* ── NEOBRUTAL DARK ── */
+[data-theme="neobrutal-dark"] {
+    --bg-primary: #18181b;
+    --bg-secondary: #27272a;
+    --bg-card: #27272a;
+    --bg-card-hover: #3f3f46;
+    --bg-input: #1f1f23;
+    --bg-sidebar: #27272a;
+    --border: #fafafa;
+    --border-focus: #f472b6;
+    --text-primary: #fafafa;
+    --text-secondary: #d4d4d8;
+    --text-muted: #a1a1aa;
+    --accent: #f472b6;
+    --accent-hover: #ec4899;
+    --accent-dim: rgba(244, 114, 182, 0.22);
+    --shadow: 4px 4px 0 0 #fafafa;
+    --shadow-lg: 6px 6px 0 0 #fafafa;
+}
+
+/* Neobrutal structural flourish: thicker cards on primary surfaces */
+[data-theme^="neobrutal"] .modal,
+[data-theme^="neobrutal"] .wo-card,
+[data-theme^="neobrutal"] .dashboard-widget,
+[data-theme^="neobrutal"] .part-card { border-width: 2px; }
+
+/* ── SOLARPUNK ── */
+[data-theme="solarpunk"] {
+    --bg-primary: #f5f7e8;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #eef5d8;
+    --bg-input: #eef5d8;
+    --bg-sidebar: #ffffff;
+    --border: #b4cba0;
+    --border-focus: #1e9e6a;
+    --text-primary: #1e3a1e;
+    --text-secondary: #2c5a2c;
+    --text-muted: #4e6b4e;
+    --accent: #1e9e6a;
+    --accent-hover: #067349;
+    --accent-dim: rgba(30, 158, 106, 0.15);
+    --shadow: 0 1px 2px rgba(30,58,30,.06), 0 4px 14px rgba(30,110,60,.12);
+    --shadow-lg: 0 6px 24px rgba(30,110,60,.18);
+}
+
+/* ── CYBERPUNK ── */
+[data-theme="cyberpunk"] {
+    --bg-primary: #05050a;
+    --bg-secondary: #0f0a1f;
+    --bg-card: #15102b;
+    --bg-card-hover: #1e1540;
+    --bg-input: #0a0618;
+    --bg-sidebar: #0a0618;
+    --border: #2a1f4a;
+    --border-focus: #00f0ff;
+    --text-primary: #e0f7ff;
+    --text-secondary: #b8cff0;
+    --text-muted: #8a8ab0;
+    --accent: #ff2bd6;
+    --accent-hover: #ff5de8;
+    --accent-dim: rgba(255, 43, 214, 0.22);
+    --shadow: 0 0 0 1px #ff2bd6, 0 0 18px rgba(255, 43, 214, .35);
+    --shadow-lg: 0 0 28px rgba(255, 43, 214, 0.45);
+}
+[data-theme="cyberpunk"] h1, [data-theme="cyberpunk"] h2, [data-theme="cyberpunk"] h3 {
+    text-shadow: 0 0 8px rgba(0, 240, 255, .35);
+}
+
 html { font-size: 1.2rem; }
 body {
     font-family: var(--font); background: var(--bg-primary); color: var(--text-primary);
@@ -586,7 +675,378 @@ body {
 }
 .role-badge.admin { background: var(--engine-dim); color: var(--engine); }
 .role-badge.editor { background: var(--head-dim); color: var(--head); }
+.role-badge.supervisor { background: var(--transmission-dim); color: var(--transmission); }
 .role-badge.viewer { background: var(--accent-dim); color: var(--accent); }
+
+/* Matches .sidebar-user-bar horizontal padding so gear (top row) and theme (bottom row) icons line up */
+.sidebar-footer-bottom { display: flex; align-items: center; gap: 4px; padding: 0 0.6rem; }
+
+/* ── DASHBOARD ── */
+#dashboardContainer { padding: 0.25rem 0 1rem; }
+.dashboard-header { margin-bottom: 1.15rem; }
+.dashboard-header h1 {
+    font-family: 'Inter', sans-serif; font-size: 1.35rem; font-weight: 700;
+    color: var(--text-primary); letter-spacing: -0.02em;
+}
+.dashboard-header .sub {
+    font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;
+    font-family: var(--mono);
+}
+.dashboard-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+}
+.dashboard-widget {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 0.95rem 1rem; min-width: 0;
+}
+.dashboard-widget.full { grid-column: 1 / -1; }
+.widget-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 0.66rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin-bottom: 0.7rem;
+    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+}
+.widget-header a {
+    font-size: 0.64rem; color: var(--accent); text-decoration: none;
+    font-family: var(--mono); cursor: pointer;
+}
+.widget-header a:hover { text-decoration: underline; }
+.widget-subheader {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin: 0.8rem 0 0.35rem;
+    padding-bottom: 0.35rem; border-bottom: 1px dashed var(--border);
+}
+.widget-body { display: flex; flex-direction: column; gap: 0.25rem; }
+.widget-row {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem;
+    align-items: center; padding: 0.4rem 0.5rem;
+    border-radius: var(--radius); cursor: pointer; min-width: 0;
+    transition: background var(--transition);
+}
+.widget-row:hover { background: var(--bg-card-hover); }
+.widget-thumb, .widget-thumb-ph {
+    width: 34px; height: 34px; border-radius: 5px; flex-shrink: 0;
+    object-fit: cover; background: var(--bg-input); display: block;
+}
+.widget-thumb-ph {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+}
+.widget-row-text { min-width: 0; }
+.widget-row-title {
+    font-size: 0.84rem; color: var(--text-primary); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.widget-row-title .wo-number { font-family: var(--mono); font-size: 0.76rem; margin-right: 0.35rem; }
+.widget-row-sub {
+    font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;
+    display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+}
+.widget-row-meta {
+    font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted);
+    text-align: right; white-space: nowrap;
+}
+.widget-empty {
+    text-align: center; padding: 1.5rem 0.5rem;
+    color: var(--text-muted); font-size: 0.82rem;
+}
+.summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.summary-item {
+    background: var(--bg-input); padding: 0.9rem 0.5rem; border-radius: var(--radius);
+    text-align: center; cursor: pointer; border: 1px solid transparent;
+    transition: all var(--transition);
+}
+.summary-item:hover { border-color: var(--accent); }
+.summary-item.flagged .summary-num { color: var(--danger); }
+.summary-item.delivered .summary-num { color: var(--yes); }
+.summary-num {
+    font-family: var(--mono); font-size: 1.85rem; font-weight: 700;
+    color: var(--accent); line-height: 1;
+}
+.summary-label {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin-top: 0.4rem;
+}
+@media (max-width: 768px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ── WORK ORDER DETAIL — sticky footer so actions stay visible ── */
+#woDetailModal .modal {
+    display: flex; flex-direction: column; overflow: hidden;
+}
+#woDetailModal .modal-body {
+    overflow-y: auto; flex: 1; min-height: 0;
+}
+#woDetailModal .modal-footer {
+    flex-wrap: wrap; justify-content: flex-start;
+}
+
+/* ── WORK ORDERS ── */
+.wo-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; gap: 0.5rem; flex-wrap: wrap;
+}
+.wo-header h2 {
+    font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);
+}
+.wo-status-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.wo-status-filter {
+    padding: 5px 11px; border: 1px solid var(--border); background: var(--bg-input);
+    color: var(--text-secondary); border-radius: 20px; font-size: 0.75rem;
+    cursor: pointer; font-family: var(--font); transition: all var(--transition);
+}
+.wo-status-filter:hover { color: var(--text-primary); }
+.wo-status-filter.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.wo-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.wo-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 0.85rem 1rem; cursor: pointer; transition: all var(--transition);
+    display: grid; grid-template-columns: 1fr auto; gap: 0.65rem;
+}
+.wo-card:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+.wo-card-main { min-width: 0; }
+.wo-card-top {
+    display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.35rem; flex-wrap: wrap;
+}
+.wo-number { font-family: var(--mono); font-size: 0.78rem; color: var(--text-primary); font-weight: 600; }
+.wo-customer { font-size: 0.9rem; color: var(--text-primary); font-weight: 500; }
+.wo-meta-row {
+    display: flex; gap: 0.85rem; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap;
+}
+.wo-meta-row span strong { color: var(--text-secondary); font-weight: 500; }
+.wo-status-badge {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.wo-status-badge.requested { background: var(--accent-dim); color: var(--accent); }
+.wo-status-badge.flagged { background: rgba(239,68,68,0.15); color: var(--danger); }
+.wo-status-badge.delivered { background: rgba(16,185,129,0.15); color: var(--yes); }
+.wo-priority-badge {
+    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    padding: 2px 7px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
+    background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border);
+}
+.wo-priority-badge.urgent, .wo-priority-badge.next-day-air { background: rgba(245,158,11,0.15); color: var(--engine); border-color: transparent; }
+.wo-card-actions { display: flex; gap: 0.35rem; align-items: flex-start; }
+.wo-flag-note {
+    margin-top: 0.5rem; padding: 0.5rem 0.65rem; background: rgba(239,68,68,0.08);
+    border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.78rem; color: var(--text-secondary);
+}
+.wo-notes-block {
+    margin-top: 0.55rem; padding: 0.3rem 0;
+    font-size: 0.82rem; color: var(--text-secondary);
+}
+.wo-notes-block .notes-label {
+    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin-bottom: 3px;
+}
+.wo-notes-block .notes-text { white-space: pre-wrap; word-break: break-word; }
+/* Clamp notes inside cards so they don't dominate the list; modal shows full text */
+.wo-card .wo-notes-block .notes-text {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Card parts list */
+.wo-card-parts {
+    margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px dashed var(--border);
+    display: flex; flex-direction: column; gap: 0.2rem;
+}
+.wo-parts-head, .wo-part-line {
+    display: grid;
+    grid-template-columns: 58px 48px 1fr 22px;
+    gap: 0.6rem; align-items: center;
+    padding: 3px 6px;
+    font-size: 0.78rem;
+    border-radius: 4px;
+}
+.wo-part-check { margin: 0 auto; }
+.wo-parts-head .hd:first-child { padding-right: 0; }
+.wo-parts-head {
+    padding-top: 0; padding-bottom: 0;
+    border-bottom: 1px solid var(--border); padding-bottom: 3px; margin-bottom: 2px;
+}
+.wo-parts-head .hd {
+    font-family: var(--mono); font-size: 0.56rem;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    text-align: center;
+}
+.wo-parts-head .hd.left { text-align: left; }
+.wo-part-line.flagged { background: rgba(239,68,68,0.06); }
+/* Pale green flash used on the work-order block when a part is pulled */
+.flash-pulled-block { animation: flashPulledBlock 1000ms ease-out; }
+@keyframes flashPulledBlock {
+    0%   { box-shadow: inset 0 0 0 999px rgba(16, 185, 129, 0.28); }
+    100% { box-shadow: inset 0 0 0 999px rgba(16, 185, 129, 0); }
+}
+.wo-part-pulled-ts {
+    font-family: var(--mono); font-size: 0.62rem;
+    color: var(--text-muted); margin-top: 2px;
+}
+.wo-part-check {
+    appearance: none; width: 16px; height: 16px; border: 1.5px solid var(--border);
+    border-radius: 4px; cursor: pointer; position: relative; background: var(--bg-input);
+    transition: all var(--transition);
+}
+.wo-part-check:hover { border-color: var(--accent); }
+.wo-part-check:checked { background: var(--yes); border-color: var(--yes); }
+.wo-part-check:checked::after {
+    content: ''; position: absolute; left: 4px; top: 0px;
+    width: 5px; height: 10px; border: solid #fff;
+    border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.wo-part-qty {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+    text-align: right; font-weight: 600;
+}
+.wo-part-desc { color: var(--text-primary); word-break: break-word; }
+.wo-part-flag-btn {
+    width: 22px; height: 22px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); border-radius: 4px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+    transition: all var(--transition);
+}
+.wo-part-flag-btn:hover { border-color: var(--danger); color: var(--danger); }
+.wo-part-flag-btn.flagged { background: var(--danger); border-color: var(--danger); color: #fff; }
+.wo-part-flag-btn.flagged:hover { background: var(--danger-hover); }
+.wo-part-note {
+    grid-column: 3 / 5; font-size: 0.72rem; color: var(--danger);
+    font-style: italic; padding-left: 0; margin-top: 2px;
+}
+
+/* WO toolbar (search + sort in header) */
+.wo-toolbar {
+    display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.85rem;
+}
+.wo-search-box {
+    position: relative; flex: 1; min-width: 200px; max-width: 360px;
+}
+.wo-search-box svg {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); pointer-events: none;
+}
+.wo-search-box input {
+    width: 100%; padding: 7px 10px 7px 32px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-primary); font-family: var(--font); font-size: 0.85rem;
+    outline: none; transition: border var(--transition);
+}
+.wo-search-box input:focus { border-color: var(--border-focus); }
+.wo-sort-label { font-family: var(--mono); font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wo-sort-select {
+    padding: 6px 10px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary);
+    font-family: var(--font); font-size: 0.8rem; cursor: pointer;
+}
+.wo-sort-dir-btn {
+    width: 32px; height: 32px; background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-secondary); border-radius: var(--radius); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all var(--transition);
+}
+.wo-sort-dir-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.wo-sort-dir-btn.desc svg { transform: rotate(180deg); }
+.wo-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem 1rem; }
+.wo-detail-grid .full { grid-column: 1 / -1; }
+.wo-notes-history {
+    margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px solid var(--border);
+}
+.wo-note-item {
+    padding: 0.5rem 0.65rem; background: var(--bg-input); border-radius: 6px;
+    margin-bottom: 0.4rem; font-size: 0.8rem;
+}
+.wo-note-item.flag { border-left: 3px solid var(--danger); }
+.wo-note-item.general { border-left: 3px solid var(--accent); }
+.wo-note-meta {
+    font-family: var(--mono); font-size: 0.62rem; color: var(--text-muted); margin-bottom: 3px;
+    display: flex; align-items: center; gap: 0.35rem;
+}
+.wo-note-badge {
+    font-family: var(--mono); font-size: 0.55rem; font-weight: 700;
+    padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.wo-note-badge.flag { background: rgba(239,68,68,0.15); color: var(--danger); }
+.wo-note-badge.general { background: var(--accent-dim); color: var(--accent); }
+.wo-list-row {
+    display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.35rem;
+}
+.wo-list-row input { flex: 1; }
+.wo-list-row .wo-list-remove {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-input); color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.wo-list-row .wo-list-remove:hover { border-color: var(--danger); color: var(--danger); }
+
+.wo-part-row {
+    display: grid; grid-template-columns: 80px 1fr 32px; gap: 0.4rem;
+    align-items: center; margin-bottom: 0.35rem;
+}
+.wo-parts-empty {
+    padding: 0.5rem 0.6rem; font-size: 0.75rem; color: var(--text-muted);
+    border: 1px dashed var(--border); border-radius: var(--radius); text-align: center;
+}
+.wo-parts-table {
+    width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.82rem;
+}
+.wo-parts-table th, .wo-parts-table td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.wo-parts-table th {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+}
+.wo-parts-table td.qty { width: 70px; font-family: var(--mono); color: var(--text-secondary); }
+
+/* ── AUDIT TRAIL ── */
+.wo-audit-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.wo-audit-entry {
+    display: grid; grid-template-columns: 150px 1fr; gap: 0.75rem;
+    padding: 0.55rem 0.75rem; background: var(--bg-input); border-radius: var(--radius);
+    border-left: 3px solid var(--border); font-size: 0.82rem;
+}
+.wo-audit-entry.created { border-left-color: var(--accent); }
+.wo-audit-entry.edited { border-left-color: var(--engine); }
+.wo-audit-entry.status_changed { border-left-color: var(--head); }
+.wo-audit-entry.note_added { border-left-color: var(--transmission); }
+.wo-audit-entry.deleted { border-left-color: var(--danger); }
+.wo-audit-when {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted);
+}
+.wo-audit-main { min-width: 0; }
+.wo-audit-who {
+    font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 2px;
+}
+.wo-audit-who strong { color: var(--text-primary); font-weight: 600; }
+.wo-audit-action {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    margin-left: 0.4rem;
+}
+.wo-audit-desc { color: var(--text-primary); word-break: break-word; }
+.wo-audit-empty {
+    text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.85rem;
+}
+
+/* ── GENERIC TABS (reused inside modals) ── */
+.wm-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0.85rem; }
+.wm-tab {
+    padding: 9px 14px; font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; cursor: pointer; transition: all var(--transition);
+}
+.wm-tab:hover { color: var(--text-secondary); }
+.wm-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.wm-tab-content { display: none; }
+.wm-tab-content.active { display: block; }
+
+/* ── FORM FIELD SIZING (global) ── */
+.form-group { min-width: 0; }
+.form-input, .form-select, .form-textarea { width: 100%; min-width: 0; box-sizing: border-box; }
 
 /* ── IMPORT WIZARD ── */
 .import-steps { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
@@ -662,10 +1122,20 @@ body {
     padding: 0 1.25rem;
 }
 .settings-tab {
-    padding: 0.7rem 1rem; font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+    padding: 0.7rem 1rem; font-family: var(--font); font-size: 0.85rem; font-weight: 600;
+    letter-spacing: 0; color: var(--text-muted);
     cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent;
     margin-bottom: -1px; transition: all var(--transition);
+}
+
+/* Keep settings modal at a fixed height so switching tabs doesn't resize it */
+#settingsModal .modal {
+    display: flex; flex-direction: column;
+    height: 640px; max-height: 90vh;
+    overflow: hidden;
+}
+#settingsModal .modal-body {
+    flex: 1; min-height: 0; overflow-y: auto;
 }
 .settings-tab:hover { color: var(--text-secondary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -680,18 +1150,119 @@ body {
 .settings-label { font-size: 0.88rem; color: var(--text-primary); }
 .settings-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
-.about-header {
-    display: flex; align-items: flex-start; gap: 0.85rem; margin-bottom: 1.25rem;
-    padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+/* ── THEME PICKER ── */
+.theme-picker {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.6rem; margin-top: 0.6rem; width: 100%;
 }
-.about-header img { width: 48px; height: 48px; border-radius: 8px; margin-top: 2px; }
-.about-header-text h3 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1rem; line-height: 1.15; }
-.about-header-text .about-version {
-    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;
+.theme-swatch {
+    display: flex; flex-direction: column; align-items: stretch; gap: 0.4rem;
+    padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--bg-card); cursor: pointer; transition: all var(--transition);
+    font-family: inherit;
 }
-.about-section-title {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--text-muted); margin: 1rem 0 0.5rem;
+.theme-swatch:hover { border-color: var(--accent); transform: translateY(-1px); }
+.theme-swatch.selected {
+    border-color: var(--accent); background: var(--accent-dim);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+.swatch-preview {
+    display: block; width: 100%; height: 54px; border-radius: 6px;
+    position: relative; overflow: hidden;
+}
+.sw-panel { position: absolute; top: 8px; left: 8px; bottom: 8px; width: 42%; border-radius: 4px; }
+.sw-accent {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border-radius: 50%;
+}
+.swatch-label {
+    font-size: 0.78rem; font-weight: 500; color: var(--text-primary); text-align: center;
+}
+
+.about-pane { display: flex; flex-direction: column; gap: 1rem; }
+.about-hero {
+    display: grid; grid-template-columns: minmax(180px, 220px) 1fr; gap: 1.1rem;
+    padding: 1rem 1.05rem; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--bg-input); align-items: start;
+}
+.about-hero-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.about-logo {
+    width: 68px; height: 68px; border-radius: 10px; margin-bottom: 0.4rem;
+    background: transparent;
+}
+.about-hero-name {
+    font-family: 'Inter', sans-serif; font-size: 1.02rem; font-weight: 700;
+    color: var(--text-primary); line-height: 1.2; letter-spacing: -0.02em;
+}
+.about-hero-version {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+    font-weight: 500; margin-top: 2px;
+}
+.about-tagline {
+    font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.6rem;
+    line-height: 1.45; max-width: 30ch;
+}
+.about-built-by {
+    margin-top: 0.7rem; font-size: 0.74rem; color: var(--text-muted);
+    display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+}
+.viibeware-credit {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    text-decoration: none; color: var(--text-muted);
+    transition: color var(--transition);
+}
+.viibeware-credit img { height: 14px; width: auto; }
+.viibeware-name {
+    font-weight: 700; letter-spacing: 0.08em; font-size: 0.72rem; color: var(--text-muted);
+    transition: color var(--transition);
+}
+.viibeware-credit:hover,
+.viibeware-credit:hover .viibeware-name { color: var(--text-primary); }
+.about-license {
+    margin-top: 0.55rem; font-size: 0.7rem; color: var(--text-muted);
+    line-height: 1.5; max-width: 30ch;
+}
+.about-license a { color: var(--accent); text-decoration: none; }
+.about-license a:hover { text-decoration: underline; }
+.about-hero-stack { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+.about-stack-label {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.tech-stack {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 0.45rem;
+}
+.tech-tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 0.45rem; padding: 0.65rem 0.3rem 0.55rem;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg-card); text-decoration: none; color: inherit;
+    transition: all var(--transition);
+}
+.tech-tile:hover {
+    border-color: var(--accent); transform: translateY(-1px);
+    background: var(--bg-card-hover);
+}
+.tech-icon {
+    width: 26px; height: 26px; flex: 0 0 auto;
+    background-color: var(--text-secondary);
+    -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center;
+    mask-size: contain; mask-repeat: no-repeat; mask-position: center;
+    transition: background-color var(--transition);
+}
+.tech-tile:hover .tech-icon { background-color: var(--accent); }
+.tech-tile-name {
+    font-size: 0.68rem; font-weight: 500; color: var(--text-muted);
+    text-align: center; line-height: 1.15;
+}
+.about-sub {
+    font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 700;
+    color: var(--text-primary); margin: 0.25rem 0 0.2rem; letter-spacing: -0.01em;
+}
+@media (max-width: 640px) {
+    .about-hero { grid-template-columns: 1fr; }
+    .about-hero-brand { align-items: center; text-align: center; }
+    .about-tagline, .about-license { max-width: 100%; }
 }
 .changelog-entry { margin-bottom: 1rem; }
 .changelog-version {
@@ -830,8 +1401,12 @@ body {
         </div>
     </div>
     <nav class="sidebar-nav">
+        <button class="nav-item" data-view="dashboard" onclick="showDashboard()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+            Dashboard
+        </button>
         <div class="sidebar-section-label">Inventory</div>
-        <button class="nav-item active" data-category="" onclick="setFilter(this)">
+        <button class="nav-item" data-category="" onclick="setFilter(this)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             All Parts <span class="nav-count" id="countAll"></span>
         </button>
@@ -841,6 +1416,20 @@ body {
         <button class="nav-item" id="navAddPart" style="display:none;" onclick="openAddModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Part
+        </button>
+
+        <div class="sidebar-section-label">Work Orders</div>
+        <button class="nav-item" id="navNewRequest" style="display:none;" onclick="openNewWorkOrderModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Request
+        </button>
+        <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Work Orders <span class="nav-count" id="countWoActive"></span>
+        </button>
+        <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Archive <span class="nav-count" id="countWoArchive"></span>
         </button>
 
         <div style="flex:1;"></div>
@@ -857,16 +1446,22 @@ body {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
         </div>
-        <a class="nav-item danger-nav" href="/logout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-        </a>
+        <div class="sidebar-footer-bottom">
+            <a class="nav-item danger-nav" href="/logout" style="flex:1;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Sign Out
+            </a>
+            <button class="sidebar-icon-btn" id="themeToggleBtn" onclick="toggleThemeFromButton()" title="Toggle theme" aria-label="Toggle theme">
+                <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
     </div>
 </aside>
 
 <!-- ═══ MAIN ═══ -->
 <div class="main-wrapper">
-    <div class="toolbar">
+    <div class="toolbar" id="partsToolbar">
         <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
@@ -907,6 +1502,8 @@ body {
             <p id="emptyText">Add your first part to get started</p>
         </div>
         <div id="pagination" class="pagination"></div>
+        <div id="workOrdersContainer" style="display:none;"></div>
+        <div id="dashboardContainer" style="display:none;"></div>
     </div>
 </div>
 
@@ -969,7 +1566,7 @@ body {
 
 <!-- ═══ SETTINGS MODAL ═══ -->
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal" style="max-width:500px;">
+    <div class="modal" style="max-width:900px;">
         <div class="modal-header">
             <h2>Settings</h2>
             <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
@@ -979,27 +1576,49 @@ body {
                 <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
                 <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Admin</button>
                 <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
-                <button class="settings-tab" onclick="switchSettingsTab('about', this)">About</button>
+                <button class="settings-tab" id="settingsAboutTab" style="display:none;" onclick="switchSettingsTab('about', this)">About</button>
             </div>
 
             <!-- General Tab -->
             <div class="settings-tab-content active" id="settingsTabGeneral">
                 <div class="settings-row">
                     <div>
-                        <div class="settings-label">Light Mode</div>
-                        <div class="settings-desc">Switch between dark and light themes</div>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="settingsLightMode" onchange="toggleTheme(this.checked)">
-                        <span class="toggle-track"></span>
-                    </label>
-                </div>
-                <div class="settings-row">
-                    <div>
                         <div class="settings-label">Change Password</div>
                         <div class="settings-desc">Update your account password</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openChangePasswordModal();">Change</button>
+                </div>
+                <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.2rem;">
+                    <div>
+                        <div class="settings-label">Theme</div>
+                        <div class="settings-desc">Choose a color scheme. The sidebar sun/moon button toggles between Light and Dark.</div>
+                    </div>
+                    <div class="theme-picker" role="radiogroup" aria-label="Theme">
+                        <button type="button" class="theme-swatch" data-theme-value="light" onclick="setTheme('light')">
+                            <span class="swatch-preview" style="background:#f3f4f6;"><span class="sw-panel" style="background:#ffffff;"></span><span class="sw-accent" style="background:#4a8eff;"></span></span>
+                            <span class="swatch-label">Light</span>
+                        </button>
+                        <button type="button" class="theme-swatch" data-theme-value="dark" onclick="setTheme('dark')">
+                            <span class="swatch-preview" style="background:#0f1114;"><span class="sw-panel" style="background:#1e2128;"></span><span class="sw-accent" style="background:#4a8eff;"></span></span>
+                            <span class="swatch-label">Dark</span>
+                        </button>
+                        <button type="button" class="theme-swatch" data-theme-value="neobrutal-light" onclick="setTheme('neobrutal-light')">
+                            <span class="swatch-preview" style="background:#fef9c3;"><span class="sw-panel" style="background:#ffffff;border:1px solid #0a0a0a;"></span><span class="sw-accent" style="background:#ec4899;"></span></span>
+                            <span class="swatch-label">Neobrutal Light</span>
+                        </button>
+                        <button type="button" class="theme-swatch" data-theme-value="neobrutal-dark" onclick="setTheme('neobrutal-dark')">
+                            <span class="swatch-preview" style="background:#18181b;"><span class="sw-panel" style="background:#27272a;border:1px solid #fafafa;"></span><span class="sw-accent" style="background:#f472b6;"></span></span>
+                            <span class="swatch-label">Neobrutal Dark</span>
+                        </button>
+                        <button type="button" class="theme-swatch" data-theme-value="solarpunk" onclick="setTheme('solarpunk')">
+                            <span class="swatch-preview" style="background:#f5f7e8;"><span class="sw-panel" style="background:#ffffff;"></span><span class="sw-accent" style="background:#1e9e6a;"></span></span>
+                            <span class="swatch-label">Solarpunk</span>
+                        </button>
+                        <button type="button" class="theme-swatch" data-theme-value="cyberpunk" onclick="setTheme('cyberpunk')">
+                            <span class="swatch-preview" style="background:#05050a;"><span class="sw-panel" style="background:#15102b;"></span><span class="sw-accent" style="background:#ff2bd6;"></span></span>
+                            <span class="swatch-label">Cyberpunk</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1018,6 +1637,27 @@ body {
                         <div class="settings-desc">Add or edit parts categories and their field sets</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Work Order Lists</div>
+                        <div class="settings-desc">Manage warehouse locations, sales people, and priorities</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openWoListsModal();">Manage</button>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">SMTP / Email</div>
+                        <div class="settings-desc">Configure outgoing email for work order notifications</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openSmtpModal();">Configure</button>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Cloudflare Turnstile</div>
+                        <div class="settings-desc">Bot challenge on the login page (free from Cloudflare)</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openTurnstileModal();">Configure</button>
                 </div>
             </div>
 
@@ -1041,15 +1681,247 @@ body {
 
             <!-- About Tab -->
             <div class="settings-tab-content" id="settingsTabAbout">
-                <div class="about-header">
-                    <img src="/static/logo.svg" alt="WM">
-                    <div class="about-header-text">
-                        <h3>Warehouse<br>Manager</h3>
-                        <div class="about-version" id="aboutVersion"></div>
+              <div class="about-pane">
+                <div class="about-hero">
+                    <div class="about-hero-brand">
+                        <img class="about-logo" src="/static/logo.svg" alt="Warehouse Manager">
+                        <div class="about-hero-name">Warehouse Manager</div>
+                        <div class="about-hero-version">Version <span id="aboutVersion">?</span></div>
+                        <div class="about-tagline">Self-hosted parts inventory &amp; work-order tracking for automotive shops.</div>
+                        <div class="about-built-by">
+                            Built by
+                            <a href="https://viibeware.com" target="_blank" rel="noopener" class="viibeware-credit">
+                                <img src="/static/viibeware.svg" alt="">
+                                <span class="viibeware-name">VIIBEWARE</span>
+                            </a>
+                        </div>
+                        <div class="about-license">
+                            Released under the <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU Affero General Public License v3.0</a>.
+                        </div>
+                    </div>
+                    <div class="about-hero-stack">
+                        <div class="about-stack-label">Built With</div>
+                        <div class="tech-stack">
+                            <a class="tech-tile" href="https://www.python.org/" target="_blank" rel="noopener" title="Python">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/python.svg');mask-image:url('/static/tech/python.svg');"></span>
+                                <span class="tech-tile-name">Python</span>
+                            </a>
+                            <a class="tech-tile" href="https://flask.palletsprojects.com/" target="_blank" rel="noopener" title="Flask">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/flask.svg');mask-image:url('/static/tech/flask.svg');"></span>
+                                <span class="tech-tile-name">Flask</span>
+                            </a>
+                            <a class="tech-tile" href="https://jinja.palletsprojects.com/" target="_blank" rel="noopener" title="Jinja">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/jinja.svg');mask-image:url('/static/tech/jinja.svg');"></span>
+                                <span class="tech-tile-name">Jinja</span>
+                            </a>
+                            <a class="tech-tile" href="https://gunicorn.org/" target="_blank" rel="noopener" title="Gunicorn">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/gunicorn.svg');mask-image:url('/static/tech/gunicorn.svg');"></span>
+                                <span class="tech-tile-name">Gunicorn</span>
+                            </a>
+                            <a class="tech-tile" href="https://www.sqlite.org/" target="_blank" rel="noopener" title="SQLite">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/sqlite.svg');mask-image:url('/static/tech/sqlite.svg');"></span>
+                                <span class="tech-tile-name">SQLite</span>
+                            </a>
+                            <a class="tech-tile" href="https://developer.mozilla.org/docs/Web/JavaScript" target="_blank" rel="noopener" title="JavaScript">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/javascript.svg');mask-image:url('/static/tech/javascript.svg');"></span>
+                                <span class="tech-tile-name">JavaScript</span>
+                            </a>
+                            <a class="tech-tile" href="https://www.docker.com/" target="_blank" rel="noopener" title="Docker">
+                                <span class="tech-icon" style="-webkit-mask-image:url('/static/tech/docker.svg');mask-image:url('/static/tech/docker.svg');"></span>
+                                <span class="tech-tile-name">Docker</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
-                <div class="about-section-title">Changelog</div>
+                <h3 class="about-sub">Changelog</h3>
                 <div style="max-height:280px;overflow-y:auto;">
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.1.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Audit from detail modal</strong> — Click the banner to edit details or clear the audit flag; "Mark for Audit" button when not flagged</li>
+                            <li><strong>Audit from list view</strong> — Audit column cells are clickable: ⚠ AUDIT badge edits, + Audit button marks</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.1.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Needs Audited</strong> — New part toggle + audit details textarea; shown as an Audit column in the list and a banner in the detail modal</li>
+                            <li><strong>Download PDF on WO cards</strong> — Inline button on each work order list card</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.0.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Promoted to 1.0</strong> — Feature-complete release</li>
+                            <li><strong>License → AGPLv3</strong> — Switched from MIT to GNU Affero General Public License v3.0</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.6</div>
+                        <ul class="changelog-list">
+                            <li><strong>About pane redesigned</strong> — Hero card with logo, tagline, Built-by credit, and a Built With tech-stack grid</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.5</div>
+                        <ul class="changelog-list">
+                            <li><strong>90-day sessions</strong> — Stay signed in for 90 days between logins</li>
+                            <li><strong>Footer icons aligned</strong> — Theme toggle now sits on the same vertical axis as the gear</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.4</div>
+                        <ul class="changelog-list">
+                            <li><strong>Pull events logged</strong> — Pulled checkbox toggles now add to Notes &amp; Activity</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.3</div>
+                        <ul class="changelog-list">
+                            <li><strong>Pull flash</strong> — Duration bumped to 1000 ms</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.2</div>
+                        <ul class="changelog-list">
+                            <li><strong>Dashboard Work Orders widget</strong> — Active list now lives inside the WO widget</li>
+                            <li><strong>Pulled flash</strong> — Lights the whole WO block pale green, 500 ms fade</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Pulled flash</strong> — Row briefly lights up green and fades when a part is marked pulled</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.6.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Dashboard</strong> — Landing page with widgets for WO summary, recent parts, and active work orders</li>
+                            <li><strong>URL routing</strong> — /dashboard, /workorders, /workorders/archive, /parts, /parts/&lt;slug&gt; in the address bar; back/forward works</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.5.4</div>
+                        <ul class="changelog-list">
+                            <li><strong>Send Update on list view</strong> — Inline button on each work order card</li>
+                            <li><strong>Confirmation prompt</strong> — "Do you want to send an email update to the sales person?"</li>
+                            <li><strong>Theme button moved</strong> — Bottom-right of the sidebar footer, across from Sign Out</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.5.3</div>
+                        <ul class="changelog-list">
+                            <li><strong>Theme toggle moved to sidebar</strong> — One-click sun/moon button in the sidebar footer</li>
+                            <li><strong>Cloudflare Turnstile</strong> — Optional login challenge; configure site/secret keys in Admin settings</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.5.2</div>
+                        <ul class="changelog-list">
+                            <li><strong>Supervisor role</strong> — Same as Editor plus the ability to view work order audit trails</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.5.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Request Details background removed</strong> — flows as plain text now</li>
+                            <li><strong>Part columns fixed</strong> — Pulled / Qty headers no longer run together</li>
+                            <li><strong>Latest notes first</strong> — Notes &amp; Activity list ordered newest-first</li>
+                            <li><strong>Sticky detail footer</strong> — Action buttons pinned at the bottom; body scrolls independently</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.5.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Notes → Request Details</strong> — Original WO notes field renamed across the app</li>
+                            <li><strong>Running notes</strong> — Add Note button on the list card and detail modal; no edit mode needed</li>
+                            <li><strong>Notes &amp; Activity log</strong> — Combined chronological log of flag notes and general notes with type badges</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.6</div>
+                        <ul class="changelog-list">
+                            <li><strong>Send Update button</strong> — Manually email the full current state of a work order to the sales person on demand</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.5</div>
+                        <ul class="changelog-list">
+                            <li><strong>Notes on list cards</strong> — Light gray block on each active/archive card (3-line clamp)</li>
+                            <li><strong>Notes above parts</strong> — In the detail modal, notes now sit above the parts in the same gray block</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.4</div>
+                        <ul class="changelog-list">
+                            <li><strong>VIN on work order cards</strong> — VIN now shown in the active and archive list views</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.3</div>
+                        <ul class="changelog-list">
+                            <li><strong>WO numbers hyphenated</strong> — New format: WO-00001; existing numbers rewritten on upgrade</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.2</div>
+                        <ul class="changelog-list">
+                            <li><strong>"Pulled" column header</strong> — Checkmarks stay aligned whether rows are flagged or not</li>
+                            <li><strong>Pulled timestamp</strong> — Date/time shown under the part when checked; cleared on uncheck</li>
+                            <li><strong>No more strikethrough</strong> — Pulled parts read normally</li>
+                            <li><strong>Part flag notes in history</strong> — Per-part flag/unflag events now appear in the Flag Notes History</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Unflag work orders</strong> — Remove the flag and return to Requested, or go straight to Delivered; clears the flag note</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.4.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Work order search</strong> — Live-search active and archive by WO #, customer, vehicle, VIN, notes, or parts</li>
+                            <li><strong>Sort</strong> — Default to Requested Date; also sort by Customer / Priority / WO # / Status with direction toggle</li>
+                            <li><strong>Inline Edit button</strong> — Edit a work order directly from the list</li>
+                            <li><strong>Parts in list view</strong> — Each card shows its parts with pulled checkboxes and per-part flag buttons</li>
+                            <li><strong>Per-part flagging</strong> — Flag individual parts with their own reason; email includes the specific part</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.3.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Edit work orders</strong> — Edit any field on a saved work order from the detail modal</li>
+                            <li><strong>Audit trail</strong> — Every create/edit/status/note/delete is logged; admins see an Audit Trail button with the full history</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.2.2</div>
+                        <ul class="changelog-list">
+                            <li><strong>Save returns to Settings</strong> — Save Changes on Work Order Lists or SMTP re-opens the Settings modal instead of staying in the sub-modal</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.2.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Parts list on work orders</strong> — Add repeatable part rows with quantity and description</li>
+                            <li><strong>Work Order Lists: tabs</strong> — Locations / Sales People / Priorities are now separate tabs</li>
+                            <li><strong>Save keeps modals open</strong> — Close via X only; SMTP and Work Order Lists no longer close on save</li>
+                            <li><strong>SMTP overflow fix</strong> — Inputs sized cleanly; test-email row layout fixed</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v0.2.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Work orders</strong> — Create, track, flag, and deliver part requests with unique WO numbers</li>
+                            <li><strong>Status workflow</strong> — Requested → Flagged (with notes) → Delivered/Complete</li>
+                            <li><strong>SMTP email</strong> — Configurable outgoing email; auto-notifies salesperson on flag/deliver and on new flag notes</li>
+                            <li><strong>Admin settings</strong> — Manage warehouse locations, sales people (with emails), and priorities</li>
+                            <li><strong>Work order PDFs</strong> — Printable PDF for any work order</li>
+                            <li><strong>Archive</strong> — Completed work orders archived for reference</li>
+                        </ul>
+                    </div>
                     <div class="changelog-entry">
                         <div class="changelog-version">v0.1.32</div>
                         <ul class="changelog-list">
@@ -1112,6 +1984,7 @@ body {
                         </ul>
                     </div>
                 </div>
+              </div>
             </div>
         </div>
     </div>
@@ -1150,7 +2023,7 @@ body {
                 <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="ufUsername" autocomplete="off"></div>
                 <div class="form-group"><label class="form-label">Display Name</label><input class="form-input" type="text" id="ufDisplayName"></div>
                 <div class="form-group"><label class="form-label">Role</label>
-                    <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select>
+                    <select class="form-select" id="ufRole"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select>
                 </div>
                 <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">Minimum 4 characters</span></div>
                 <div class="form-group" id="ufActiveGroup" style="display:none;">
@@ -1242,6 +2115,288 @@ body {
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('catFormModal')">Cancel</button>
             <button class="btn btn-primary" onclick="saveCategory()" id="catFormSaveBtn">Create Category</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ WORK ORDER FORM MODAL ═══ -->
+<div class="modal-overlay" id="woFormModal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+            <h2 id="woFormTitle">New Work Order Request</h2>
+            <button class="modal-close" onclick="closeModal('woFormModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woFormId">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Warehouse Location</label>
+                    <select class="form-select" id="woFormLocation"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="woFormPriority"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Customer Name</label>
+                    <input class="form-input" type="text" id="woFormCustomer">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quote / Invoice #</label>
+                    <input class="form-input" type="text" id="woFormQuote">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sales Person</label>
+                    <select class="form-select" id="woFormSalesPerson"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vehicle</label>
+                    <input class="form-input" type="text" id="woFormVehicle" placeholder="Year / Make / Model">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">VIN</label>
+                    <input class="form-input" type="text" id="woFormVin">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Request Details</label>
+                    <textarea class="form-textarea" id="woFormNotes" rows="4" placeholder="Describe what is being requested…"></textarea>
+                </div>
+                <div class="form-group full-width">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
+                        <label class="form-label" style="margin:0;">Parts Requested</label>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">+ Add Part</button>
+                    </div>
+                    <div id="woFormPartsList"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woFormModal')">Cancel</button>
+            <button class="btn btn-primary" id="woFormSaveBtn" onclick="saveWorkOrder()">Create Request</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ WORK ORDER DETAIL MODAL ═══ -->
+<div class="modal-overlay" id="woDetailModal">
+    <div class="modal" style="max-width:680px;">
+        <div class="modal-header">
+            <h2 id="woDetailTitle">Work Order</h2>
+            <button class="modal-close" onclick="closeModal('woDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="woDetailBody"></div>
+        <div class="modal-footer" id="woDetailFooter"></div>
+    </div>
+</div>
+
+<!-- ═══ GENERAL (RUNNING) NOTE MODAL ═══ -->
+<div class="modal-overlay" id="woGeneralNoteModal" style="z-index:210;">
+    <div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+            <h2>Add Note</h2>
+            <button class="modal-close" onclick="closeModal('woGeneralNoteModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woGeneralNoteId">
+            <div class="form-group">
+                <label class="form-label" id="woGeneralNoteLabel">Note</label>
+                <textarea class="form-textarea" id="woGeneralNoteText" rows="4" placeholder="Add a note about this work order as you work on it…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woGeneralNoteModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitGeneralNote()">Add Note</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ FLAG NOTE MODAL ═══ -->
+<div class="modal-overlay" id="woFlagModal" style="z-index:210;">
+    <div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+            <h2 id="woFlagTitle">Flag Work Order</h2>
+            <button class="modal-close" onclick="closeModal('woFlagModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woFlagId">
+            <input type="hidden" id="woFlagMode" value="flag">
+            <div class="form-group">
+                <label class="form-label" id="woFlagLabel">Reason for flagging</label>
+                <textarea class="form-textarea" id="woFlagNote" rows="4" placeholder="Describe why this is flagged…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woFlagModal')">Cancel</button>
+            <button class="btn btn-primary" id="woFlagSaveBtn" onclick="submitFlagNote()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ PART AUDIT MODAL ═══ -->
+<div class="modal-overlay" id="partAuditModal" style="z-index:210;">
+    <div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+            <h2 id="partAuditTitle">Mark for Audit</h2>
+            <button class="modal-close" onclick="closeModal('partAuditModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="partAuditId">
+            <div class="form-group">
+                <label class="form-label">Audit Details</label>
+                <textarea class="form-textarea" id="partAuditNote" rows="4" placeholder="Describe what needs to be audited…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer" style="justify-content:space-between;">
+            <button class="btn btn-ghost btn-sm" id="partAuditClearBtn" onclick="clearPartAudit()" style="color:var(--danger);display:none;">Clear Audit</button>
+            <button class="btn btn-primary btn-sm" onclick="submitPartAudit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ WORK ORDER AUDIT TRAIL (admin) ═══ -->
+<div class="modal-overlay" id="woAuditModal" style="z-index:210;">
+    <div class="modal" style="max-width:680px;">
+        <div class="modal-header">
+            <h2 id="woAuditTitle">Audit Trail</h2>
+            <button class="modal-close" onclick="closeModal('woAuditModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="woAuditBody" style="max-height:65vh;overflow-y:auto;"></div>
+    </div>
+</div>
+
+<!-- ═══ WORK ORDER LISTS MANAGER (admin) ═══ -->
+<div class="modal-overlay" id="woListsModal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+            <h2>Work Order Lists</h2>
+            <button class="modal-close" onclick="closeModal('woListsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Manage the dropdown values available when creating work order requests. Changes are not saved until you click Save.</div>
+
+            <div class="wm-tabs">
+                <button class="wm-tab active" onclick="switchWoListTab('locations', this)">Locations</button>
+                <button class="wm-tab" onclick="switchWoListTab('salespeople', this)">Sales People</button>
+                <button class="wm-tab" onclick="switchWoListTab('priorities', this)">Priorities</button>
+            </div>
+
+            <div class="wm-tab-content active" id="woListTabLocations">
+                <div id="woListLocations"></div>
+                <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addLocationRow()">+ Add Location</button>
+            </div>
+
+            <div class="wm-tab-content" id="woListTabSalespeople">
+                <div id="woListSalespeople"></div>
+                <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addSalesPersonRow()">+ Add Sales Person</button>
+            </div>
+
+            <div class="wm-tab-content" id="woListTabPriorities">
+                <div id="woListPriorities"></div>
+                <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addPriorityRow()">+ Add Priority</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="saveWoLists()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TURNSTILE SETTINGS (admin) ═══ -->
+<div class="modal-overlay" id="turnstileModal">
+    <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+            <h2>Cloudflare Turnstile</h2>
+            <button class="modal-close" onclick="closeModal('turnstileModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+                Add a Cloudflare Turnstile challenge to the login page. Create a site at
+                <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener" style="color:var(--accent);">dash.cloudflare.com → Turnstile</a>
+                and paste the site key and secret below.
+            </div>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label class="form-label">Enabled</label>
+                    <div class="toggle-row">
+                        <span class="toggle-label-text" id="tsEnabledText">Disabled</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="tsEnabled" onchange="document.getElementById('tsEnabledText').textContent=this.checked?'Enabled':'Disabled'">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Site Key</label>
+                    <input class="form-input" type="text" id="tsSiteKey" placeholder="0x4AAAAAAA...">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Secret Key</label>
+                    <input class="form-input" type="password" id="tsSecretKey" autocomplete="new-password" placeholder="leave blank to keep current">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="saveTurnstile()">Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ SMTP SETTINGS (admin) ═══ -->
+<div class="modal-overlay" id="smtpModal">
+    <div class="modal" style="max-width:580px;">
+        <div class="modal-header">
+            <h2>SMTP / Email Configuration</h2>
+            <button class="modal-close" onclick="closeModal('smtpModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Configure outgoing email for work order status notifications.</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">SMTP Host</label>
+                    <input class="form-input" type="text" id="smtpHost" placeholder="smtp.gmail.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Port</label>
+                    <input class="form-input" type="number" id="smtpPort" placeholder="587">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input class="form-input" type="text" id="smtpUsername" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input class="form-input" type="password" id="smtpPassword" autocomplete="new-password" placeholder="leave blank to keep current">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">From Email</label>
+                    <input class="form-input" type="email" id="smtpFromEmail">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">From Name</label>
+                    <input class="form-input" type="text" id="smtpFromName">
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Use STARTTLS</label>
+                    <div class="toggle-row">
+                        <span class="toggle-label-text" id="smtpTlsText">Enabled</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="smtpUseTls" checked onchange="document.getElementById('smtpTlsText').textContent=this.checked?'Enabled':'Disabled'">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <span class="form-hint">Disable for port 465 (implicit SSL). Keep enabled for port 587.</span>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Test Email</label>
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0.4rem;">
+                        <input class="form-input" type="email" id="smtpTestTo" placeholder="recipient@example.com">
+                        <button class="btn btn-ghost btn-sm" onclick="sendSmtpTest()" style="white-space:nowrap;">Send Test</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="saveSmtp()">Save Settings</button>
         </div>
     </div>
 </div>
@@ -1356,25 +2511,48 @@ let categoriesData = []; // loaded from API
 // ══════════════════════════════════════════
 //  THEME
 // ══════════════════════════════════════════
-function applyTheme(light) {
-    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
-    localStorage.setItem('wm-theme', light ? 'light' : 'dark');
+const VALID_THEMES = ['light', 'dark', 'neobrutal-light', 'neobrutal-dark', 'solarpunk', 'cyberpunk'];
+const DARK_THEMES = ['dark', 'neobrutal-dark', 'cyberpunk'];
+
+function setTheme(theme) {
+    if (!VALID_THEMES.includes(theme)) theme = 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('wm-theme', theme);
+    const dark = DARK_THEMES.includes(theme);
+    const sun = document.getElementById('themeIconSun');
+    const moon = document.getElementById('themeIconMoon');
+    if (sun && moon) {
+        // Icon = current state (sun = light mode shown, moon = dark mode shown)
+        sun.style.display = dark ? 'none' : '';
+        moon.style.display = dark ? '' : 'none';
+    }
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) btn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+    document.querySelectorAll('.theme-swatch').forEach(s => {
+        s.classList.toggle('selected', s.dataset.themeValue === theme);
+    });
 }
-function toggleTheme(checked) { applyTheme(checked); }
+
+function toggleThemeFromButton() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(DARK_THEMES.includes(current) ? 'light' : 'dark');
+}
+
 function initTheme() {
     const saved = localStorage.getItem('wm-theme');
-    const isLight = saved === 'light';
-    applyTheme(isLight);
-    const cb = document.getElementById('settingsLightMode');
-    if (cb) cb.checked = isLight;
+    setTheme(VALID_THEMES.includes(saved) ? saved : 'dark');
 }
-function openSettingsModal() {
-    const cb = document.getElementById('settingsLightMode');
-    if (cb) cb.checked = document.documentElement.getAttribute('data-theme') === 'light';
+function openSettingsModal(tab) {
     const av = document.getElementById('aboutVersion');
     if (av && currentUserData) av.textContent = `v${currentUserData.version || '?'}`;
-    // Reset to General tab
-    switchSettingsTab('general', document.querySelector('.settings-tab'));
+    const btnSelector = {
+        general: '.settings-tab',
+        admin: '#settingsAdminTab',
+        data: '#settingsDataTab',
+        about: '.settings-tabs .settings-tab:last-child',
+    }[tab] || '.settings-tab';
+    const btn = document.querySelector(btnSelector);
+    switchSettingsTab(tab || 'general', btn);
     openModal('settingsModal');
 }
 
@@ -1394,8 +2572,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     await loadCurrentUser();
     await loadCategories();
-    loadParts();
     loadStats();
+    loadWoCounts();
+    initViewFromUrl();
 });
 document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
@@ -1418,9 +2597,11 @@ async function loadCurrentUser() {
             document.getElementById('navAddPart').style.display = '';
             document.getElementById('actionsLabel').style.display = '';
             document.getElementById('settingsDataTab').style.display = '';
+            document.getElementById('navNewRequest').style.display = '';
         }
         if (currentUserData.role === 'admin') {
             document.getElementById('settingsAdminTab').style.display = '';
+            document.getElementById('settingsAboutTab').style.display = '';
         }
     } catch { window.location.href = '/login'; }
 }
@@ -1663,10 +2844,12 @@ function renderTable(parts) {
     h += `<th>${cols[0].label}</th><th>WM #</th>`;
     if (showType) h += `<th>Type</th>`;
     for (let i=1;i<cols.length;i++) h += `<th>${cols[i].label}</th>`;
+    h += `<th title="Needs Audited">Audit</th>`;
     h += `</tr></thead><tbody>`;
     for (const p of parts) {
         const isSold = !!p.sold;
         const isFlagged = !!p.flagged;
+        const needsAudit = !!p.needs_audit;
         h += `<tr class="${isSold?'row-sold':''}" data-id="${p.id}">`;
         if (canEdit) h += `<td class="cb-cell"><input type="checkbox" value="${p.id}" onchange="toggleRowSelect(this,${p.id})" onclick="event.stopPropagation()"></td>`;
         h += `<td style="text-align:center;"><button class="flag-btn${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button></td>`;
@@ -1683,6 +2866,18 @@ function renderTable(parts) {
             else cell = esc(val);
             h += `<td onclick="openDetail(${p.id})">${cell}</td>`;
         }
+        // Needs-audit column — clickable to toggle/edit when user can edit
+        let auditCell;
+        if (needsAudit) {
+            auditCell = canEdit
+                ? `<span onclick="openPartAuditModal(${p.id}, true); event.stopPropagation();" title="${esc(p.audit_note || 'Needs audited — click to edit')}" style="cursor:pointer;color:var(--engine);font-family:var(--mono);font-size:0.72rem;font-weight:700;">⚠ AUDIT</span>`
+                : `<span title="${esc(p.audit_note || 'Needs audited')}" style="color:var(--engine);font-family:var(--mono);font-size:0.72rem;font-weight:700;">⚠ AUDIT</span>`;
+        } else if (canEdit) {
+            auditCell = `<button onclick="openPartAuditModal(${p.id}, false); event.stopPropagation();" title="Mark for audit" style="background:transparent;border:1px dashed var(--border);color:var(--text-muted);padding:2px 8px;border-radius:10px;font-family:var(--mono);font-size:0.62rem;font-weight:600;cursor:pointer;">+ Audit</button>`;
+        } else {
+            auditCell = '';
+        }
+        h += `<td onclick="openDetail(${p.id})" style="text-align:center;">${auditCell}</td>`;
         h += `</tr>`;
     }
     h += `</tbody></table></div>`; return h;
@@ -1720,9 +2915,23 @@ function hideBulkProgress(){const el=document.getElementById('bulkProgress');if(
 function renderPagination(d) { if(d.pages<=1)return;const p=document.getElementById('pagination');let h=`<button ${d.page<=1?'disabled':''} onclick="goPage(${d.page-1})">‹ Prev</button>`;for(let i=Math.max(1,d.page-2);i<=Math.min(d.pages,d.page+2);i++)h+=`<button class="${i===d.page?'active':''}" onclick="goPage(${i})">${i}</button>`;h+=`<span class="page-info">${d.total} parts</span><button ${d.page>=d.pages?'disabled':''} onclick="goPage(${d.page+1})">Next ›</button>`;p.innerHTML=h; }
 function goPage(p) { currentPage=p; loadParts(); }
 function setFilter(btn) {
-    document.querySelectorAll('.nav-item[data-category]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active'); currentCategory=btn.dataset.category; currentPage=1; loadParts();
-    // Close mobile sidebar
+    setCategoryBySlug(btn.dataset.category, true);
+}
+
+function setCategoryBySlug(slug, push) {
+    exitWorkOrdersView();
+    exitDashboard();
+    currentCategory = slug || '';
+    currentPage = 1;
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === currentCategory));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.getElementById('partsToolbar').style.display = '';
+    if (push) {
+        const url = currentCategory ? `/parts/${currentCategory}` : '/parts';
+        history.pushState({ view: 'parts', slug: currentCategory }, '', url);
+    }
+    loadParts();
     document.getElementById('sidebar').classList.remove('open');
 }
 function setView(mode) { currentView=mode;currentPage=1;selectedRows.clear();document.getElementById('viewCards').classList.toggle('active',mode==='cards');document.getElementById('viewTable').classList.toggle('active',mode==='table');loadParts(); }
@@ -1766,11 +2975,36 @@ function buildForm(category, data) {
             h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"></div>`;
         }
     }
+    // Needs Audited (hardcoded universal field, stored as columns)
+    const needsAudit = data ? !!data.needs_audit : false;
+    const auditNote = data ? (data.audit_note || '') : '';
+    h += `<div class="form-group full-width">
+        <label class="form-label">Needs Audited</label>
+        <div class="toggle-row">
+            <span class="toggle-label-text" id="toggleText_needs_audit">${needsAudit ? 'Yes' : 'No'}</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="field_needs_audit" ${needsAudit ? 'checked' : ''}
+                       onchange="onNeedsAuditChange(this)">
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+    </div>
+    <div class="form-group full-width" id="auditNoteGroup" style="display:${needsAudit ? '' : 'none'};">
+        <label class="form-label">Audit Details</label>
+        <textarea class="form-textarea" id="field_audit_note" rows="3" placeholder="Describe what needs to be audited…">${esc(auditNote)}</textarea>
+    </div>`;
+
     const existingImages = (data && data.images) ? data.images : [];
     let ei = '';
     if (existingImages.length) { ei = `<div class="form-image-list" id="formExistingImages">`; for (const img of existingImages) { ei += `<div class="form-image-item" id="formImg_${img.id}"><img src="/uploads/${img.filename}" alt=""><button type="button" class="form-image-remove" onclick="removeExistingImage(${data.id},${img.id})" title="Remove">✕</button></div>`; } ei += `</div>`; }
     h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload" style="margin-top:${existingImages.length?'0.4rem':'0'};"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="font-size:0.72rem;color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
     h += `</div></div></div>`; return h;
+}
+
+function onNeedsAuditChange(cb) {
+    document.getElementById('toggleText_needs_audit').textContent = cb.checked ? 'Yes' : 'No';
+    const g = document.getElementById('auditNoteGroup');
+    if (g) g.style.display = cb.checked ? '' : 'none';
 }
 function selectRadio(key, value, btn) { document.getElementById(`field_${key}`).value=value; btn.parentElement.querySelectorAll('.radio-option').forEach(b=>{b.className='radio-option';}); btn.classList.add('selected',`selected-${value}`); }
 function onCategoryChange() { const cat=document.getElementById('formCategory').value; if(!cat){document.getElementById('categoryFields').innerHTML=`<div class="category-prompt"><p>Select a category to see its fields</p></div>`;return;} document.getElementById('formContent').innerHTML=buildForm(cat,editingPart&&editingPart.category===cat?editingPart:null); }
@@ -1793,6 +3027,12 @@ async function savePart() {
         const val = f.type === 'toggle' ? (el.checked ? '1' : '0') : el.value;
         fd.append(isShared ? f.key : `custom_${f.key}`, val);
     }
+
+    // Hardcoded Needs-Audit fields (universal to all categories)
+    const naCb = document.getElementById('field_needs_audit');
+    if (naCb) fd.append('needs_audit', naCb.checked ? '1' : '0');
+    const anTa = document.getElementById('field_audit_note');
+    if (anTa) fd.append('audit_note', naCb && naCb.checked ? anTa.value : '');
 
     const imgInput=document.getElementById('formImages');
     if(imgInput&&imgInput.files.length>0)for(const file of imgInput.files)fd.append('images',file);
@@ -1827,6 +3067,26 @@ async function openDetail(id) {
                 </div>
                 <button class="flag-btn${detailFlagged?' flagged':''}" onclick="toggleFlagDetail(${p.id},this)" title="${detailFlagged?'Unflag':'Flag'}" style="padding:6px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="${detailFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                </button>
+            </div>`;
+        }
+
+        // Needs-Audit banner (above fields, pops visually if true; click to edit / clear)
+        const canEditAudit = currentUserData && currentUserData.can_edit;
+        if (p.needs_audit) {
+            const clickAttr = canEditAudit ? `onclick="openPartAuditModal(${p.id}, true)" style="cursor:pointer;"` : 'style="cursor:default;"';
+            h += `<div ${clickAttr} title="${canEditAudit ? 'Click to edit or clear audit' : ''}" style="margin-bottom:0.85rem;padding:0.6rem 0.75rem;background:rgba(245,158,11,0.12);border-left:3px solid var(--engine);border-radius:4px;font-size:0.82rem;color:var(--text-secondary);">
+                <div style="font-family:var(--mono);font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--engine);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">
+                    <span>Needs Audited</span>
+                    ${canEditAudit ? '<span style="font-weight:500;opacity:0.7;">click to edit ✎</span>' : ''}
+                </div>
+                ${p.audit_note ? `<div style="white-space:pre-wrap;">${esc(p.audit_note)}</div>` : '<div style="color:var(--text-muted);font-style:italic;">No audit details provided.</div>'}
+            </div>`;
+        } else if (canEditAudit) {
+            h += `<div style="margin-bottom:0.85rem;">
+                <button class="btn btn-ghost btn-sm" onclick="openPartAuditModal(${p.id}, false)" style="color:var(--engine);border:1px dashed var(--border);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Mark for Audit
                 </button>
             </div>`;
         }
@@ -1891,6 +3151,62 @@ function updateLightboxCounter() { document.getElementById('lightboxCounter').te
 document.addEventListener('keydown',(e)=>{const lb=document.getElementById('lightbox');if(lb.classList.contains('active')){if(e.key==='Escape'){lb.classList.remove('active');e.stopPropagation();}else if(e.key==='ArrowLeft')lightboxNav(-1);else if(e.key==='ArrowRight')lightboxNav(1);}});
 
 async function deletePart(id) { if(!confirm('Delete this part?'))return;try{await fetch(`/api/parts/${id}`,{method:'DELETE'});closeModal('detailModal');showToast('Part deleted','success');loadParts();loadStats();}catch{showToast('Failed','error');} }
+
+// ───── Part Audit toggle (from detail modal + list view) ─────
+async function openPartAuditModal(pid, currentlyOn) {
+    document.getElementById('partAuditId').value = pid;
+    document.getElementById('partAuditNote').value = '';
+    document.getElementById('partAuditTitle').textContent = currentlyOn ? 'Update Audit' : 'Mark for Audit';
+    document.getElementById('partAuditClearBtn').style.display = currentlyOn ? '' : 'none';
+    openModal('partAuditModal');
+    if (currentlyOn) {
+        try {
+            const p = await (await fetch(`/api/parts/${pid}`)).json();
+            document.getElementById('partAuditNote').value = p.audit_note || '';
+        } catch {}
+    }
+    setTimeout(() => { const el = document.getElementById('partAuditNote'); if (el) el.focus(); }, 60);
+}
+
+async function submitPartAudit() {
+    const pid = document.getElementById('partAuditId').value;
+    const note = document.getElementById('partAuditNote').value.trim();
+    if (!note) { showToast('Audit details are required', 'error'); return; }
+    try {
+        const res = await fetch(`/api/parts/${pid}/audit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ needs_audit: true, audit_note: note }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('partAuditModal');
+        showToast('Audit details saved', 'success');
+        _refreshAfterAudit(pid);
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function clearPartAudit() {
+    if (!confirm('Clear the audit flag on this part?')) return;
+    const pid = document.getElementById('partAuditId').value;
+    try {
+        const res = await fetch(`/api/parts/${pid}/audit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ needs_audit: false, audit_note: '' }),
+        });
+        if (!res.ok) { showToast('Failed', 'error'); return; }
+        closeModal('partAuditModal');
+        showToast('Audit flag cleared', 'success');
+        _refreshAfterAudit(pid);
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function _refreshAfterAudit(pid) {
+    const detailOpen = document.getElementById('detailModal').classList.contains('active');
+    if (detailOpen) openDetail(pid);
+    loadParts();
+}
 
 function printLabel(id) {
     window.open(`/api/parts/${id}/label.pdf`, '_blank');
@@ -2350,6 +3666,1102 @@ async function exportCSV() {
         URL.revokeObjectURL(url);
         showToast('Export downloaded', 'success');
     } catch { showToast('Export failed', 'error'); }
+}
+
+// ══════════════════════════════════════════
+//  WORK ORDERS
+// ══════════════════════════════════════════
+let woSettings = { locations: [], salespeople: [], priorities: [] };
+let currentWoView = null;          // 'active' | 'archive' | null
+let currentDashboard = false;
+let currentWoStatusFilter = 'all'; // 'all' | 'requested' | 'flagged'
+let currentWoSearch = '';
+let currentWoSortBy = 'request_date';
+let currentWoSortDir = 'desc';
+let woSearchDebounce = null;
+
+async function loadWoSettings() {
+    try {
+        woSettings = await (await fetch('/api/settings/work-order')).json();
+    } catch { woSettings = { locations: [], salespeople: [], priorities: [] }; }
+}
+
+async function loadWoCounts() {
+    try {
+        const counts = await (await fetch('/api/work-orders/counts')).json();
+        const a = document.getElementById('countWoActive');
+        const b = document.getElementById('countWoArchive');
+        if (a) a.textContent = counts.active || 0;
+        if (b) b.textContent = counts.delivered || 0;
+    } catch {}
+}
+
+function exitWorkOrdersView() {
+    currentWoView = null;
+    document.getElementById('workOrdersContainer').style.display = 'none';
+    document.getElementById('partsToolbar').style.display = '';
+    // Restore parts visibility handled by loadParts
+}
+
+function exitDashboard() {
+    currentDashboard = false;
+    document.getElementById('dashboardContainer').style.display = 'none';
+}
+
+async function showWorkOrdersView(view, push=true) {
+    exitDashboard();
+    currentWoView = view;
+    currentWoStatusFilter = 'all';
+    // Hide parts UI, show WO UI
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    const woc = document.getElementById('workOrdersContainer');
+    woc.style.display = '';
+    // Update active state
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === view));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.getElementById('sidebar').classList.remove('open');
+    if (push) {
+        const url = view === 'archive' ? '/workorders/archive' : '/workorders';
+        history.pushState({ view: 'wo', woView: view }, '', url);
+    }
+    await loadWoSettings();
+    await renderWorkOrdersView();
+}
+
+// ══════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════
+async function showDashboard(push=true) {
+    exitWorkOrdersView();
+    currentDashboard = true;
+    // Hide parts UI
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    // Show dashboard
+    document.getElementById('dashboardContainer').style.display = '';
+    // Nav
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'dashboard'));
+    document.getElementById('sidebar').classList.remove('open');
+    if (push) {
+        history.pushState({ view: 'dashboard' }, '', '/dashboard');
+    }
+    await renderDashboard();
+}
+
+async function renderDashboard() {
+    const container = document.getElementById('dashboardContainer');
+    const name = (currentUserData && (currentUserData.display_name || currentUserData.username)) || 'there';
+    const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    container.innerHTML = `
+        <div class="dashboard-header">
+            <h1>Welcome, ${esc(name)}</h1>
+            <div class="sub">${esc(today)}</div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span>Work Orders</span>
+                    <a onclick="showWorkOrdersView('active')">View all →</a>
+                </div>
+                <div id="widgetWoSummary"><div class="widget-empty">Loading…</div></div>
+                <div class="widget-subheader">Active</div>
+                <div class="widget-body" id="widgetRecentWos"><div class="widget-empty">Loading…</div></div>
+            </div>
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span>Recent Part Updates</span>
+                    <a onclick="setCategoryBySlug('', true)">All parts →</a>
+                </div>
+                <div class="widget-body" id="widgetRecentParts"><div class="widget-empty">Loading…</div></div>
+            </div>
+        </div>
+    `;
+    // Fetch in parallel
+    try {
+        const [partsResp, counts, orders] = await Promise.all([
+            fetch('/api/parts?sort_by=updated_at&sort_dir=desc&per_page=6&page=1').then(r => r.json()),
+            fetch('/api/work-orders/counts').then(r => r.json()),
+            fetch('/api/work-orders?sort_by=request_date&sort_dir=desc').then(r => r.json()),
+        ]);
+        renderWoSummary(counts);
+        renderRecentParts(partsResp.parts || []);
+        renderRecentWos((orders || []).slice(0, 6));
+    } catch {
+        showToast('Failed to load dashboard data', 'error');
+    }
+}
+
+function renderWoSummary(counts) {
+    const el = document.getElementById('widgetWoSummary');
+    if (!el) return;
+    el.innerHTML = `
+        <div class="summary-grid">
+            <div class="summary-item" onclick="showWorkOrdersView('active')">
+                <div class="summary-num">${counts.requested || 0}</div>
+                <div class="summary-label">Requested</div>
+            </div>
+            <div class="summary-item flagged" onclick="showWorkOrdersView('active')">
+                <div class="summary-num">${counts.flagged || 0}</div>
+                <div class="summary-label">Flagged</div>
+            </div>
+            <div class="summary-item delivered" onclick="showWorkOrdersView('archive')">
+                <div class="summary-num">${counts.delivered || 0}</div>
+                <div class="summary-label">Delivered</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderRecentParts(parts) {
+    const el = document.getElementById('widgetRecentParts');
+    if (!el) return;
+    if (!parts.length) { el.innerHTML = '<div class="widget-empty">No parts yet</div>'; return; }
+    el.innerHTML = parts.map(p => {
+        const thumb = p.image_filename
+            ? `<img class="widget-thumb" src="/uploads/${esc(p.image_filename)}" alt="">`
+            : `<div class="widget-thumb-ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
+        const updated = (p.updated_at || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        return `<div class="widget-row" onclick="openDetail(${p.id})">
+            ${thumb}
+            <div class="widget-row-text">
+                <div class="widget-row-title">${esc(p.sku || 'No SKU')} <span style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">· ${esc(p.product_number || '')}</span></div>
+                <div class="widget-row-sub">
+                    <span style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};padding:1px 6px;border-radius:8px;font-family:var(--mono);font-size:0.6rem;font-weight:600;">${esc(getCatLabel(p.category))}</span>
+                    ${p.fitment_vehicle ? `<span>${esc(p.fitment_vehicle)}</span>` : ''}
+                </div>
+            </div>
+            <div class="widget-row-meta">${esc(updated)}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderRecentWos(orders) {
+    const el = document.getElementById('widgetRecentWos');
+    if (!el) return;
+    if (!orders.length) { el.innerHTML = '<div class="widget-empty">No active work orders</div>'; return; }
+    el.innerHTML = orders.map(wo => {
+        const when = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        return `<div class="widget-row" onclick="openWorkOrderDetail(${wo.id})">
+            <div></div>
+            <div class="widget-row-text">
+                <div class="widget-row-title"><span class="wo-number">${esc(wo.wo_number)}</span>${esc(wo.customer_name || '—')}</div>
+                <div class="widget-row-sub">
+                    <span class="wo-status-badge ${wo.status}">${wo.status}</span>
+                    ${wo.priority ? `<span class="wo-priority-badge ${(wo.priority||'').toLowerCase().replace(/\s+/g,'-')}">${esc(wo.priority)}</span>` : ''}
+                    ${wo.vehicle ? `<span>${esc(wo.vehicle)}</span>` : ''}
+                </div>
+            </div>
+            <div class="widget-row-meta">${esc(when)}</div>
+        </div>`;
+    }).join('');
+}
+
+// ══════════════════════════════════════════
+//  URL ROUTING
+// ══════════════════════════════════════════
+function initViewFromUrl() {
+    const path = window.location.pathname;
+    if (path === '/workorders') {
+        showWorkOrdersView('active', false);
+    } else if (path === '/workorders/archive') {
+        showWorkOrdersView('archive', false);
+    } else if (path === '/parts') {
+        setCategoryBySlug('', false);
+    } else if (path.startsWith('/parts/')) {
+        const slug = path.replace('/parts/', '').split('/')[0];
+        setCategoryBySlug(slug, false);
+    } else {
+        // '/', '/dashboard' or anything unknown → dashboard
+        showDashboard(false);
+    }
+}
+
+window.addEventListener('popstate', () => initViewFromUrl());
+
+async function renderWorkOrdersView() {
+    const woc = document.getElementById('workOrdersContainer');
+    const isArchive = currentWoView === 'archive';
+    const filters = isArchive ? '' : `
+        <div class="wo-status-filters">
+            <button class="wo-status-filter ${currentWoStatusFilter==='all'?'active':''}" onclick="setWoStatusFilter('all')">All Active</button>
+            <button class="wo-status-filter ${currentWoStatusFilter==='requested'?'active':''}" onclick="setWoStatusFilter('requested')">Requested</button>
+            <button class="wo-status-filter ${currentWoStatusFilter==='flagged'?'active':''}" onclick="setWoStatusFilter('flagged')">Flagged</button>
+        </div>`;
+    const title = isArchive ? 'Work Orders — Archive' : 'Work Orders';
+    const newBtn = (!isArchive && currentUserData && currentUserData.can_edit)
+        ? `<button class="btn btn-primary btn-sm" onclick="openNewWorkOrderModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Request
+          </button>`
+        : '';
+    woc.innerHTML = `
+        <div class="wo-header">
+            <h2>${title}</h2>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">${filters}${newBtn}</div>
+        </div>
+        <div class="wo-toolbar">
+            <div class="wo-search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="woSearchInput" placeholder="Search WO #, customer, vehicle, VIN, parts…" value="${esc(currentWoSearch)}" autocomplete="off">
+            </div>
+            <span class="wo-sort-label">Sort</span>
+            <select class="wo-sort-select" id="woSortSelect" onchange="onWoSortChange()">
+                <option value="request_date" ${currentWoSortBy==='request_date'?'selected':''}>Requested Date</option>
+                <option value="customer_name" ${currentWoSortBy==='customer_name'?'selected':''}>Customer</option>
+                <option value="priority" ${currentWoSortBy==='priority'?'selected':''}>Priority</option>
+                <option value="wo_number" ${currentWoSortBy==='wo_number'?'selected':''}>WO #</option>
+                <option value="status" ${currentWoSortBy==='status'?'selected':''}>Status</option>
+            </select>
+            <button class="wo-sort-dir-btn ${currentWoSortDir==='desc'?'desc':''}" onclick="toggleWoSortDir()" title="Toggle sort direction">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+            </button>
+        </div>
+        <div id="woList" class="wo-list"></div>
+    `;
+    // Wire up the search input (debounced)
+    const searchInput = document.getElementById('woSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(woSearchDebounce);
+            woSearchDebounce = setTimeout(() => {
+                currentWoSearch = e.target.value;
+                loadWorkOrders();
+            }, 200);
+        });
+    }
+    await loadWorkOrders();
+}
+
+function setWoStatusFilter(f) { currentWoStatusFilter = f; renderWorkOrdersView(); }
+function onWoSortChange() { currentWoSortBy = document.getElementById('woSortSelect').value; loadWorkOrders(); }
+function toggleWoSortDir() {
+    currentWoSortDir = currentWoSortDir === 'desc' ? 'asc' : 'desc';
+    const btn = document.querySelector('.wo-sort-dir-btn');
+    if (btn) btn.classList.toggle('desc', currentWoSortDir === 'desc');
+    loadWorkOrders();
+}
+
+async function loadWorkOrders() {
+    const list = document.getElementById('woList');
+    if (!list) return;
+    const params = new URLSearchParams();
+    if (currentWoView === 'archive') params.set('archived', '1');
+    else if (currentWoStatusFilter !== 'all') params.set('status', currentWoStatusFilter);
+    if (currentWoSearch) params.set('search', currentWoSearch);
+    params.set('sort_by', currentWoSortBy);
+    params.set('sort_dir', currentWoSortDir);
+    try {
+        const orders = await (await fetch(`/api/work-orders?${params}`)).json();
+        if (!orders.length) {
+            list.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <div style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:0.2rem;">${currentWoSearch ? 'No matches' : 'No work orders'}</div>
+                <div style="font-size:0.8rem;">${currentWoSearch ? `Nothing matches "${esc(currentWoSearch)}"` : (currentWoView==='archive'?'Completed orders will appear here.':'Create a new request to get started.')}</div>
+            </div>`;
+            return;
+        }
+        list.innerHTML = orders.map(renderWorkOrderCard).join('');
+    } catch {
+        list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--danger);">Failed to load work orders</div>';
+    }
+}
+
+function renderWorkOrderCard(wo) {
+    const canEdit = currentUserData && currentUserData.can_edit;
+    const prioClass = (wo.priority || '').toLowerCase().replace(/\s+/g, '-');
+    const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
+    const flagBlock = (wo.status === 'flagged' && wo.flag_note)
+        ? `<div class="wo-flag-note"><strong>Flagged:</strong> ${esc(wo.flag_note)}</div>`
+        : '';
+    const notesBlock = (wo.notes || '').trim()
+        ? `<div class="wo-notes-block">
+            <div class="notes-label">Request Details</div>
+            <div class="notes-text">${esc(wo.notes)}</div>
+           </div>`
+        : '';
+    const partsBlock = (wo.parts && wo.parts.length)
+        ? `<div class="wo-card-parts" onclick="event.stopPropagation();">
+            ${renderPartsHeader()}
+            ${wo.parts.map((p, idx) => renderCardPartLine(wo.id, idx, p, canEdit)).join('')}
+           </div>`
+        : '';
+    const actions = canEdit
+        ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
+            <button class="table-btn" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>
+            <button class="table-btn" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
+            ${wo.status !== 'delivered' ? `<button class="table-btn" onclick="openFlagModal(${wo.id}, '${wo.status==='flagged'?'update':'flag'}')">${wo.status==='flagged'?'Update Note':'Flag'}</button>` : ''}
+            ${wo.status === 'flagged' ? `<button class="table-btn" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
+            ${wo.status !== 'delivered' ? `<button class="table-btn" onclick="markDelivered(${wo.id})">Deliver</button>` : ''}
+            ${wo.status === 'delivered' ? `<button class="table-btn" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
+            <button class="table-btn" onclick="sendWorkOrderUpdate(${wo.id})">Send Update</button>
+            <button class="table-btn" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+          </div>`
+        : '';
+    return `
+    <div class="wo-card" onclick="openWorkOrderDetail(${wo.id})">
+        <div class="wo-card-main">
+            <div class="wo-card-top">
+                <span class="wo-number">${esc(wo.wo_number)}</span>
+                <span class="wo-status-badge ${wo.status}">${wo.status}</span>
+                ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
+                <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
+            </div>
+            <div class="wo-meta-row">
+                <span><strong>${esc(wo.vehicle || '—')}</strong></span>
+                ${wo.vin ? `<span style="font-family:var(--mono);font-size:0.72rem;"><strong>VIN:</strong> ${esc(wo.vin)}</span>` : ''}
+                ${wo.warehouse_location ? `<span>📍 ${esc(wo.warehouse_location)}</span>` : ''}
+                ${wo.sales_person ? `<span>👤 ${esc(wo.sales_person)}</span>` : ''}
+                ${wo.quote_invoice ? `<span>#${esc(wo.quote_invoice)}</span>` : ''}
+                <span style="color:var(--text-muted);">${esc(reqDate)}</span>
+            </div>
+            ${flagBlock}
+            ${notesBlock}
+            ${partsBlock}
+        </div>
+        ${actions}
+    </div>`;
+}
+
+function renderPartsHeader() {
+    return `<div class="wo-parts-head">
+        <span class="hd">Pulled</span>
+        <span class="hd">Qty</span>
+        <span class="hd left">Part</span>
+        <span class="hd">&nbsp;</span>
+    </div>`;
+}
+
+function _formatPulledAt(ts) {
+    if (!ts) return '';
+    // Backend stores UTC "YYYY-MM-DD HH:MM:SS"; show YYYY-MM-DD HH:MM
+    return ts.replace('T', ' ').split('.')[0].substring(0, 16);
+}
+
+function renderCardPartLine(wid, idx, p, canEdit) {
+    const pulled = !!p.pulled, flagged = !!p.flagged;
+    const cbAttrs = canEdit ? '' : 'disabled';
+    const flagBtn = canEdit
+        ? `<button class="wo-part-flag-btn ${flagged ? 'flagged' : ''}" onclick="onPartFlagClick(${wid}, ${idx}, ${flagged}); event.stopPropagation();" title="${flagged ? 'Unflag part' : 'Flag part'}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="${flagged ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+           </button>`
+        : '<span></span>';
+    const noteLine = (flagged && p.flag_note)
+        ? `<div class="wo-part-note">⚑ ${esc(p.flag_note)}</div>` : '';
+    const pulledTs = (pulled && p.pulled_at)
+        ? `<div class="wo-part-pulled-ts">Pulled ${esc(_formatPulledAt(p.pulled_at))}</div>` : '';
+    return `<div class="wo-part-line ${pulled ? 'pulled' : ''} ${flagged ? 'flagged' : ''}">
+        <input type="checkbox" class="wo-part-check" ${pulled ? 'checked' : ''} ${cbAttrs}
+               onchange="togglePartPulled(${wid}, ${idx}, this.checked, this.closest('.wo-part-line')); event.stopPropagation();"
+               onclick="event.stopPropagation();"
+               title="${pulled ? 'Marked pulled' : 'Mark pulled'}">
+        <span class="wo-part-qty">${esc(String(p.quantity || 1))} ×</span>
+        <span class="wo-part-desc">
+            <div>${esc(p.description || '')}</div>
+            ${pulledTs}
+        </span>
+        ${flagBtn}
+        ${noteLine}
+    </div>`;
+}
+
+async function togglePartPulled(wid, idx, pulled, rowEl) {
+    // Light up the surrounding work-order block in pale green when a part is pulled.
+    let flashEl = null;
+    if (pulled && rowEl) {
+        flashEl = rowEl.closest('.wo-card') || rowEl.closest('.wo-card-parts') || rowEl;
+        flashEl.classList.remove('flash-pulled-block');
+        void flashEl.offsetWidth;  // restart the animation if clicked again quickly
+        flashEl.classList.add('flash-pulled-block');
+        setTimeout(() => flashEl && flashEl.classList.remove('flash-pulled-block'), 1020);
+    }
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/parts/${idx}/pulled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pulled }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        // Let the flash finish before re-rendering (which would tear down its DOM)
+        if (flashEl) await new Promise(r => setTimeout(r, 1020));
+        if (currentWoView) await loadWorkOrders();
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function onPartFlagClick(wid, idx, isCurrentlyFlagged) {
+    if (isCurrentlyFlagged) {
+        if (!confirm('Unflag this part?')) return;
+        submitPartFlag(wid, idx, false, '');
+    } else {
+        openFlagModal(`part:${wid}:${idx}`, 'flag');
+    }
+}
+
+async function submitPartFlag(wid, idx, flagged, note) {
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/parts/${idx}/flag`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flagged, flag_note: note }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        let msg = flagged ? 'Part flagged' : 'Part unflagged';
+        if (data.email_sent) msg += ' — email sent';
+        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        showToast(msg, 'success');
+        if (currentWoView) await loadWorkOrders();
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data.work_order);
+        }
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// Helper used by the inline Edit button on a card (needs to not open the detail first)
+async function openEditWorkOrderModalFromCard(wid) {
+    await openEditWorkOrderModal(wid);
+}
+
+async function openNewWorkOrderModal() {
+    await _prepareWoForm(null);
+    openModal('woFormModal');
+}
+
+async function openEditWorkOrderModal(wid) {
+    try {
+        const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
+        if (!wo || wo.error) { showToast('Work order not found', 'error'); return; }
+        await _prepareWoForm(wo);
+        // Hide detail modal while editing so the form is on top
+        closeModal('woDetailModal');
+        openModal('woFormModal');
+    } catch { showToast('Failed to load', 'error'); }
+}
+
+async function _prepareWoForm(wo) {
+    if (!woSettings || !woSettings.priorities) {
+        await loadWoSettings();
+    }
+    const isEdit = !!wo;
+    document.getElementById('woFormTitle').textContent = isEdit ? `Edit Work Order ${wo.wo_number}` : 'New Work Order Request';
+    document.getElementById('woFormSaveBtn').textContent = isEdit ? 'Save Changes' : 'Create Request';
+    document.getElementById('woFormId').value = isEdit ? wo.id : '';
+    document.getElementById('woFormCustomer').value = isEdit ? (wo.customer_name || '') : '';
+    document.getElementById('woFormQuote').value = isEdit ? (wo.quote_invoice || '') : '';
+    document.getElementById('woFormVehicle').value = isEdit ? (wo.vehicle || '') : '';
+    document.getElementById('woFormVin').value = isEdit ? (wo.vin || '') : '';
+    document.getElementById('woFormNotes').value = isEdit ? (wo.notes || '') : '';
+
+    // Populate dropdowns — ensure current value is present even if it was since removed from settings
+    const locSel = document.getElementById('woFormLocation');
+    const locs = [...(woSettings.locations || [])];
+    if (isEdit && wo.warehouse_location && !locs.includes(wo.warehouse_location)) locs.push(wo.warehouse_location);
+    locSel.innerHTML = '<option value="">—</option>' + locs.map(l => `<option value="${esc(l)}" ${isEdit && wo.warehouse_location === l ? 'selected' : ''}>${esc(l)}</option>`).join('');
+
+    const spSel = document.getElementById('woFormSalesPerson');
+    const sps = (woSettings.salespeople || []).map(s => s.name);
+    if (isEdit && wo.sales_person && !sps.includes(wo.sales_person)) sps.push(wo.sales_person);
+    spSel.innerHTML = '<option value="">—</option>' + sps.map(n => `<option value="${esc(n)}" ${isEdit && wo.sales_person === n ? 'selected' : ''}>${esc(n)}</option>`).join('');
+
+    const prSel = document.getElementById('woFormPriority');
+    const prs = [...(woSettings.priorities || ['Normal'])];
+    if (isEdit && wo.priority && !prs.includes(wo.priority)) prs.push(wo.priority);
+    prSel.innerHTML = prs.map(p => `<option value="${esc(p)}" ${isEdit && wo.priority === p ? 'selected' : (!isEdit && p === 'Normal' ? 'selected' : '')}>${esc(p)}</option>`).join('');
+
+    renderPartsRows(isEdit ? (wo.parts || []) : []);
+}
+
+async function openAuditModal(wid) {
+    document.getElementById('woAuditBody').innerHTML = '<div class="wo-audit-empty">Loading…</div>';
+    openModal('woAuditModal');
+    try {
+        const entries = await (await fetch(`/api/work-orders/${wid}/audit`)).json();
+        if (entries.error) { showToast(entries.error, 'error'); closeModal('woAuditModal'); return; }
+        const title = document.getElementById('woAuditTitle');
+        title.textContent = `Audit Trail`;
+        const body = document.getElementById('woAuditBody');
+        if (!entries.length) {
+            body.innerHTML = '<div class="wo-audit-empty">No audit entries for this work order.</div>';
+            return;
+        }
+        body.innerHTML = `<div class="wo-audit-list">${entries.map(renderAuditEntry).join('')}</div>`;
+    } catch { showToast('Failed to load audit trail', 'error'); closeModal('woAuditModal'); }
+}
+
+function renderAuditEntry(e) {
+    const when = (e.created_at || '').split('.')[0].replace('T', ' ');
+    const actionLabel = {
+        'created': 'Created',
+        'edited': 'Edited',
+        'status_changed': 'Status',
+        'note_added': 'Note',
+        'deleted': 'Deleted',
+    }[e.action] || e.action;
+    return `<div class="wo-audit-entry ${esc(e.action)}">
+        <div class="wo-audit-when">${esc(when)}</div>
+        <div class="wo-audit-main">
+            <div class="wo-audit-who"><strong>${esc(e.actor || 'system')}</strong><span class="wo-audit-action">${esc(actionLabel)}</span></div>
+            <div class="wo-audit-desc">${esc(e.description || '')}</div>
+        </div>
+    </div>`;
+}
+
+function renderPartsRows(parts) {
+    const list = document.getElementById('woFormPartsList');
+    if (!parts || !parts.length) {
+        list.innerHTML = '<div class="wo-parts-empty">No parts added yet. Click “+ Add Part” to request a part.</div>';
+        return;
+    }
+    list.innerHTML = parts.map(p => partRowHtml(p.quantity || 1, p.description || '')).join('');
+}
+
+function partRowHtml(qty, desc) {
+    return `<div class="wo-part-row">
+        <input class="form-input wo-part-qty" type="number" min="1" value="${esc(String(qty))}" placeholder="Qty">
+        <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part description (SKU, WM#, or description)">
+        <button type="button" class="wo-list-remove" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
+    </div>`;
+}
+
+function addPartRow() {
+    const list = document.getElementById('woFormPartsList');
+    // Clear the empty placeholder if present
+    const empty = list.querySelector('.wo-parts-empty');
+    if (empty) empty.remove();
+    list.insertAdjacentHTML('beforeend', partRowHtml(1, ''));
+    // Focus the description input of the new row
+    const rows = list.querySelectorAll('.wo-part-row');
+    const last = rows[rows.length - 1];
+    if (last) last.querySelector('.wo-part-desc').focus();
+}
+
+function ensurePartsPlaceholder() {
+    const list = document.getElementById('woFormPartsList');
+    if (!list.querySelector('.wo-part-row')) {
+        list.innerHTML = '<div class="wo-parts-empty">No parts added yet. Click “+ Add Part” to request a part.</div>';
+    }
+}
+
+function collectPartsRows() {
+    const rows = document.querySelectorAll('#woFormPartsList .wo-part-row');
+    const out = [];
+    for (const r of rows) {
+        const q = parseInt(r.querySelector('.wo-part-qty').value || '1');
+        const d = r.querySelector('.wo-part-desc').value.trim();
+        if (d) out.push({ quantity: q > 0 ? q : 1, description: d });
+    }
+    return out;
+}
+
+async function saveWorkOrder() {
+    const id = document.getElementById('woFormId').value;
+    const body = {
+        warehouse_location: document.getElementById('woFormLocation').value,
+        customer_name: document.getElementById('woFormCustomer').value.trim(),
+        quote_invoice: document.getElementById('woFormQuote').value.trim(),
+        sales_person: document.getElementById('woFormSalesPerson').value,
+        vehicle: document.getElementById('woFormVehicle').value.trim(),
+        vin: document.getElementById('woFormVin').value.trim(),
+        priority: document.getElementById('woFormPriority').value,
+        notes: document.getElementById('woFormNotes').value.trim(),
+        parts: collectPartsRows(),
+    };
+    if (!body.customer_name) { showToast('Customer name is required', 'error'); return; }
+    try {
+        const res = await fetch(id ? `/api/work-orders/${id}` : '/api/work-orders', {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woFormModal');
+        showToast(id ? 'Work order updated' : `Created ${data.wo_number}`, 'success');
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+        // If editing, re-open the detail modal so the user sees the latest record
+        if (id) {
+            renderWorkOrderDetail(data);
+            openModal('woDetailModal');
+        }
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function openWorkOrderDetail(wid) {
+    try {
+        const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
+        if (!wo || wo.error) { showToast('Work order not found', 'error'); return; }
+        renderWorkOrderDetail(wo);
+        openModal('woDetailModal');
+    } catch { showToast('Failed to load', 'error'); }
+}
+
+function renderWorkOrderDetail(wo) {
+    document.getElementById('woDetailTitle').textContent = `${wo.wo_number} — ${wo.customer_name || ''}`;
+    const canEdit = currentUserData && currentUserData.can_edit;
+    const canDelete = currentUserData && currentUserData.role === 'admin';
+    const canViewAudit = currentUserData && currentUserData.can_view_audit;
+    const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
+    const compDate = wo.completed_at ? (wo.completed_at || '').split('.')[0].replace('T', ' ').substring(0, 16) : '';
+    const notesHist = (wo.notes_log && wo.notes_log.length)
+        ? `<div class="wo-notes-history">
+             <div class="detail-label">Notes &amp; Activity</div>
+             ${wo.notes_log.map(n => {
+                 const t = n.note_type === 'general' ? 'general' : 'flag';
+                 const badge = t === 'general' ? 'Note' : 'Flag';
+                 return `<div class="wo-note-item ${t}">
+                    <div class="wo-note-meta">
+                        <span class="wo-note-badge ${t}">${badge}</span>
+                        <span>${esc((n.created_at || '').split('.')[0].replace('T',' '))} — ${esc(n.author || '')}</span>
+                    </div>
+                    <div>${esc(n.note)}</div>
+                </div>`;
+             }).join('')}
+           </div>`
+        : '';
+    const statusButtons = canEdit ? `
+            <button class="btn btn-ghost btn-sm" onclick="openEditWorkOrderModal(${wo.id})">Edit</button>
+            <button class="btn btn-ghost btn-sm" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>
+            ${wo.status !== 'flagged' && wo.status !== 'delivered' ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'flag')">Flag</button>` : ''}
+            ${wo.status === 'flagged' ? `<button class="btn btn-ghost btn-sm" onclick="openFlagModal(${wo.id}, 'update')">Update Flag Note</button>` : ''}
+            ${wo.status === 'flagged' ? `<button class="btn btn-ghost btn-sm" onclick="unflagWorkOrder(${wo.id})">Unflag</button>` : ''}
+            ${wo.status !== 'delivered' ? `<button class="btn btn-primary btn-sm" onclick="markDelivered(${wo.id})">Mark Delivered</button>` : `<button class="btn btn-ghost btn-sm" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`}
+            <button class="btn btn-ghost btn-sm" onclick="sendWorkOrderUpdate(${wo.id})">Send Update</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
+            ${canViewAudit ? `<button class="btn btn-ghost btn-sm" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+            ${canDelete ? `<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);" onclick="deleteWorkOrder(${wo.id})">Delete</button>` : ''}`
+        : `<button class="btn btn-ghost btn-sm" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>`;
+    document.getElementById('woDetailFooter').innerHTML = statusButtons;
+    document.getElementById('woDetailBody').innerHTML = `
+        <div style="margin-bottom:0.85rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+            <span class="wo-status-badge ${wo.status}">${wo.status}</span>
+            ${wo.priority ? `<span class="wo-priority-badge ${(wo.priority||'').toLowerCase().replace(/\s+/g,'-')}">${esc(wo.priority)}</span>` : ''}
+        </div>
+        <div class="wo-detail-grid">
+            <div><div class="detail-label">Work Order #</div><div class="detail-value" style="font-family:var(--mono);">${esc(wo.wo_number)}</div></div>
+            <div><div class="detail-label">Request Date</div><div class="detail-value">${esc(reqDate)}</div></div>
+            <div><div class="detail-label">Customer</div><div class="detail-value">${esc(wo.customer_name || '—')}</div></div>
+            <div><div class="detail-label">Sales Person</div><div class="detail-value">${esc(wo.sales_person || '—')}</div></div>
+            <div><div class="detail-label">Warehouse Location</div><div class="detail-value">${esc(wo.warehouse_location || '—')}</div></div>
+            <div><div class="detail-label">Quote / Invoice #</div><div class="detail-value">${esc(wo.quote_invoice || '—')}</div></div>
+            <div><div class="detail-label">Vehicle</div><div class="detail-value">${esc(wo.vehicle || '—')}</div></div>
+            <div><div class="detail-label">VIN</div><div class="detail-value" style="font-family:var(--mono);font-size:0.82rem;">${esc(wo.vin || '—')}</div></div>
+            ${wo.created_by ? `<div><div class="detail-label">Created By</div><div class="detail-value">${esc(wo.created_by)}</div></div>` : ''}
+            ${compDate ? `<div><div class="detail-label">Completed</div><div class="detail-value">${esc(compDate)}</div></div>` : ''}
+        </div>
+        ${(wo.notes || '').trim() ? `<div class="wo-notes-block" style="margin-top:0.85rem;">
+            <div class="notes-label">Request Details</div>
+            <div class="notes-text">${esc(wo.notes)}</div>
+        </div>` : ''}
+        ${renderWorkOrderPartsTable(wo.id, wo.parts, canEdit)}
+        ${notesHist}
+    `;
+}
+
+function renderWorkOrderPartsTable(wid, parts, canEdit) {
+    if (!parts || !parts.length) return '';
+    return `<div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border);">
+        <div class="detail-label">Parts Requested</div>
+        <div class="wo-card-parts" style="border-top:none;padding-top:0.35rem;">
+            ${renderPartsHeader()}
+            ${parts.map((p, idx) => renderCardPartLine(wid, idx, p, canEdit)).join('')}
+        </div>
+    </div>`;
+}
+
+function openGeneralNoteModal(wid) {
+    document.getElementById('woGeneralNoteId').value = wid;
+    document.getElementById('woGeneralNoteText').value = '';
+    openModal('woGeneralNoteModal');
+    setTimeout(() => { const el = document.getElementById('woGeneralNoteText'); if (el) el.focus(); }, 50);
+}
+
+async function submitGeneralNote() {
+    const wid = document.getElementById('woGeneralNoteId').value;
+    const note = document.getElementById('woGeneralNoteText').value.trim();
+    if (!note) { showToast('Note is required', 'error'); return; }
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/general-notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woGeneralNoteModal');
+        showToast('Note added', 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data);
+        }
+        if (currentWoView) await loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function openFlagModal(id, mode) {
+    // id may be a number (WO-level) or string "part:wid:idx" (per-part flag)
+    const isPart = typeof id === 'string' && id.startsWith('part:');
+    document.getElementById('woFlagId').value = String(id);
+    document.getElementById('woFlagMode').value = mode;
+    document.getElementById('woFlagNote').value = '';
+    if (isPart) {
+        document.getElementById('woFlagTitle').textContent = 'Flag Part';
+        document.getElementById('woFlagLabel').textContent = 'Reason for flagging this part';
+        document.getElementById('woFlagSaveBtn').textContent = 'Flag Part';
+    } else if (mode === 'flag') {
+        document.getElementById('woFlagTitle').textContent = 'Flag Work Order';
+        document.getElementById('woFlagLabel').textContent = 'Reason for flagging';
+        document.getElementById('woFlagSaveBtn').textContent = 'Flag Work Order';
+    } else {
+        document.getElementById('woFlagTitle').textContent = 'Add Flag Note';
+        document.getElementById('woFlagLabel').textContent = 'New note';
+        document.getElementById('woFlagSaveBtn').textContent = 'Add Note';
+    }
+    openModal('woFlagModal');
+}
+
+async function submitFlagNote() {
+    const id = document.getElementById('woFlagId').value;
+    const mode = document.getElementById('woFlagMode').value;
+    const note = document.getElementById('woFlagNote').value.trim();
+    if (!note) { showToast('Note is required', 'error'); return; }
+
+    // Per-part flag?
+    if (id.startsWith('part:')) {
+        const [, widStr, idxStr] = id.split(':');
+        closeModal('woFlagModal');
+        await submitPartFlag(parseInt(widStr), parseInt(idxStr), true, note);
+        return;
+    }
+
+    try {
+        let res;
+        if (mode === 'flag') {
+            res = await fetch(`/api/work-orders/${id}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'flagged', flag_note: note }),
+            });
+        } else {
+            res = await fetch(`/api/work-orders/${id}/notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note }),
+            });
+        }
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woFlagModal');
+        let msg = mode === 'flag' ? 'Work order flagged' : 'Note added';
+        if (data.email_sent) msg += ' — email sent';
+        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        showToast(msg, 'success');
+        // Refresh views
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data.work_order);
+        }
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function markDelivered(wid) {
+    if (!confirm('Mark this work order as delivered/complete?')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'delivered' }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        let msg = 'Marked delivered';
+        if (data.email_sent) msg += ' — email sent';
+        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        showToast(msg, 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data.work_order);
+        }
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function unflagWorkOrder(wid) {
+    if (!confirm('Remove the flag and return this work order to Requested status?')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'requested' }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast('Flag removed — back to Requested', 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data.work_order);
+        }
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function reopenWorkOrder(wid) {
+    if (!confirm('Reopen this work order back to Requested?')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'requested' }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast('Work order reopened', 'success');
+        if (document.getElementById('woDetailModal').classList.contains('active')) {
+            renderWorkOrderDetail(data.work_order);
+        }
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function deleteWorkOrder(wid) {
+    if (!confirm('Delete this work order? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woDetailModal');
+        showToast('Work order deleted', 'success');
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function downloadWorkOrderPdf(wid) {
+    window.open(`/api/work-orders/${wid}/pdf`, '_blank');
+}
+
+async function sendWorkOrderUpdate(wid) {
+    if (!confirm('Do you want to send an email update to the sales person?')) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/send-update`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed to send', 'error'); return; }
+        showToast(`Update emailed to ${data.to}`, 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ──────── WO Lists (admin) ────────
+async function openWoListsModal() {
+    try {
+        woSettings = await (await fetch('/api/settings/work-order')).json();
+    } catch {}
+    renderWoListRows();
+    // Reset to first tab
+    document.querySelectorAll('#woListsModal .wm-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+    document.querySelectorAll('#woListsModal .wm-tab-content').forEach((c, i) => c.classList.toggle('active', i === 0));
+    openModal('woListsModal');
+}
+
+function switchWoListTab(name, btn) {
+    document.querySelectorAll('#woListsModal .wm-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#woListsModal .wm-tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    const map = { locations: 'woListTabLocations', salespeople: 'woListTabSalespeople', priorities: 'woListTabPriorities' };
+    const el = document.getElementById(map[name]);
+    if (el) el.classList.add('active');
+}
+
+function renderWoListRows() {
+    const locs = document.getElementById('woListLocations');
+    locs.innerHTML = (woSettings.locations || []).map(l =>
+        `<div class="wo-list-row"><input class="form-input" type="text" value="${esc(l)}"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`
+    ).join('') || '';
+
+    const sps = document.getElementById('woListSalespeople');
+    sps.innerHTML = (woSettings.salespeople || []).map(s =>
+        `<div class="wo-list-row">
+            <input class="form-input" type="text" placeholder="Name" value="${esc(s.name || '')}" style="flex:1;">
+            <input class="form-input" type="email" placeholder="email@example.com" value="${esc(s.email || '')}" style="flex:1.3;">
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`
+    ).join('') || '';
+
+    const prs = document.getElementById('woListPriorities');
+    prs.innerHTML = (woSettings.priorities || []).map(p =>
+        `<div class="wo-list-row"><input class="form-input" type="text" value="${esc(p)}"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`
+    ).join('') || '';
+}
+
+function addLocationRow() {
+    const el = document.getElementById('woListLocations');
+    el.insertAdjacentHTML('beforeend',
+        `<div class="wo-list-row"><input class="form-input" type="text" placeholder="e.g. Main Warehouse"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`);
+}
+function addSalesPersonRow() {
+    const el = document.getElementById('woListSalespeople');
+    el.insertAdjacentHTML('beforeend',
+        `<div class="wo-list-row">
+            <input class="form-input" type="text" placeholder="Name" style="flex:1;">
+            <input class="form-input" type="email" placeholder="email@example.com" style="flex:1.3;">
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`);
+}
+function addPriorityRow() {
+    const el = document.getElementById('woListPriorities');
+    el.insertAdjacentHTML('beforeend',
+        `<div class="wo-list-row"><input class="form-input" type="text" placeholder="e.g. Urgent"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`);
+}
+
+async function saveWoLists() {
+    const locations = [...document.querySelectorAll('#woListLocations .wo-list-row input')].map(i => i.value.trim()).filter(Boolean);
+    const priorities = [...document.querySelectorAll('#woListPriorities .wo-list-row input')].map(i => i.value.trim()).filter(Boolean);
+    const salespeople = [...document.querySelectorAll('#woListSalespeople .wo-list-row')].map(row => {
+        const inputs = row.querySelectorAll('input');
+        return { name: inputs[0].value.trim(), email: (inputs[1].value || '').trim() };
+    }).filter(s => s.name);
+    try {
+        const res = await fetch('/api/settings/work-order', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locations, salespeople, priorities }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        woSettings = { locations, salespeople, priorities };
+        closeModal('woListsModal');
+        openSettingsModal('admin');
+        showToast('Work order lists saved', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ──────── Cloudflare Turnstile ────────
+async function openTurnstileModal() {
+    try {
+        const cfg = await (await fetch('/api/settings/turnstile')).json();
+        document.getElementById('tsEnabled').checked = !!cfg.enabled;
+        document.getElementById('tsEnabledText').textContent = cfg.enabled ? 'Enabled' : 'Disabled';
+        document.getElementById('tsSiteKey').value = cfg.site_key || '';
+        document.getElementById('tsSecretKey').value = '';
+        document.getElementById('tsSecretKey').placeholder = cfg.secret_key === '********' ? 'leave blank to keep current' : 'Secret key';
+    } catch { showToast('Failed to load Turnstile config', 'error'); return; }
+    openModal('turnstileModal');
+}
+
+async function saveTurnstile() {
+    const body = {
+        enabled: document.getElementById('tsEnabled').checked,
+        site_key: document.getElementById('tsSiteKey').value.trim(),
+    };
+    const sk = document.getElementById('tsSecretKey').value;
+    if (sk) body.secret_key = sk;
+    if (body.enabled && !body.site_key) {
+        showToast('Site Key is required when enabling', 'error'); return;
+    }
+    try {
+        const res = await fetch('/api/settings/turnstile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('turnstileModal');
+        openSettingsModal('admin');
+        showToast('Turnstile settings saved', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ──────── SMTP ────────
+async function openSmtpModal() {
+    try {
+        const cfg = await (await fetch('/api/settings/smtp')).json();
+        document.getElementById('smtpHost').value = cfg.host || '';
+        document.getElementById('smtpPort').value = cfg.port || 587;
+        document.getElementById('smtpUsername').value = cfg.username || '';
+        document.getElementById('smtpPassword').value = '';
+        document.getElementById('smtpPassword').placeholder = cfg.password === '********' ? 'leave blank to keep current' : 'SMTP password';
+        document.getElementById('smtpFromEmail').value = cfg.from_email || '';
+        document.getElementById('smtpFromName').value = cfg.from_name || 'Warehouse Manager';
+        const tls = cfg.use_tls !== false;
+        document.getElementById('smtpUseTls').checked = tls;
+        document.getElementById('smtpTlsText').textContent = tls ? 'Enabled' : 'Disabled';
+        document.getElementById('smtpTestTo').value = '';
+    } catch { showToast('Failed to load SMTP config', 'error'); return; }
+    openModal('smtpModal');
+}
+
+async function saveSmtp() {
+    const body = {
+        host: document.getElementById('smtpHost').value.trim(),
+        port: parseInt(document.getElementById('smtpPort').value || '587'),
+        username: document.getElementById('smtpUsername').value.trim(),
+        from_email: document.getElementById('smtpFromEmail').value.trim(),
+        from_name: document.getElementById('smtpFromName').value.trim() || 'Warehouse Manager',
+        use_tls: document.getElementById('smtpUseTls').checked,
+    };
+    const pw = document.getElementById('smtpPassword').value;
+    if (pw) body.password = pw;
+    try {
+        const res = await fetch('/api/settings/smtp', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('smtpModal');
+        openSettingsModal('admin');
+        showToast('SMTP settings saved', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function sendSmtpTest() {
+    const to = document.getElementById('smtpTestTo').value.trim();
+    if (!to) { showToast('Enter a recipient email', 'error'); return; }
+    // Save first (without closing) if user changed settings
+    const body = {
+        host: document.getElementById('smtpHost').value.trim(),
+        port: parseInt(document.getElementById('smtpPort').value || '587'),
+        username: document.getElementById('smtpUsername').value.trim(),
+        from_email: document.getElementById('smtpFromEmail').value.trim(),
+        from_name: document.getElementById('smtpFromName').value.trim() || 'Warehouse Manager',
+        use_tls: document.getElementById('smtpUseTls').checked,
+    };
+    const pw = document.getElementById('smtpPassword').value;
+    if (pw) body.password = pw;
+    try {
+        await fetch('/api/settings/smtp', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const res = await fetch('/api/settings/smtp/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(`Test failed: ${data.error || 'unknown error'}`, 'error'); return; }
+        showToast('Test email sent', 'success');
+    } catch { showToast('Connection error', 'error'); }
 }
 
 // ══════════════════════════════════════════

@@ -2,7 +2,7 @@
 
 A self-hosted web-based inventory management system built for automotive parts — engines, cylinder heads, transmissions, and any custom category you define. Built with Flask + SQLite, deployed via Docker.
 
-![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Docker](https://img.shields.io/badge/docker-ready-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Docker](https://img.shields.io/badge/docker-ready-blue) ![License](https://img.shields.io/badge/license-AGPLv3-green)
 
 ## Features
 
@@ -221,6 +221,117 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.1.1
+- **Activate audit from view modal** — The orange "Needs Audited" banner in the part detail modal is now clickable for editors: it opens a Part Audit modal prefilled with the current note, where you can edit the details or clear the audit flag entirely. A **Mark for Audit** button appears in place of the banner when the part isn't currently flagged.
+- **Trigger audit from the list view** — The Audit column in the parts table is now actionable: rows with `needs_audit = true` show a clickable orange **⚠ AUDIT** badge (opens the modal for editing/clearing); editors see a subtle dashed **+ Audit** button on rows that aren't flagged, so they can mark a part for audit directly from the table without opening the part.
+- **Backend** — New `POST /api/parts/<id>/audit` endpoint (editor required) accepts `{needs_audit, audit_note}`; clearing the flag also clears the stored note.
+
+### v1.1.0
+- **Needs Audited flag on parts** — New universal toggle on every part. When enabled, a textarea appears to capture audit details (reason / what to look for). Migration v21 adds `needs_audit` and `audit_note` columns on `parts`.
+- **Audit column in the parts table** — Rows with `needs_audit = true` show an orange ⚠ AUDIT marker in the new rightmost column; hovering the cell shows the audit note as a tooltip. The detail modal also surfaces a prominent orange Needs-Audited banner with the notes.
+- **Download PDF from the WO list** — The inline actions row on each work order card now has a Download PDF button alongside Send Update / Edit / etc.
+
+### v1.0.0
+- **Version → 1.0** — Promoted from `0.6.x` to `1.0.0` to mark feature completeness of the work order system, dashboard, audit trail, roles, Turnstile, and SMTP notifications.
+- **License → AGPLv3** — Switched from MIT to the GNU Affero General Public License v3.0. `LICENSE` replaced, README badge and bottom section updated, About pane now links to the canonical `gnu.org/licenses/agpl-3.0.html` page.
+
+### v0.6.6
+- **About pane redesigned** — Mirrors the tspro About layout: a hero card with the app logo, name, version, tagline, Built-by-VIIBEWARE credit, and MIT license on the left; a "Built With" tech-stack grid on the right (Python / Flask / Jinja / Gunicorn / SQLite / JavaScript / Docker) with masked-SVG icons that recolor on hover.
+
+### v0.6.5
+- **90-day sessions** — `PERMANENT_SESSION_LIFETIME` and `REMEMBER_COOKIE_DURATION` bumped to 90 days. Users stay signed in for 90 days between logins.
+- **Footer icon alignment** — Sidebar footer bottom row now has matching horizontal padding (0.6 rem) so the theme toggle aligns on the same vertical axis as the gear icon above it.
+
+### v0.6.4
+- **Pull events logged to activity** — Toggling a part's pulled checkbox now adds a "Part pulled" / "Part unmarked pulled" entry to the work order's Notes & Activity list (blue Note badge).
+
+### v0.6.3
+- **Pull flash duration** — Bumped from 500 ms to 1000 ms for a slower, more visible fade.
+
+### v0.6.2
+- **Dashboard Work Orders widget merged** — Active work order list now lives inside the Work Orders widget under an "Active" sub-header, below the summary counts. The standalone Active Work Orders widget was removed.
+- **Pulled flash tuned** — Animation lengthened to 500 ms and now lights the whole work-order block a pale green instead of just the row, then fades. Uses `box-shadow: inset` so it overlays any card/detail container without replacing its background.
+
+### v0.6.1
+- **Pulled flash effect** — Checking a part's pulled box briefly lights up the row in bright green and fades to transparent over 300 ms (in both the list view and the detail modal).
+
+### v0.6.0
+- **Dashboard** — New landing view at `/dashboard` with three widgets: a Work Orders summary (Requested / Flagged / Delivered counts), Recent Part Updates (last 6 touched), and an Active Work Orders list. Every row in the widgets is a deep link to the record.
+- **URL routing** — Flask now serves the SPA at `/`, `/dashboard`, `/workorders`, `/workorders/archive`, `/parts`, and `/parts/<slug>`. Clicking a nav item updates the URL via `history.pushState`; browser back/forward is wired to `popstate`, and opening any URL directly lands on the right view. After login, users land on the dashboard.
+
+### v0.5.4
+- **Send Update on list view** — The work order card now includes a Send Update button alongside Edit/Add Note/Flag/Deliver.
+- **Confirmation rewritten** — Both list-card and detail-modal Send Update buttons now prompt: "Do you want to send an email update to the sales person?"
+- **Theme button moved** — Light/dark toggle now sits at the bottom-right of the sidebar footer, across from the Sign Out link.
+
+### v0.5.3
+- **Theme toggle moved to sidebar** — Light/dark mode is now a one-click icon button in the sidebar footer (sun when light / moon when dark), removed from the Settings → General tab.
+- **Cloudflare Turnstile on login** — Admins can configure a Turnstile site key/secret key from the Settings → Admin tab. When enabled, the login page renders the Turnstile widget and the backend verifies the token via `https://challenges.cloudflare.com/turnstile/v0/siteverify` before checking credentials. Public `/api/auth/turnstile-config` endpoint exposes just the site key so the login page can load the widget.
+
+### v0.5.2
+- **Supervisor role** — New user role with the same permissions as Editor, plus the ability to view work order audit trails. Migration v20 extends the users CHECK constraint to accept `supervisor`; the User Management form exposes it and role badges now include a distinct color for supervisors. The Audit Trail button is visible to admins and supervisors; Delete remains admin-only.
+
+### v0.5.1
+- **Request Details background removed** — the field no longer renders as a gray block; just flows as plain text.
+- **Part list column spacing** — widened the first two columns so "Pulled" and "Qty" headers no longer run together.
+- **Notes & Activity ordering** — latest note now appears at the top; older entries below.
+- **Sticky detail footer** — On the work order detail modal, the action buttons are now pinned at the bottom and always visible; the body content above them scrolls independently.
+
+### v0.5.0
+- **"Notes" → "Request Details"** — The original work-order notes field (captured at create/edit time) is renamed everywhere: form, card, detail modal, PDF, email.
+- **Running notes** — New "Add Note" action on the list card and on the work order detail modal. Notes can be added without entering edit mode; each note captures the author and timestamp.
+- **Notes & Activity log** — The detail modal's history section now shows all entries (flag notes + general notes) in chronological order, each tagged with a Flag/Note badge. Flag entries still drive email notifications; general notes never email.
+
+### v0.4.6
+- **Send Update button** — On the work order detail modal, a new Send Update button emails the full current-state work order details to the sales person on demand (independent of the automatic flag/deliver emails). The email includes status, customer/vehicle/VIN, notes, every part with its pulled/flagged state, and the flag notes history. Audit-logged.
+
+### v0.4.5
+- **Notes in list view** — Notes now appear on each work order card in the active and archive lists as a light gray block; clamped to 3 lines so cards stay compact.
+- **Notes moved above parts in the detail modal** — Notes block is now rendered between the field grid and the parts table (above the parts) and styled as the same gray block so it stands out from surrounding fields.
+
+### v0.4.4
+- **VIN on work order cards** — VIN is now shown in the active and archive list cards alongside vehicle, location, and salesperson.
+
+### v0.4.3
+- **WO number format** — Work order numbers now include a hyphen: `WO-00001`, `WO-00002`, …. Migration v18 rewrites existing numbers; future assignments use the new format. The lookup that determines the next number tolerates both old and new formats.
+
+### v0.4.2
+- **Part rows align cleanly** — A "Pulled" column header now labels the checkbox column; rows use consistent padding so the checkmarks stay in the same column whether a part is flagged or not, and there's always a 22 px slot for the flag button (even for viewers).
+- **Pulled timestamp** — Checking a part records the date/time it was pulled (UTC) and displays it under the part description. Unchecking clears the timestamp. The audit trail captures the exact pull time.
+- **No more strikethrough** — Pulled items no longer cross out the part description.
+- **Part flag notes in history** — Per-part flag (and unflag) events now appear in the Flag Notes History section of the work order detail modal alongside work-order-level notes.
+
+### v0.4.1
+- **Unflag** — Remove the flag from a work order and return it to Requested status via an Unflag button in both the detail modal and the list card. Clears the stale flag note so a future re-flag starts clean. Mark Delivered from a flagged state also still works.
+
+### v0.4.0
+- **Work order search** — Live-search the active and archive views by WO #, customer, vehicle, VIN, notes, or parts description
+- **Work order sort** — Sort by Requested Date (default, newest first), Customer, Priority, WO #, or Status, with a direction toggle
+- **Inline Edit button** — Each work order card now has an Edit button in the active list so you can edit without opening the detail modal first
+- **Parts on the list view** — Parts with quantities appear on each card; click the checkbox to mark a part as pulled (strikethrough)
+- **Per-part flagging** — Flag an individual part with its own reason note; the salesperson gets a dedicated email. Flagged parts highlight red with the note visible inline
+
+### v0.3.0
+- **Edit work orders** — Editors/admins can now edit any field on an existing work order via an Edit button in the detail modal. The form pre-fills with current values (including parts list), and the detail modal re-opens with the updated record after save.
+- **Audit trail** — Every create/edit/status-change/note/delete is logged with timestamp + actor + description. Admins see an Audit Trail button in the detail modal that opens a popup listing the full history. Field-level edits show before → after for each changed field.
+
+### v0.2.2
+- **Save returns to Settings** — Clicking Save Changes on Work Order Lists or SMTP Settings now closes that sub-modal and re-opens the main Settings modal on the Admin tab (instead of leaving the sub-modal open).
+
+### v0.2.1
+- **Repeatable parts list** — Each work order now supports a list of requested parts with quantity and description. Parts appear in the detail view, email notifications, and PDF.
+- **Work Order Lists: tabs** — Locations, Sales People, and Priorities are now separate tabs inside the Work Order Lists modal (cleaner than the old stacked layout).
+- **Save keeps modals open** — Clicking Save on SMTP or Work Order Lists no longer closes the modal; use the X to close. Avoids re-opening after a minor edit.
+- **SMTP modal overflow fix** — Form inputs now use `width:100%` + `min-width:0` globally; SMTP modal widened slightly and the test-email row uses a grid so the Send button no longer crowds the input.
+
+### v0.2.0
+- **Work orders** — New end-to-end workflow for requesting parts. Each work order gets a unique `WO#####` number and initial request date. Fields: warehouse location, customer name, quote/invoice #, sales person, vehicle, VIN, priority, notes
+- **Status workflow** — Requested → Flagged (with a required reason note) → Delivered/Complete. Reopen from archive if needed
+- **SMTP email notifications** — Admins configure SMTP host/port/credentials. App emails the sales person automatically when a work order is flagged, when a new note is added to a flagged order, or when it's marked delivered
+- **Admin settings** — Manage warehouse locations, sales people (name + email), and priorities from the Admin tab of the Settings modal
+- **Printable PDFs** — Download a letter-size PDF of any work order (fields + flag-note history)
+- **Archive** — Completed work orders are archived in a dedicated sidebar view for future reference
+
 ### v0.1.40
 - **Modals only close via the X button** — Clicking the backdrop or pressing Escape no longer dismisses any modal app-wide. Fixes the edit modal closing when text-selection drags end on the backdrop.
 
@@ -283,7 +394,7 @@ warehouse-manager/
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0 — see [LICENSE](./LICENSE).
 
 ## Credits
 
