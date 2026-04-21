@@ -852,6 +852,20 @@ body {
     transition: background var(--transition);
 }
 .widget-row:hover { background: var(--bg-card-hover); }
+
+/* Admin Locked Accounts widget */
+.widget-row.locked-row {
+    cursor: default;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+}
+.widget-row.locked-row:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.locked-row-icon {
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 5px; background: rgba(239, 68, 68, 0.15); color: var(--danger);
+    flex-shrink: 0;
+}
 .widget-thumb, .widget-thumb-ph {
     width: 34px; height: 34px; border-radius: 5px; flex-shrink: 0;
     object-fit: cover; background: var(--bg-input); display: block;
@@ -899,6 +913,19 @@ body {
 @media (max-width: 768px) {
     .dashboard-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Work Orders page banner when global email alerts are disabled ── */
+.wo-notifs-banner {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.7rem 0.9rem; margin-bottom: 0.85rem;
+    background: color-mix(in srgb, var(--engine) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--engine) 40%, transparent);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.82rem; line-height: 1.4;
+}
+.wo-notifs-banner svg { color: var(--engine); flex-shrink: 0; }
+.wo-notifs-banner strong { color: var(--engine); }
 
 /* ── WORK ORDERS ── */
 .wo-header {
@@ -1965,6 +1992,16 @@ body {
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openChangePasswordModal();">Change</button>
                 </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Email Notifications</div>
+                        <div class="settings-desc" id="userNotifsDesc">Receive work-order emails at your account email when notes, replies, flags, photos, or deliveries involve you.</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="userNotifsToggle" onchange="saveUserNotifications(this.checked)">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
                 <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.2rem;">
                     <div>
                         <div class="settings-label">Theme</div>
@@ -2031,6 +2068,16 @@ body {
                 </div>
                 <div class="settings-row">
                     <div>
+                        <div class="settings-label">Global Email Alerts</div>
+                        <div class="settings-desc" id="globalNotifsDesc">When off, no automatic SMTP emails are sent for any work-order event. Individual users can opt out of their own email in General → Email Notifications.</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="globalNotifsToggle" onchange="saveGlobalNotifications(this.checked)">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="settings-row">
+                    <div>
                         <div class="settings-label">Cloudflare Turnstile</div>
                         <div class="settings-desc">Bot challenge on the login page (free from Cloudflare)</div>
                     </div>
@@ -2043,7 +2090,7 @@ body {
                 <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;">
                     <div>
                         <div class="settings-label">Login Screen Logo</div>
-                        <div class="settings-desc">Upload a PNG or SVG logo to display at the bottom of the left panel on the login screen. Leave empty to show no custom branding.</div>
+                        <div class="settings-desc">Upload a PNG or SVG logo to display at the bottom of the left panel on the login screen. SVG uploads are restricted to admins and are server-side sanitized (scripts, event handlers, and external refs are stripped). Leave empty to show no custom branding.</div>
                     </div>
                     <div style="display:flex;align-items:flex-start;gap:1.25rem;flex-wrap:wrap;">
                         <!-- Preview: shown at the actual render width for a true WYSIWYG -->
@@ -2060,7 +2107,7 @@ body {
                                 Upload Logo
                             </label>
                             <button class="btn btn-ghost btn-sm" id="brandingLogoRemoveBtn" style="color:var(--danger);display:none;" onclick="removeBrandingLogo()">Remove Logo</button>
-                            <span style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">PNG or SVG</span>
+                            <span style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">PNG or SVG (SVG admin-only, sanitized)</span>
                             <div style="display:flex;flex-direction:column;gap:4px;margin-top:0.4rem;">
                                 <label class="form-label" for="brandingLogoWidth" style="font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Logo width (px)</label>
                                 <input type="range" id="brandingLogoWidth" min="40" max="600" step="2" value="180"
@@ -2149,6 +2196,69 @@ body {
                 </div>
                 <h3 class="about-sub">Changelog</h3>
                 <div style="max-height:280px;overflow-y:auto;">
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.5.2</div>
+                        <ul class="changelog-list">
+                            <li><strong>Security hardening</strong> — Min password 8 chars; constant-time login; global security headers (XFO, XCTO, Referrer-Policy, Permissions-Policy, HSTS); <code>WM_SECURE_COOKIES</code> env flips Secure cookies on; Werkzeug debug off by default; <code>/uploads</code> validates UUID-filename pattern; email-header injection hardening.</li>
+                            <li><strong>Account lockout</strong> — 5 fails → 15-minute lock (migration v28). Admin <strong>Locked Accounts</strong> dashboard widget with one-click Unlock.</li>
+                            <li><strong>SVG branding (admin-only, sanitized)</strong> — PNG re-encoded through Pillow; SVG parsed as XML and stripped of <code>&lt;script&gt;</code>, animation elements, <code>on*</code> handlers, and dangerous URL schemes. Response-level CSP on <code>/branding/logo</code>.</li>
+                            <li><strong>About tab mirrors the full changelog</strong> that ships with every build.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.5.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Always land on the dashboard after sign-in</strong> — <code>?next=…</code> ignored; both AJAX and form-post redirect to <code>/dashboard</code>.</li>
+                            <li><strong>Softer login gradient</strong> — Analogous pastel palette (±25-40° spread, 42-54% saturation, 76-82% lightness) instead of triadic.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.5.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Two-panel login screen</strong> — Animated sine-wave gradient hero with random triadic palette + rotation per reload. Warehouse Manager logo + name centered in Inter 600 / -1px tracking. Theme follows the last signed-in user's saved light/dark setting via localStorage.</li>
+                            <li><strong>Custom branding</strong> — Admin-only Branding tab in Settings. Upload logo with WYSIWYG preview at configured render width; Save persists.</li>
+                            <li><strong>Sales people from users</strong> — Migration v25 adds <code>users.is_sales_person</code>. WO dropdown derives from flagged users; Sales People tab removed.</li>
+                            <li><strong>Threaded notes with replies</strong> — Migration v26 adds <code>parent_id</code> + <code>author_user_id</code>. Adding a note emails the salesperson; replies email every prior participant. Scrollable 5-note container, newest thread at top. Flag + unflag events appear in the same thread.</li>
+                            <li><strong>Global + per-user email toggles</strong> — Migration v27 adds <code>smtp_notifications_enabled</code> setting and <code>users.email_notifications_enabled</code>. Admin toggle kills all alerts; user toggle opts individuals out. Banner on the Work Orders page when global alerts are off.</li>
+                            <li><strong>Photo emails</strong> — Uploading a photo emails the salesperson with the JPEG attached.</li>
+                            <li><strong>Per-part camera icon</strong> — Camera beside the flag on every part row; "+ Add Photo" button retired.</li>
+                            <li><strong>Collapsible cards</strong> — Chevron accordion; delivered cards default collapsed. Status/priority badges moved right next to the chevron. Action row on the bottom with Mark Delivered pushed far-right. Tooltips on every action button.</li>
+                            <li><strong>Sort by Audit + Posted to Web</strong> — Parts table headers click-to-sort with inline arrows. Audit badge on card view for every category.</li>
+                            <li><strong>Detail modal retired</strong> — List view renders every action inline.</li>
+                            <li><strong>Derived flag status + sidebar badge</strong> — Flag status derived from per-part flags. Red badge on Work Orders nav shows flagged count.</li>
+                            <li><strong>? help tooltip</strong> on the Work Orders heading.</li>
+                            <li><strong>Email validation</strong> on user create/update; "Username (email address)" label.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.4.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Header reshuffle</strong> — Status + Priority cluster to the right next to the chevron.</li>
+                            <li><strong>View button + button tooltips</strong> — Added View to action row; descriptive <code>title</code> attributes on every button.</li>
+                            <li><strong>Per-part photo camera icon</strong> in each row.</li>
+                            <li><strong>Edit user modal</strong> — "Username (email address)" label.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.4.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Flag status is per-part</strong> — Removed WO-level Flag / Unflag / Update Flag Note buttons. Any flagged part auto-flips status to flagged; last unflag returns to requested.</li>
+                            <li><strong>Edit part flag notes</strong> — Click the flagged icon to edit the note or unflag.</li>
+                            <li><strong>Sidebar flagged badge</strong> with live count.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.3.1</div>
+                        <ul class="changelog-list">
+                            <li><strong>Auto-email salesperson on photo upload</strong> — Photos attached to <code>[Photo] Work Order WO-XXXXX</code> email. Comment included.</li>
+                        </ul>
+                    </div>
+                    <div class="changelog-entry">
+                        <div class="changelog-version">v1.3.0</div>
+                        <ul class="changelog-list">
+                            <li><strong>Per-part photos on work orders</strong> — Resize to 2048 px / JPEG 80. Thumbnails, comments, edit + delete. Stable UUID keys so photos survive edits (migration v24). Orphaned photos cleaned up on part removal or WO delete.</li>
+                        </ul>
+                    </div>
                     <div class="changelog-entry">
                         <div class="changelog-version">v1.2.11</div>
                         <ul class="changelog-list">
@@ -3087,6 +3197,51 @@ function openSettingsModal(tab) {
     const btn = document.querySelector(btnSelector);
     switchSettingsTab(tab || 'general', btn);
     openModal('settingsModal');
+    // Fresh-fetch notification state every time so toggles stay in sync
+    refreshNotificationToggles();
+}
+
+async function refreshNotificationToggles() {
+    try {
+        const cfg = await (await fetch('/api/settings/notifications')).json();
+        const user = document.getElementById('userNotifsToggle');
+        if (user) user.checked = !!cfg.user_enabled;
+        const global = document.getElementById('globalNotifsToggle');
+        if (global) global.checked = !!cfg.global_enabled;
+        // Update the Work Orders banner visibility now that we know global state
+        updateNotificationsBanner(!!cfg.global_enabled);
+    } catch {}
+}
+
+async function saveUserNotifications(enabled) {
+    try {
+        const res = await fetch('/api/settings/notifications/me', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled }),
+        });
+        if (!res.ok) { showToast('Failed to update preference', 'error'); return; }
+        showToast(enabled ? 'Email notifications on' : 'Email notifications off', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function saveGlobalNotifications(enabled) {
+    try {
+        const res = await fetch('/api/settings/notifications/global', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled }),
+        });
+        if (!res.ok) { showToast('Failed to update global setting', 'error'); return; }
+        showToast(enabled ? 'Global email alerts on' : 'Global email alerts off', 'success');
+        updateNotificationsBanner(enabled);
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function updateNotificationsBanner(globalEnabled) {
+    const banner = document.getElementById('woNotifsBanner');
+    if (!banner) return;
+    banner.style.display = globalEnabled ? 'none' : '';
 }
 
 function switchSettingsTab(tab, btn) {
@@ -3211,8 +3366,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadWoSettings();
     loadStats();
     loadWoCounts();
+    loadGlobalNotificationsState();
     initViewFromUrl();
 });
+
+// Light-weight check that just pulls the global flag so the WO page banner
+// can reflect the current state without requiring the settings modal to open.
+async function loadGlobalNotificationsState() {
+    try {
+        const cfg = await (await fetch('/api/settings/notifications')).json();
+        updateNotificationsBanner(!!cfg.global_enabled);
+    } catch {}
+}
 document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => { currentSearch = e.target.value; currentPage = 1; loadParts(); }, 250);
@@ -4493,12 +4658,23 @@ async function renderDashboard() {
     const container = document.getElementById('dashboardContainer');
     const name = (currentUserData && (currentUserData.display_name || currentUserData.username)) || 'there';
     const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    const lockedWidget = isAdmin
+        ? `<div class="dashboard-widget" id="widgetLockedAccountsWrap" style="display:none;">
+            <div class="widget-header">
+                <span>Locked Accounts</span>
+                <a onclick="refreshLockedAccounts()">Refresh</a>
+            </div>
+            <div class="widget-body" id="widgetLockedAccounts"><div class="widget-empty">Checking…</div></div>
+           </div>`
+        : '';
     container.innerHTML = `
         <div class="dashboard-header">
             <h1>Welcome, ${esc(name)}</h1>
             <div class="sub">${esc(today)}</div>
         </div>
         <div class="dashboard-grid">
+            ${lockedWidget}
             <div class="dashboard-widget">
                 <div class="widget-header">
                     <span>Work Orders</span>
@@ -4530,6 +4706,52 @@ async function renderDashboard() {
     } catch {
         showToast('Failed to load dashboard data', 'error');
     }
+    if (isAdmin) refreshLockedAccounts();
+}
+
+async function refreshLockedAccounts() {
+    const wrap = document.getElementById('widgetLockedAccountsWrap');
+    const body = document.getElementById('widgetLockedAccounts');
+    if (!wrap || !body) return;
+    try {
+        const locked = await (await fetch('/api/users/locked')).json();
+        if (!Array.isArray(locked) || locked.length === 0) {
+            // No locked accounts → hide the widget entirely so it doesn't clutter
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = '';
+        body.innerHTML = locked.map(u => {
+            const until = (u.locked_until || '').split('.')[0].replace('T', ' ');
+            const label = esc(u.display_name || u.username);
+            return `<div class="widget-row locked-row">
+                <div class="locked-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div class="widget-row-text">
+                    <div class="widget-row-title">${label}</div>
+                    <div class="widget-row-sub">
+                        <span>${u.failed_login_count || 0} failed attempt${u.failed_login_count === 1 ? '' : 's'}</span>
+                        <span style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">locked until ${esc(until)} UTC</span>
+                    </div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="unlockAccount(${u.id}, event)">Unlock</button>
+            </div>`;
+        }).join('');
+    } catch {
+        body.innerHTML = '<div class="widget-empty">Failed to load locked accounts</div>';
+    }
+}
+
+async function unlockAccount(uid, event) {
+    if (event) event.stopPropagation();
+    try {
+        const res = await fetch(`/api/users/${uid}/unlock`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Unlock failed', 'error'); return; }
+        showToast(`Unlocked ${data.username || 'account'}`, 'success');
+        refreshLockedAccounts();
+    } catch { showToast('Connection error', 'error'); }
 }
 
 function renderWoSummary(counts) {
@@ -4636,6 +4858,13 @@ async function renderWorkOrdersView() {
           </button>`
         : '';
     woc.innerHTML = `
+        <div id="woNotifsBanner" class="wo-notifs-banner" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <div>
+                <strong>Email notifications are off globally.</strong>
+                Flag, note, reply, photo, and delivery emails won't be sent to anyone until an admin turns them back on in Settings → Admin.
+            </div>
+        </div>
         <div class="wo-header">
             <h2 style="display:inline-flex;align-items:center;gap:8px;">
                 ${title}
@@ -4681,6 +4910,8 @@ async function renderWorkOrdersView() {
             }, 200);
         });
     }
+    // Refresh the banner for this view; the container was just re-rendered.
+    loadGlobalNotificationsState();
     await loadWorkOrders();
 }
 

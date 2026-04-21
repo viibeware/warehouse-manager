@@ -221,6 +221,12 @@ warehouse-manager/
 
 ## Changelog
 
+### v1.5.2
+- **Security hardening** — Password minimum bumped to 8 characters. Constant-time login (dummy hash on missing/locked users) prevents user-enumeration via timing. Global security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, locked-down `Permissions-Policy`, HSTS when secure cookies are enabled. Secure session + remember cookies toggleable via `WM_SECURE_COOKIES=1` env var. Werkzeug debug mode disabled by default (opt-in via `FLASK_DEBUG=1`). `/uploads/<filename>` validates against a strict UUID-hex filename pattern. Email header injection hardened: CR/LF stripped from `to_email` and `subject`; recipient re-validated against the email regex before handing to Python's email module.
+- **Account lockout + admin unlock widget** — Migration v28 adds `failed_login_count`, `locked_until`, `last_failed_login` to `users`. Five consecutive failed logins on an existing active account locks it for 15 minutes; unknown usernames are never locked out (prevents griefing). Expired locks auto-clear. Success resets counters. New admin **Locked Accounts** dashboard widget lists currently-locked users with their failed-count, expiry (UTC), and a one-click **Unlock** button. Endpoints: `GET /api/users/locked`, `POST /api/users/<id>/unlock`.
+- **SVG branding uploads (admin-only, sanitized)** — PNG uploads are validated + re-encoded via Pillow (strips metadata/chunks). SVG uploads parse as XML and strip `<script>`, `<foreignObject>`, `<iframe>`, `<use>`, animation elements, every `on*` attribute, and `href`/`xlink:href` values that use `javascript:`, `data:`, `vbscript:`, or `file:` schemes. `/branding/logo` responses carry a restrictive `Content-Security-Policy` so even a smuggled script payload is neutered at the browser.
+- **About tab now mirrors the full changelog** shipped with every build.
+
 ### v1.5.1
 - **Always land on the dashboard after sign-in.** Login redirect ignores any `?next=…` param and sends users to `/dashboard` for both AJAX and form-post flows; the already-authenticated guard matches.
 - **Softer login gradient.** Hero sine-wave switched from triadic (120° apart) to an analogous pastel palette — three hues within ±25–40° of a random base hue, saturation 42–54%, lightness 76–82%. Less visually divergent, dreamier look. Reduced-motion static fallback matches.

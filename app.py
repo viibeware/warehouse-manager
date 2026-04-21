@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.1'
+APP_VERSION = '1.5.2'
 
 app = Flask(__name__)
 
@@ -37,6 +37,11 @@ else:
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Set secure flag when the deployment is behind HTTPS. Toggle via env var so
+# dev-over-HTTP still works. WM_SECURE_COOKIES=1 flips it on in production.
+_SECURE_COOKIES = os.environ.get('WM_SECURE_COOKIES', '').lower() in ('1', 'true', 'yes')
+app.config['SESSION_COOKIE_SECURE'] = _SECURE_COOKIES
+app.config['REMEMBER_COOKIE_SECURE'] = _SECURE_COOKIES
 # 90 days — keep users signed in long-term. Both values matter:
 #   PERMANENT_SESSION_LIFETIME  → the Flask session cookie
 #   REMEMBER_COOKIE_DURATION    → Flask-Login's "remember me" cookie that re-authenticates
@@ -46,6 +51,25 @@ app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+# Account-lockout policy: lock after N consecutive failures for LOCKOUT_MINUTES.
+LOGIN_FAIL_LIMIT = 5
+LOCKOUT_MINUTES = 15
+PASSWORD_MIN_LENGTH = 8
+
+
+@app.after_request
+def _security_headers(resp):
+    """Add defense-in-depth headers on every response."""
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('Referrer-Policy', 'same-origin')
+    resp.headers.setdefault('Permissions-Policy',
+                            'geolocation=(), camera=(), microphone=(), payment=()')
+    if _SECURE_COOKIES:
+        resp.headers.setdefault('Strict-Transport-Security',
+                                'max-age=31536000; includeSubDomains')
+    return resp
 
 DATABASE = os.path.join(DATA_DIR, 'warehouse.db')
 
@@ -762,6 +786,43 @@ def migrate_v24(conn):
     ''')
 
 
+def migrate_v28(conn):
+    """Account-lockout state on users. After too many failed logins we set
+    locked_until; admins can clear it. failed_login_count decays to zero on
+    a successful sign-in or after an admin unlock."""
+    for col, ddl in [
+        ('failed_login_count', 'INTEGER DEFAULT 0'),
+        ('locked_until', 'TIMESTAMP'),
+        ('last_failed_login', 'TIMESTAMP'),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+        except Exception:
+            pass
+
+
+def migrate_v27(conn):
+    """Email-notification flags — a global kill switch (app_setting
+    smtp_notifications_enabled) and a per-user opt-out
+    (users.email_notifications_enabled). Both default to on so existing
+    behavior is unchanged for existing installations."""
+    try:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN email_notifications_enabled INTEGER DEFAULT 1"
+        )
+    except Exception:
+        pass
+    import json as json_mod
+    existing = conn.execute(
+        "SELECT key FROM app_settings WHERE key = 'smtp_notifications_enabled'"
+    ).fetchone()
+    if not existing:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('smtp_notifications_enabled', ?)",
+            (json_mod.dumps(True),)
+        )
+
+
 def migrate_v26(conn):
     """Add parent_id + author_user_id to work_order_notes for threaded
     conversation replies. Top-level notes have parent_id=NULL; every reply
@@ -851,6 +912,8 @@ MIGRATIONS = [
     (24, migrate_v24),
     (25, migrate_v25),
     (26, migrate_v26),
+    (27, migrate_v27),
+    (28, migrate_v28),
 ]
 
 
@@ -1099,15 +1162,49 @@ def login():
                 return jsonify({'error': ts_err or 'Challenge failed'}), 403
             return render_template('login.html', error=ts_err or 'Challenge failed', **ts_ctx)
 
+        from datetime import datetime, timedelta
         conn = get_db()
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        conn.close()
+
+        # ── Check lockout state before verifying the password ──
+        locked_msg = None
+        if row and 'locked_until' in row.keys() and row['locked_until']:
+            try:
+                locked_at = datetime.fromisoformat(row['locked_until'].replace('T', ' ').split('.')[0])
+            except Exception:
+                locked_at = None
+            if locked_at and locked_at > datetime.utcnow():
+                remaining = int((locked_at - datetime.utcnow()).total_seconds() // 60) + 1
+                locked_msg = f"Account locked — try again in {remaining} minute{'s' if remaining != 1 else ''} or contact an administrator."
+            elif locked_at:
+                # Lockout expired — clear it
+                conn.execute(
+                    "UPDATE users SET locked_until = NULL, failed_login_count = 0 WHERE id = ?",
+                    (row['id'],)
+                )
+                conn.commit()
+
+        # Always run a password hash, even if the user is missing or locked, so
+        # the request takes roughly the same time regardless (timing-safe).
+        _DUMMY_HASH = generate_password_hash('invalid', method='pbkdf2:sha256')
+        if locked_msg:
+            check_password_hash(_DUMMY_HASH, password)
+            conn.close()
+            if is_ajax:
+                return jsonify({'error': locked_msg}), 423
+            return render_template('login.html', error=locked_msg, **ts_ctx)
 
         if row and row['active'] and check_password_hash(row['password_hash'], password):
+            # Success — reset counters
+            conn.execute(
+                "UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = ?",
+                (row['id'],)
+            )
+            conn.commit()
+            conn.close()
             user = User(row['id'], row['username'], row['display_name'], row['role'], row['active'])
             login_user(user, remember=True)
             session.permanent = True
-
             # Always land on the dashboard after signing in — ignore any `next`
             # parameter so users start at a known screen regardless of where
             # the auth redirect came from.
@@ -1115,9 +1212,41 @@ def login():
                 return jsonify({'success': True, 'redirect': '/dashboard'})
             return redirect('/dashboard')
 
+        # Failure — burn a hash for missing users so timing can't distinguish
+        if not row:
+            check_password_hash(_DUMMY_HASH, password)
+
+        # Record the failure against an existing user (not unknown usernames
+        # — we don't want to create lockouts for accounts that don't exist).
+        attempts_left = None
+        if row and row['active']:
+            now_iso = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            new_count = (row['failed_login_count'] or 0) + 1 if 'failed_login_count' in row.keys() else 1
+            lock_value = None
+            if new_count >= LOGIN_FAIL_LIMIT:
+                lock_value = (datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)).strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute(
+                "UPDATE users SET failed_login_count = ?, last_failed_login = ?, locked_until = ? "
+                "WHERE id = ?",
+                (new_count, now_iso, lock_value, row['id'])
+            )
+            conn.commit()
+            if lock_value:
+                attempts_left = 0
+            else:
+                attempts_left = LOGIN_FAIL_LIMIT - new_count
+        conn.close()
+
+        if attempts_left == 0:
+            err = f"Account locked for {LOCKOUT_MINUTES} minutes after {LOGIN_FAIL_LIMIT} failed attempts."
+            if is_ajax:
+                return jsonify({'error': err}), 423
+            return render_template('login.html', error=err, **ts_ctx)
+
+        err = 'Invalid username or password'
         if is_ajax:
-            return jsonify({'error': 'Invalid username or password'}), 401
-        return render_template('login.html', error='Invalid username or password', **ts_ctx)
+            return jsonify({'error': err}), 401
+        return render_template('login.html', error=err, **ts_ctx)
 
     return render_template('login.html', error=None, **ts_ctx)
 
@@ -1150,8 +1279,8 @@ def change_own_password():
     current_pw = data.get('current_password', '')
     new_pw = data.get('new_password', '')
 
-    if not new_pw or len(new_pw) < 4:
-        return jsonify({'error': 'New password must be at least 4 characters'}), 400
+    if not new_pw or len(new_pw) < PASSWORD_MIN_LENGTH:
+        return jsonify({'error': f'New password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
 
     conn = get_db()
     row = conn.execute("SELECT password_hash FROM users WHERE id = ?", (current_user.id,)).fetchone()
@@ -1203,8 +1332,8 @@ def create_user():
         return jsonify({'error': 'Username and password are required'}), 400
     if not _valid_email(username):
         return jsonify({'error': 'Username must be a valid email address'}), 400
-    if len(password) < 4:
-        return jsonify({'error': 'Password must be at least 4 characters'}), 400
+    if len(password) < PASSWORD_MIN_LENGTH:
+        return jsonify({'error': f'Password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
     if role not in ('admin', 'editor', 'supervisor', 'viewer'):
         return jsonify({'error': 'Invalid role'}), 400
 
@@ -1279,9 +1408,9 @@ def update_user(uid):
     # Optional password reset
     new_pw = data.get('password', '')
     if new_pw:
-        if len(new_pw) < 4:
+        if len(new_pw) < PASSWORD_MIN_LENGTH:
             conn.close()
-            return jsonify({'error': 'Password must be at least 4 characters'}), 400
+            return jsonify({'error': f'Password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
         conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                      (generate_password_hash(new_pw, method='pbkdf2:sha256'), uid))
 
@@ -1313,6 +1442,45 @@ def delete_user(uid):
     return jsonify({'success': True})
 
 
+@app.route('/api/users/locked', methods=['GET'])
+@admin_required
+def list_locked_users():
+    """Users whose lockout timestamp is still in the future. Drives the
+    admin Locked Accounts widget on the dashboard."""
+    from datetime import datetime
+    now_iso = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, username, display_name, locked_until, failed_login_count, last_failed_login "
+        "FROM users WHERE locked_until IS NOT NULL AND locked_until > ? "
+        "ORDER BY locked_until DESC",
+        (now_iso,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/users/<int:uid>/unlock', methods=['POST'])
+@admin_required
+def unlock_user(uid):
+    """Admin unlock — clears the lockout timestamp and resets the failure
+    counter so the user can sign in immediately."""
+    conn = get_db()
+    existing = conn.execute(
+        "SELECT id, username FROM users WHERE id = ?", (uid,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'User not found'}), 404
+    conn.execute(
+        "UPDATE users SET locked_until = NULL, failed_login_count = 0 WHERE id = ?",
+        (uid,)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'username': existing['username']})
+
+
 # ══════════════════════════════════════════
 #  PAGE ROUTES
 # ══════════════════════════════════════════
@@ -1328,9 +1496,17 @@ def index(slug=None):
     return render_template('index.html')
 
 
+_UPLOAD_NAME_RE = re.compile(r'^[a-f0-9]{32}\.(?:png|jpg|jpeg|gif|webp)$', re.IGNORECASE)
+
+
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):
+    # Defense-in-depth: send_from_directory already rejects traversal, but we
+    # also require the filename to match the UUID-hex.<ext> pattern every save
+    # path produces. Anything else (legacy, hand-crafted) → 404.
+    if not _UPLOAD_NAME_RE.match(filename or ''):
+        return '', 404
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
@@ -2474,7 +2650,7 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled'}
 
 
 def _get_setting(conn, key, default):
@@ -2719,7 +2895,12 @@ def update_turnstile_settings():
 
 BRANDING_DIR = os.path.join(UPLOAD_DIR, 'branding')
 os.makedirs(BRANDING_DIR, exist_ok=True)
+# Branding uploads are admin-only (decorator-enforced). PNG is validated by
+# Pillow; SVG is sanitized to strip <script>, on* handlers, external resource
+# refs, and dangerous URL schemes. The /branding/logo response also carries a
+# strict CSP so any smuggled payload would be neutered in the browser.
 BRANDING_EXTS = {'png', 'svg'}
+_BRANDING_NAME_RE = re.compile(r'^logo-[a-f0-9]{32}\.(?:png|svg)$', re.IGNORECASE)
 
 
 def _branding_filename(conn):
@@ -2743,9 +2924,15 @@ def serve_branding_logo():
     conn = get_db()
     fname = _branding_filename(conn)
     conn.close()
-    if not fname:
+    if not fname or not _BRANDING_NAME_RE.match(fname):
         return '', 404
-    return send_from_directory(BRANDING_DIR, fname)
+    resp = send_from_directory(BRANDING_DIR, fname)
+    # Neuter any scripting even if a rogue asset slipped in. Restrictive CSP
+    # applies to the response itself when an SVG is browsed directly.
+    resp.headers['Content-Security-Policy'] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'"
+    if fname.lower().endswith('.svg'):
+        resp.headers['Content-Type'] = 'image/svg+xml'
+    return resp
 
 
 @app.route('/api/settings/branding', methods=['GET'])
@@ -2783,6 +2970,66 @@ def update_branding_settings():
     return jsonify({'logo_width': new_width})
 
 
+def _sanitize_svg(svg_bytes):
+    """Strip XSS vectors from an SVG: <script>, foreignObject, event handlers,
+    `javascript:` URLs, and external href/xlink:href. Returns cleaned bytes
+    or None if parsing fails. Admin-only upload path so this is belt-and-
+    suspenders on top of the admin trust boundary."""
+    import xml.etree.ElementTree as ET
+    try:
+        text = svg_bytes.decode('utf-8', errors='replace')
+    except Exception:
+        return None
+    # Register SVG namespace so ElementTree round-trips element names cleanly
+    ET.register_namespace('', 'http://www.w3.org/2000/svg')
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return None
+    # Root must actually be an <svg>
+    if not root.tag.lower().endswith('svg'):
+        return None
+    dangerous_tags = {'script', 'foreignobject', 'iframe', 'object', 'embed',
+                      'video', 'audio', 'animate', 'animatetransform',
+                      'animatemotion', 'set', 'handler', 'use'}
+
+    def _local(tag):
+        return tag.split('}', 1)[-1].lower()
+
+    def _walk(el):
+        # Iterate children list copy so we can remove safely
+        for child in list(el):
+            if _local(child.tag) in dangerous_tags:
+                el.remove(child)
+                continue
+            # Strip unsafe attributes
+            for attr in list(child.attrib.keys()):
+                local_attr = attr.split('}', 1)[-1].lower()
+                val = (child.attrib.get(attr) or '').strip().lower()
+                if local_attr.startswith('on'):
+                    del child.attrib[attr]
+                    continue
+                if local_attr in ('href', 'xlink:href') or local_attr.endswith(':href'):
+                    if val.startswith(('javascript:', 'data:', 'vbscript:', 'file:')):
+                        del child.attrib[attr]
+                        continue
+                if local_attr == 'style' and ('expression(' in val or 'javascript:' in val):
+                    del child.attrib[attr]
+            _walk(child)
+
+    # Also strip attributes on the root element itself
+    for attr in list(root.attrib.keys()):
+        local_attr = attr.split('}', 1)[-1].lower()
+        if local_attr.startswith('on'):
+            del root.attrib[attr]
+    _walk(root)
+    try:
+        cleaned = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+    except Exception:
+        return None
+    return cleaned
+
+
 @app.route('/api/settings/branding/logo', methods=['POST'])
 @admin_required
 def upload_branding_logo():
@@ -2793,11 +3040,39 @@ def upload_branding_logo():
     if ext not in BRANDING_EXTS:
         return jsonify({'error': 'Logo must be a PNG or SVG'}), 400
 
+    buf = f.read()
+    new_fname = None
+    save_bytes = None
+
+    if ext == 'png':
+        # Validate via Pillow + re-encode to strip metadata/chunks
+        from PIL import Image, UnidentifiedImageError
+        from io import BytesIO
+        try:
+            img = Image.open(BytesIO(buf))
+            img.verify()
+        except (UnidentifiedImageError, Exception):
+            return jsonify({'error': 'Uploaded file is not a valid PNG image'}), 400
+        img = Image.open(BytesIO(buf))
+        if img.format != 'PNG':
+            return jsonify({'error': 'Uploaded file is not a PNG'}), 400
+        new_fname = f"logo-{uuid.uuid4().hex}.png"
+        out = BytesIO()
+        img.save(out, format='PNG', optimize=True)
+        save_bytes = out.getvalue()
+    else:  # svg
+        cleaned = _sanitize_svg(buf)
+        if cleaned is None:
+            return jsonify({'error': 'Invalid or unsafe SVG (scripts and external refs are not allowed)'}), 400
+        new_fname = f"logo-{uuid.uuid4().hex}.svg"
+        save_bytes = cleaned
+
     conn = get_db()
     cfg = _get_setting(conn, 'branding', {}) or {}
     old = str(cfg.get('logo_filename', '') or '')
-    new_fname = f"logo-{uuid.uuid4().hex}.{ext}"
-    f.save(os.path.join(BRANDING_DIR, new_fname))
+    out_path = os.path.join(BRANDING_DIR, new_fname)
+    with open(out_path, 'wb') as fh:
+        fh.write(save_bytes)
     # Remove the previous logo file (if any) so old uploads don't accumulate
     if old:
         try:
@@ -2851,13 +3126,68 @@ def test_smtp():
     return jsonify({'error': err or 'Send failed'}), 500
 
 
+#
+# Notification toggles — global (admin) + per-user (self)
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/settings/notifications', methods=['GET'])
+@login_required
+def get_notifications_settings():
+    """Global + current-user notification state. All users can read so the
+    work-orders page knows whether to show the global-off banner and whether
+    the user's personal toggle is on."""
+    conn = get_db()
+    global_enabled = bool(_get_setting(conn, 'smtp_notifications_enabled', True))
+    row = conn.execute(
+        "SELECT email_notifications_enabled FROM users WHERE id = ?",
+        (current_user.id,)
+    ).fetchone()
+    conn.close()
+    user_enabled = bool(row['email_notifications_enabled']) if row else True
+    return jsonify({
+        'global_enabled': global_enabled,
+        'user_enabled': user_enabled,
+    })
+
+
+@app.route('/api/settings/notifications/global', methods=['PUT'])
+@admin_required
+def update_global_notifications():
+    data = request.get_json() or {}
+    enabled = bool(data.get('enabled', True))
+    conn = get_db()
+    _set_setting(conn, 'smtp_notifications_enabled', enabled)
+    conn.commit()
+    conn.close()
+    return jsonify({'global_enabled': enabled})
+
+
+@app.route('/api/settings/notifications/me', methods=['PUT'])
+@login_required
+def update_my_notifications():
+    data = request.get_json() or {}
+    enabled = 1 if bool(data.get('enabled', True)) else 0
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET email_notifications_enabled = ? WHERE id = ?",
+        (enabled, current_user.id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'user_enabled': bool(enabled)})
+
+
 # ══════════════════════════════════════════
 #  EMAIL (SMTP)
 # ══════════════════════════════════════════
 
 def _send_email(to_email, subject, body, attachments=None):
     """Send an email via configured SMTP. Returns (success, error_msg).
-    attachments: optional list of dicts {filename, content (bytes), mime_type (e.g. 'image/jpeg')}."""
+    attachments: optional list of dicts {filename, content (bytes), mime_type (e.g. 'image/jpeg')}.
+
+    Honors two opt-outs: the global `smtp_notifications_enabled` setting
+    (admin toggle) and the per-user `email_notifications_enabled` flag on the
+    recipient's user record (matched by username = email)."""
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -2870,7 +3200,30 @@ def _send_email(to_email, subject, body, attachments=None):
 
     conn = get_db()
     cfg = _get_setting(conn, 'smtp_config', {})
+    global_enabled = _get_setting(conn, 'smtp_notifications_enabled', True)
+    # Per-user opt-out: if the recipient has a matching user record with the
+    # flag turned off, skip silently.
+    user_row = conn.execute(
+        "SELECT email_notifications_enabled FROM users WHERE LOWER(username) = LOWER(?)",
+        (to_email,)
+    ).fetchone()
     conn.close()
+
+    if not bool(global_enabled):
+        return False, 'notifications_disabled'
+    if user_row is not None and 'email_notifications_enabled' in user_row.keys() \
+            and not user_row['email_notifications_enabled']:
+        return False, 'recipient_opted_out'
+
+    # Defense-in-depth: strip CR/LF from anything going into a header so
+    # header injection can't smuggle additional recipients or headers even
+    # if Python's email module guardrails ever change.
+    def _no_crlf(s):
+        return str(s or '').replace('\r', ' ').replace('\n', ' ').strip()
+    to_email = _no_crlf(to_email)
+    subject = _no_crlf(subject)
+    if not to_email or not _EMAIL_RE.match(to_email):
+        return False, 'invalid recipient'
 
     host = cfg.get('host', '')
     if not host:
@@ -4409,4 +4762,7 @@ def unauthorized():
 init_db()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Debug mode is opt-in via env to avoid shipping the Werkzeug debugger in
+    # production (would expose a remote-code-execution console on errors).
+    _debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    app.run(host='0.0.0.0', port=5000, debug=_debug)
