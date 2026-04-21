@@ -5101,6 +5101,10 @@ async function openEditWorkOrderModalFromCard(wid) {
 async function openNewWorkOrderModal() {
     await _prepareWoForm(null);
     openModal('woFormModal');
+    // Reset the modal's scroll position — otherwise the browser keeps the
+    // previous request's scroll offset, so the form starts mid-way down.
+    const body = document.querySelector('#woFormModal .modal-body');
+    if (body) body.scrollTop = 0;
 }
 
 async function openEditWorkOrderModal(wid) {
