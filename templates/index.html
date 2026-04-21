@@ -5184,7 +5184,7 @@ function renderPartsRows(parts) {
 function partRowHtml(qty, desc, key, details) {
     return `<div class="wo-part-row" data-part-key="${esc(key || '')}">
         <input class="form-input wo-part-qty" type="number" min="1" value="${esc(String(qty))}" placeholder="Qty">
-        <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part description (SKU, WM#, or description)">
+        <input class="form-input wo-part-desc" type="text" value="${esc(desc)}" placeholder="Part Number">
         <button type="button" class="wo-list-remove" onclick="this.parentElement.remove(); ensurePartsPlaceholder();">✕</button>
         <input class="form-input wo-part-details" type="text" value="${esc(details || '')}" placeholder="Short description (optional — e.g. color, condition, fitment note)">
     </div>`;
