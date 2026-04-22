@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.1
+- <strong>Quieter tooltip scrollbar</strong> — The Work Orders <code>?</code> tooltip hides its scrollbar track (Firefox <code>scrollbar-width: none</code> + WebKit <code>::-webkit-scrollbar { display: none }</code>) so the floating panel reads as clean even when the content runs long. Wheel, touch, and keyboard scrolling still work; the 70 vh height cap is unchanged.
+
 ## v1.6.0
 - <strong>Paginated Work Orders with infinite scroll</strong> — The Work Orders list now loads 24 cards at a time and fetches the next page automatically as you approach the bottom, driven by an <code>IntersectionObserver</code>. Filter / sort / search changes reset cleanly to page 1. The live-refresh poller re-fetches whatever range is currently loaded so users deep in the list don't lose their scroll position when another user makes a change. Backend <code>GET /api/work-orders</code> accepts <code>limit</code> + <code>offset</code> and returns <code>{items, total, offset, limit}</code> when paginated; legacy (unpaginated) callers still work.
 - <strong>Archive view collapses every card by default</strong> — The archive is for browsing past orders, not working on them, so each card now starts collapsed regardless of its status. Expand on demand; live-refresh preserves any manual toggles.

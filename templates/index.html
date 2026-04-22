@@ -238,11 +238,16 @@ body {
     white-space: normal;
     /* Never exceed the viewport height; scroll internally if the content is
        tall. Capped at 70vh so the tooltip reads as a floating panel with a
-       clear scroll region rather than taking over the whole screen. */
+       clear scroll region rather than taking over the whole screen. The
+       scrollbar itself is hidden — the user can still scroll with the
+       wheel / touch / arrow keys — to keep the floating panel clean. */
     max-height: min(70vh, calc(100vh - 48px));
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-width: none;       /* Firefox */
+    -ms-overflow-style: none;    /* legacy Edge / IE */
 }
+.section-help-tip::-webkit-scrollbar { display: none; }  /* Chrome / Safari */
 .section-help-tip .wo-tooltip-divider {
     border-top: 1px solid var(--border);
     margin: 0.85rem 0;
