@@ -570,6 +570,46 @@ body {
 .empty-state svg { margin-bottom: 0.75rem; opacity: 0.3; }
 .empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
 .empty-state p { font-size: 0.85rem; }
+/* Floating "update available" banner — pinned bottom-right so it doesn't
+   block the active card / modal flow. Persistent until the user clicks
+   Reload or Later. */
+.version-update-banner {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    max-width: calc(100vw - 40px);
+    width: 380px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px -8px rgba(0,0,0,0.45),
+                0 4px 10px -2px rgba(0,0,0,0.18);
+    padding: 0.85rem 1rem;
+    display: flex; flex-direction: column; gap: 0.7rem;
+    z-index: 400;
+    font-family: var(--font);
+    animation: versionBannerSlideIn 0.28s cubic-bezier(.4,0,.2,1);
+}
+@keyframes versionBannerSlideIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.version-update-banner-title {
+    font-size: 0.88rem; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 0.15rem;
+}
+.version-update-banner-sub {
+    font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
+}
+.version-update-banner-actions {
+    display: flex; gap: 0.4rem; justify-content: flex-end;
+}
+@media (max-width: 640px) {
+    .version-update-banner {
+        right: 12px; bottom: 12px; width: calc(100vw - 24px);
+    }
+}
+
 .loading-spinner { display: flex; justify-content: center; padding: 3rem; }
 .spinner {
     width: 30px; height: 30px; border: 3px solid var(--border);
@@ -1314,6 +1354,11 @@ body {
 }
 .wo-card-collapsible-inner { overflow: hidden; min-height: 0; }
 .wo-card.wo-collapsed .wo-card-collapsible { grid-template-rows: 0fr; }
+.wo-list-sentinel {
+    display: flex; justify-content: center; align-items: center;
+    padding: 1.25rem 0;
+    min-height: 44px;
+}
 .wo-flag-note {
     margin-top: 0.5rem; padding: 0.5rem 0.65rem; background: rgba(239,68,68,0.08);
     border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.78rem; color: var(--text-secondary);
@@ -3747,6 +3792,11 @@ async function loadCurrentUser() {
         document.getElementById('userName').textContent = currentUserData.display_name;
         document.getElementById('userRole').textContent = currentUserData.role;
         document.getElementById('sidebarVersion').textContent = `v${currentUserData.version || '?'}`;
+        // Capture the version this bundle was served with and start the
+        // background version-drift check. A mismatch prompts the user to
+        // reload — we never auto-reload mid-session.
+        _bootVersion = currentUserData.version || '';
+        startVersionWatcher();
         if (currentUserData.can_edit) {
             document.getElementById('navAddPart').style.display = '';
             document.getElementById('actionsLabel').style.display = '';
@@ -5038,6 +5088,7 @@ function exitWorkOrdersView() {
     document.getElementById('partsToolbar').style.display = '';
     // Restore parts visibility handled by loadParts
     if (typeof stopWoLivePulse === 'function') stopWoLivePulse();
+    if (typeof _tearDownWoInfiniteScroll === 'function') _tearDownWoInfiniteScroll();
 }
 
 function exitDashboard() {
@@ -5402,29 +5453,167 @@ function toggleWoSortDir() {
     loadWorkOrders();
 }
 
-async function loadWorkOrders() {
-    const list = document.getElementById('woList');
-    if (!list) return;
+// ── Pagination + infinite scroll state ────────────────────────────────────
+const WO_PAGE_SIZE = 24;
+let _woLoadedCount = 0;
+let _woTotal = 0;
+let _woLoadingMore = false;
+let _woInfiniteObserver = null;
+
+function _buildWoListParams(offset, limit) {
     const params = new URLSearchParams();
     if (currentWoView === 'archive') params.set('archived', '1');
     else if (currentWoStatusFilter !== 'all') params.set('status', currentWoStatusFilter);
     if (currentWoSearch) params.set('search', currentWoSearch);
     params.set('sort_by', currentWoSortBy);
     params.set('sort_dir', currentWoSortDir);
+    params.set('offset', String(offset));
+    params.set('limit', String(limit));
+    return params.toString();
+}
+
+function _tearDownWoInfiniteScroll() {
+    const s = document.getElementById('woListSentinel');
+    if (s) s.remove();
+    if (_woInfiniteObserver) { _woInfiniteObserver.disconnect(); _woInfiniteObserver = null; }
+}
+
+function _setupWoInfiniteScroll() {
+    const list = document.getElementById('woList');
+    if (!list) return;
+    _tearDownWoInfiniteScroll();
+    if (_woLoadedCount >= _woTotal) return;  // nothing more to load
+    const sentinel = document.createElement('div');
+    sentinel.id = 'woListSentinel';
+    sentinel.className = 'wo-list-sentinel';
+    sentinel.innerHTML = '<div class="spinner" style="width:22px;height:22px;border-width:2px;"></div>';
+    list.appendChild(sentinel);
+    _woInfiniteObserver = new IntersectionObserver((entries) => {
+        if (entries.some(e => e.isIntersecting)) loadMoreWorkOrders();
+    }, { rootMargin: '360px' });
+    _woInfiniteObserver.observe(sentinel);
+}
+
+function _renderWoEmptyState(list) {
+    list.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:0.2rem;">${currentWoSearch ? 'No matches' : 'No work orders'}</div>
+        <div style="font-size:0.8rem;">${currentWoSearch ? `Nothing matches "${esc(currentWoSearch)}"` : (currentWoView==='archive'?'Completed orders will appear here.':'Create a new request to get started.')}</div>
+    </div>`;
+}
+
+async function loadWorkOrders() {
+    // Fresh load — resets pagination state and fetches the first page.
+    const list = document.getElementById('woList');
+    if (!list) return;
+    _tearDownWoInfiniteScroll();
+    _woLoadedCount = 0;
+    _woTotal = 0;
+    _woLoadingMore = false;
+
+    const params = _buildWoListParams(0, WO_PAGE_SIZE);
     try {
-        const orders = await (await fetch(`/api/work-orders?${params}`)).json();
-        if (!orders.length) {
-            list.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <div style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:0.2rem;">${currentWoSearch ? 'No matches' : 'No work orders'}</div>
-                <div style="font-size:0.8rem;">${currentWoSearch ? `Nothing matches "${esc(currentWoSearch)}"` : (currentWoView==='archive'?'Completed orders will appear here.':'Create a new request to get started.')}</div>
-            </div>`;
-            return;
-        }
-        list.innerHTML = orders.map(renderWorkOrderCard).join('');
+        const resp = await fetch(`/api/work-orders?${params}`);
+        const data = await resp.json();
+        // Handle legacy (unpaginated array) responses defensively — shouldn't
+        // happen now but keeps this robust against stale mocks.
+        const items = Array.isArray(data) ? data : (data.items || []);
+        _woTotal = Array.isArray(data) ? items.length : (data.total || 0);
+        _woLoadedCount = items.length;
+        if (!items.length) { _renderWoEmptyState(list); return; }
+        list.innerHTML = items.map(renderWorkOrderCard).join('');
+        _setupWoInfiniteScroll();
     } catch {
         list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--danger);">Failed to load work orders</div>';
     }
+}
+
+async function loadMoreWorkOrders() {
+    if (_woLoadingMore) return;
+    if (_woLoadedCount >= _woTotal) { _tearDownWoInfiniteScroll(); return; }
+    const list = document.getElementById('woList');
+    if (!list) return;
+    _woLoadingMore = true;
+    try {
+        const params = _buildWoListParams(_woLoadedCount, WO_PAGE_SIZE);
+        const resp = await fetch(`/api/work-orders?${params}`);
+        const data = await resp.json();
+        const items = Array.isArray(data) ? data : (data.items || []);
+        _woTotal = Array.isArray(data) ? _woLoadedCount + items.length : (data.total || _woTotal);
+        const html = items.map(renderWorkOrderCard).join('');
+        const sentinel = document.getElementById('woListSentinel');
+        if (sentinel) sentinel.insertAdjacentHTML('beforebegin', html);
+        else list.insertAdjacentHTML('beforeend', html);
+        _woLoadedCount += items.length;
+        if (_woLoadedCount >= _woTotal) _tearDownWoInfiniteScroll();
+    } catch {
+        /* silent — user can scroll again to retry */
+    } finally {
+        _woLoadingMore = false;
+    }
+}
+
+// ── VERSION WATCHER ───────────────────────────────────────────────────────
+// Polls a tiny /api/version endpoint once a minute. If the server's
+// APP_VERSION has moved past the version this page was served with, a
+// non-blocking banner appears offering a reload. We never auto-reload —
+// the user clicks Reload when they're at a safe stopping point.
+const VERSION_CHECK_INTERVAL_MS = 60 * 1000;
+let _bootVersion = '';
+let _versionTimer = null;
+let _versionBannerShown = false;
+
+function startVersionWatcher() {
+    if (_versionTimer) return;
+    _versionTimer = setInterval(checkVersionDrift, VERSION_CHECK_INTERVAL_MS);
+    // First check ~10s after boot — gives the page time to settle.
+    setTimeout(checkVersionDrift, 10000);
+}
+
+async function checkVersionDrift() {
+    if (!_bootVersion) return;
+    if (_versionBannerShown) return;
+    try {
+        const r = await fetch('/api/version', { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json();
+        const serverVersion = data.version || '';
+        if (serverVersion && serverVersion !== _bootVersion) {
+            showUpdateBanner(serverVersion);
+        }
+    } catch {
+        /* silent — try again next tick */
+    }
+}
+
+function showUpdateBanner(newVersion) {
+    if (_versionBannerShown) return;
+    _versionBannerShown = true;
+    const banner = document.createElement('div');
+    banner.id = 'versionUpdateBanner';
+    banner.className = 'version-update-banner';
+    banner.innerHTML = `
+        <div class="version-update-banner-main">
+            <div class="version-update-banner-title">Update available — v${esc(newVersion)}</div>
+            <div class="version-update-banner-sub">Reload when you're at a stopping point to pick up the latest changes.</div>
+        </div>
+        <div class="version-update-banner-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="versionUpdateDismiss">Later</button>
+            <button type="button" class="btn btn-primary btn-sm" id="versionUpdateReload">Reload now</button>
+        </div>
+    `;
+    document.body.appendChild(banner);
+    // "Later" hides the banner but keeps _versionBannerShown=true so we don't
+    // spam the user; we re-prompt after another 10 minutes in case they're
+    // still on the page.
+    document.getElementById('versionUpdateDismiss').onclick = () => {
+        banner.remove();
+        setTimeout(() => { _versionBannerShown = false; checkVersionDrift(); }, 10 * 60 * 1000);
+    };
+    document.getElementById('versionUpdateReload').onclick = () => {
+        // Hard reload bypasses the HTTP cache so the new template ships.
+        window.location.reload();
+    };
 }
 
 // ── LIVE POLL ─────────────────────────────────────────────────────────────
@@ -5491,7 +5680,29 @@ async function refreshWoListPreservingState() {
         const el = document.querySelector('#woList .wo-actions-more.open');
         return el ? el.closest('.wo-card')?.getAttribute('data-wo-id') : null;
     })();
-    await loadWorkOrders();
+    // Re-fetch the currently-loaded range instead of just the first page, so
+    // users who've scrolled deep into infinite scroll don't lose their spot
+    // when someone else makes a change.
+    const keep = Math.max(WO_PAGE_SIZE, _woLoadedCount);
+    const list = document.getElementById('woList');
+    if (!list) return;
+    try {
+        const params = _buildWoListParams(0, keep);
+        const resp = await fetch(`/api/work-orders?${params}`);
+        const data = await resp.json();
+        const items = Array.isArray(data) ? data : (data.items || []);
+        _woTotal = Array.isArray(data) ? items.length : (data.total || 0);
+        _woLoadedCount = items.length;
+        _tearDownWoInfiniteScroll();
+        if (!items.length) {
+            _renderWoEmptyState(list);
+        } else {
+            list.innerHTML = items.map(renderWorkOrderCard).join('');
+            _setupWoInfiniteScroll();
+        }
+    } catch {
+        /* leave list as-is on transient failure */
+    }
     // Restore collapse state: respect the user's manual toggles. Cards not in
     // either set are new — leave them at their rendered default.
     document.querySelectorAll('#woList .wo-card').forEach(c => {
@@ -5647,9 +5858,10 @@ function renderWorkOrderCard(wo) {
     let cardCls = 'wo-card';
     if (prioColor) cardCls += ' has-priority-color';
     if (isDeliveredPendingCard) cardCls += ' delivered-pending';
-    // Delivered (pending or archived) cards start collapsed; requested/flagged
-    // cards start expanded. Every card shows a chevron so users can toggle.
-    const startCollapsed = wo.status === 'delivered';
+    // Delivered cards start collapsed. Archive view always starts every card
+    // collapsed regardless of status — the archive is for browsing, not
+    // working, so we open them only on demand.
+    const startCollapsed = wo.status === 'delivered' || currentWoView === 'archive';
     if (startCollapsed) cardCls += ' wo-collapsed';
     const cardStyle = prioColor ? `style="--prio-color:${prioColor};"` : '';
     const collapseToggle = `<button class="wo-collapse-btn" title="Expand / collapse"

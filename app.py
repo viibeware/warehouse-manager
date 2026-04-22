@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.20'
+APP_VERSION = '1.6.0'
 
 app = Flask(__name__)
 
@@ -1370,6 +1370,15 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+
+@app.route('/api/version')
+@login_required
+def api_version():
+    """Tiny endpoint for the frontend version-drift check. Returns just the
+    deployed APP_VERSION so a client running an older bundle can detect the
+    update without pulling auth/me and the display settings each poll."""
+    return jsonify({'version': APP_VERSION})
 
 
 @app.route('/api/auth/me')
@@ -3818,13 +3827,42 @@ def list_work_orders():
     if sort_dir not in ('asc', 'desc'):
         sort_dir = 'desc'
 
+    # Pagination — optional. When limit is not supplied the endpoint returns
+    # the full filtered list (backward-compatible for any caller that
+    # doesn't paginate). When it is supplied the response includes a `total`
+    # count so the client can tell when it's seen every record.
+    raw_limit = request.args.get('limit')
+    raw_offset = request.args.get('offset', '0')
+    limit = None
+    offset = 0
+    if raw_limit not in (None, ''):
+        try:
+            limit = max(1, min(200, int(raw_limit)))
+        except (TypeError, ValueError):
+            limit = None
+    try:
+        offset = max(0, int(raw_offset))
+    except (TypeError, ValueError):
+        offset = 0
+
+    base_sql = f"SELECT * FROM work_orders {where} ORDER BY {sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}"
+
+    if limit is None:
+        rows = conn.execute(base_sql, params).fetchall()
+        result = [_work_order_to_dict(conn, r) for r in rows]
+        conn.close()
+        return jsonify(result)
+
+    total_row = conn.execute(
+        f"SELECT COUNT(*) AS c FROM work_orders {where}", params
+    ).fetchone()
+    total = total_row['c'] if total_row else 0
     rows = conn.execute(
-        f"SELECT * FROM work_orders {where} ORDER BY {sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}",
-        params
+        base_sql + " LIMIT ? OFFSET ?", [*params, limit, offset]
     ).fetchall()
-    result = [_work_order_to_dict(conn, r) for r in rows]
+    items = [_work_order_to_dict(conn, r) for r in rows]
     conn.close()
-    return jsonify(result)
+    return jsonify({'items': items, 'total': total, 'offset': offset, 'limit': limit})
 
 
 @app.route('/api/work-orders/counts', methods=['GET'])
