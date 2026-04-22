@@ -381,6 +381,8 @@ body {
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: var(--danger-hover); }
+.btn-success { background: var(--yes); color: #fff; border: 1px solid var(--yes); }
+.btn-success:hover { filter: brightness(0.92); }
 .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
 .btn-ghost:hover { color: var(--text-primary); border-color: var(--text-muted); }
 .btn-sm { padding: 7px 14px; font-size: 0.78rem; }
@@ -1099,6 +1101,122 @@ body {
     justify-content: flex-start;
     padding-top: 0.5rem;
 }
+.wo-card-actions .wo-actions-more {
+    /* Anchor for the floating panel — keeps it out of the flex flow so the
+       neighboring Edit / Add Note buttons don't stretch to match its height. */
+    display: inline-flex; align-items: center;
+    position: relative;
+}
+.wo-card-actions .wo-actions-more-trigger {
+    width: 30px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); background: var(--bg-input);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    cursor: pointer; padding: 0;
+    transition: background var(--transition), color var(--transition),
+                border-color var(--transition);
+}
+.wo-card-actions .wo-actions-more-trigger:hover {
+    border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
+}
+.wo-card-actions .wo-actions-more.open .wo-actions-more-trigger {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+}
+/* Floating pill that blooms out of the trigger — sits above the row on its
+   own layer so it never disturbs the surrounding button layout. */
+.wo-card-actions .wo-actions-more-panel {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    display: inline-flex; gap: 0.35rem; align-items: center;
+    padding: 5px 7px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow:
+        0 10px 28px -6px rgba(0, 0, 0, 0.35),
+        0 4px 10px -2px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+    transform-origin: bottom left;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+        opacity 0.18s ease,
+        transform 0.22s cubic-bezier(.4, 0, .2, 1),
+        visibility 0s linear 0.22s;
+    z-index: 6;
+}
+/* Speech-bubble pointer: two stacked triangles — outer (::before) gives the
+   border color, inner (::after) fills with the panel background. The ::after
+   sits 1px higher than ::before so only the border edge peeks through. */
+.wo-card-actions .wo-actions-more-panel::before,
+.wo-card-actions .wo-actions-more-panel::after {
+    content: '';
+    position: absolute;
+    width: 0; height: 0;
+    pointer-events: none;
+}
+.wo-card-actions .wo-actions-more-panel::before {
+    /* On a fully rounded pill, the bottom-left corner curve extends across
+       about half the panel's height. The triangle sits past that curve so
+       its base attaches to a flat segment instead of getting clipped by the
+       rounded corner. */
+    top: 100%;
+    left: 22px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid var(--border);
+}
+.wo-card-actions .wo-actions-more-panel::after {
+    top: calc(100% - 1px);
+    left: 23px;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid var(--bg-card);
+}
+.wo-card-actions .wo-actions-more.open .wo-actions-more-panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+        opacity 0.18s ease,
+        transform 0.22s cubic-bezier(.4, 0, .2, 1),
+        visibility 0s linear 0s;
+}
+.wo-card-actions .wo-actions-more-panel .table-btn {
+    /* Slightly tighter spacing inside the floating pill so the popover reads
+       as a single elegant strip rather than a wide toolbar. */
+    border-color: transparent;
+    background: transparent;
+}
+.wo-card-actions .wo-actions-more-panel .table-btn:hover {
+    background: var(--bg-input);
+    border-color: var(--border);
+}
+
+/* ── Mobile tweaks ── On phones the pill could be wider than the viewport,
+   so let buttons wrap onto multiple rows and cap the panel width relative to
+   the screen. We also widen the border-radius so the wrapped block looks like
+   a speech bubble rather than a squashed pill. */
+@media (max-width: 640px) {
+    .wo-card-actions .wo-actions-more-panel {
+        white-space: normal;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        max-width: min(320px, calc(100vw - 32px));
+        border-radius: 14px;
+        padding: 6px 8px;
+    }
+    .wo-card-actions .wo-actions-more-panel .table-btn {
+        /* Give the buttons a tappable target on touch devices */
+        min-height: 32px;
+    }
+}
 .wo-card-actions .wo-actions-trailing {
     margin-left: auto;
     display: inline-flex; gap: 0.35rem; align-items: center;
@@ -1257,6 +1375,90 @@ body {
     border-color: var(--danger); color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
 }
+.wo-note-edit-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    padding: 3px 9px; border-radius: 10px; cursor: pointer;
+    transition: all var(--transition);
+}
+.wo-note-edit-btn:hover {
+    border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
+}
+
+/* Request-level attachments rendered on the work-order card */
+.wo-attachments {
+    margin-top: 0.6rem;
+}
+.wo-attachments-label {
+    font-family: var(--mono); font-size: 0.64rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin-bottom: 0.35rem;
+}
+.wo-attachments-list {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+.wo-attachment {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.55rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.78rem;
+    transition: border-color var(--transition), background var(--transition);
+    max-width: 260px;
+}
+.wo-attachment:hover { border-color: var(--accent); background: var(--accent-dim); }
+.wo-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wo-attachment-size { color: var(--text-muted); font-family: var(--mono); font-size: 0.66rem; }
+.wo-attachment-img {
+    padding: 0; overflow: hidden; cursor: pointer; width: 88px; height: 88px;
+}
+.wo-attachment-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Links inside the Request Details body */
+.wo-notes-block .notes-text a {
+    color: var(--accent); text-decoration: underline; word-break: break-all;
+}
+
+/* Attachment chips inside the WO form modal */
+.wo-form-attachment-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.35rem 0.55rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 0.35rem;
+    font-size: 0.78rem;
+}
+.wo-form-attachment-row .wo-form-att-name {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wo-form-attachment-row .wo-form-att-size {
+    color: var(--text-muted); font-family: var(--mono); font-size: 0.66rem;
+}
+.wo-form-attachment-row .wo-form-att-remove {
+    width: 26px; height: 26px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 4px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.wo-form-attachment-row .wo-form-att-remove:hover {
+    border-color: var(--danger); color: var(--danger);
+}
+
+/* "Not Deliverable" action button — pale red, between Archive and Mark Delivered */
+.btn-not-deliverable {
+    background: #fecaca;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+.btn-not-deliverable:hover {
+    background: #fca5a5;
+    color: #7f1d1d;
+    border-color: #f87171;
+}
 
 /* Disclaimer inside the Add Note / Reply modal explaining the email */
 .wo-note-disclaimer {
@@ -1329,20 +1531,51 @@ body {
     text-align: right; font-weight: 600;
 }
 .wo-part-desc { color: var(--text-primary); word-break: break-word; }
-.wo-part-flag-btn, .wo-part-photo-btn {
+.wo-part-photo-btn {
     width: 22px; height: 22px; border: 1px solid var(--border); background: transparent;
     color: var(--text-muted); border-radius: 4px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; padding: 0;
     transition: all var(--transition);
 }
-.wo-part-flag-btn:hover { border-color: var(--danger); color: var(--danger); }
-.wo-part-flag-btn.flagged { background: var(--danger); border-color: var(--danger); color: #fff; }
-.wo-part-flag-btn.flagged:hover { background: var(--danger-hover); }
 .wo-part-photo-btn:hover { border-color: var(--accent); color: var(--accent); }
 .wo-part-note {
     grid-column: 3 / 5; font-size: 0.72rem; color: var(--danger);
     font-style: italic; padding-left: 0; margin-top: 2px;
+    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
 }
+.wo-part-unflag-btn {
+    font-family: var(--mono); font-size: 0.62rem; font-style: normal;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 1px 6px; border-radius: 8px; cursor: pointer;
+    background: transparent; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+    color: var(--danger);
+    transition: background var(--transition), color var(--transition);
+}
+.wo-part-unflag-btn:hover { background: var(--danger); color: #fff; }
+
+/* Add Note modal: parts checklist */
+.wo-note-parts-list {
+    max-height: 160px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--bg-input);
+    padding: 0.4rem 0.5rem;
+}
+.wo-note-parts-list .wo-note-part-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 3px 2px; font-size: 0.8rem;
+}
+.wo-note-parts-list .wo-note-part-row input[type="checkbox"] {
+    flex-shrink: 0; cursor: pointer;
+}
+.wo-note-parts-list .wo-note-part-row.flagged {
+    color: var(--danger);
+}
+.wo-note-parts-empty {
+    padding: 0.35rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+}
+/* Red variant of the toggle switch for the flag option */
+.toggle-switch-flag input:checked + .toggle-track { background: rgba(239, 68, 68, 0.3); }
+.toggle-switch-flag input:checked + .toggle-track::before { background: var(--danger); }
 
 /* Per-part photo blocks (card summary and detail-modal editor) */
 .wo-part-photos-compact {
@@ -2655,6 +2888,15 @@ body:has(.sidebar.open) .hamburger-icon {
                     <textarea class="form-textarea" id="woFormNotes" rows="4" placeholder="Describe what is being requested…"></textarea>
                 </div>
                 <div class="form-group full-width">
+                    <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">images, PDFs, Word docs — 16 MB each</span></label>
+                    <input type="file" id="woFormAttachmentInput" multiple
+                           accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                           onchange="onWoFormFilesPicked(event)"
+                           style="display:block;margin-bottom:0.4rem;font-size:0.8rem;">
+                    <div id="woFormAttachmentsExisting"></div>
+                    <div id="woFormAttachmentsPending"></div>
+                </div>
+                <div class="form-group full-width">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
                         <label class="form-label" style="margin:0;">Parts Requested</label>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="addPartRow()">+ Add Part</button>
@@ -2704,6 +2946,19 @@ body:has(.sidebar.open) .hamburger-icon {
                 <label class="form-label" id="woGeneralNoteLabel">Note</label>
                 <textarea class="form-textarea" id="woGeneralNoteText" rows="4" placeholder="Add a note about this work order as you work on it…"></textarea>
             </div>
+            <div class="form-group" id="woGeneralNotePartsSection">
+                <label class="form-label">Applies to parts <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">optional</span></label>
+                <div id="woGeneralNotePartsList" class="wo-note-parts-list"></div>
+            </div>
+            <div class="form-group" id="woGeneralNoteFlagRow">
+                <label class="toggle-row" style="cursor:pointer;">
+                    <span class="toggle-label-text">Flag this note (shows in red)</span>
+                    <span class="toggle-switch toggle-switch-flag">
+                        <input type="checkbox" id="woGeneralNoteFlag">
+                        <span class="toggle-track"></span>
+                    </span>
+                </label>
+            </div>
             <div class="wo-note-disclaimer">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 <span id="woGeneralNoteDisclaimer">Saving this note will email the salesperson on this work order.</span>
@@ -2712,6 +2967,70 @@ body:has(.sidebar.open) .hamburger-icon {
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('woGeneralNoteModal')">Cancel</button>
             <button class="btn btn-primary" id="woGeneralNoteSaveBtn" onclick="submitGeneralNote()">Add Note</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ GENERIC CONFIRM MODAL (Delete / Archive / Mark Delivered) ═══ -->
+<div class="modal-overlay" id="woConfirmModal" style="z-index:210;">
+    <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+            <h2 id="woConfirmTitle">Confirm</h2>
+            <button class="modal-close" id="woConfirmCloseBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="woConfirmBody" style="font-size:0.88rem;line-height:1.5;color:var(--text-primary);white-space:pre-line;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="woConfirmCancelBtn">Cancel</button>
+            <button class="btn" id="woConfirmOkBtn">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ EDIT NOTE MODAL ═══ -->
+<div class="modal-overlay" id="woEditNoteModal" style="z-index:210;">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h2>Edit Note</h2>
+            <button class="modal-close" onclick="closeModal('woEditNoteModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woEditNoteWid">
+            <input type="hidden" id="woEditNoteId">
+            <div class="form-group">
+                <label class="form-label">Note</label>
+                <textarea class="form-textarea" id="woEditNoteText" rows="4" placeholder="Update the note text…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woEditNoteModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitEditNote()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ NOT DELIVERABLE MODAL ═══ -->
+<div class="modal-overlay" id="woNotDeliverableModal" style="z-index:210;">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h2>Mark Not Deliverable</h2>
+            <button class="modal-close" onclick="closeModal('woNotDeliverableModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="woNotDeliverableId">
+            <div class="form-group">
+                <label class="form-label">Reason</label>
+                <textarea class="form-textarea" id="woNotDeliverableReason" rows="4" placeholder="Explain why this work order can't be delivered…"></textarea>
+            </div>
+            <div class="wo-note-disclaimer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>Submitting will archive the work order and email the salesperson with the reason.</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal('woNotDeliverableModal')">Cancel</button>
+            <button class="btn btn-not-deliverable" onclick="submitNotDeliverable()">Mark Not Deliverable</button>
         </div>
     </div>
 </div>
@@ -2763,29 +3082,6 @@ body:has(.sidebar.open) .hamburger-icon {
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('woPhotoEditModal')">Cancel</button>
             <button class="btn btn-primary" onclick="submitWorkOrderPartPhotoComment()">Save</button>
-        </div>
-    </div>
-</div>
-
-<!-- ═══ FLAG NOTE MODAL ═══ -->
-<div class="modal-overlay" id="woFlagModal" style="z-index:210;">
-    <div class="modal" style="max-width:460px;">
-        <div class="modal-header">
-            <h2 id="woFlagTitle">Flag Work Order</h2>
-            <button class="modal-close" onclick="closeModal('woFlagModal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="woFlagId">
-            <input type="hidden" id="woFlagMode" value="flag">
-            <div class="form-group">
-                <label class="form-label" id="woFlagLabel">Reason for flagging</label>
-                <textarea class="form-textarea" id="woFlagNote" rows="4" placeholder="Describe why this is flagged…"></textarea>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeModal('woFlagModal')">Cancel</button>
-            <button class="btn btn-ghost" id="woFlagUnflagBtn" style="display:none;color:var(--danger);" onclick="submitPartUnflagFromModal()">Unflag</button>
-            <button class="btn btn-primary" id="woFlagSaveBtn" onclick="submitFlagNote()">Save</button>
         </div>
     </div>
 </div>
@@ -5021,9 +5317,10 @@ function renderWorkOrderCard(wo) {
     const notesBlock = (wo.notes || '').trim()
         ? `<div class="wo-notes-block">
             <div class="notes-label">Request Details</div>
-            <div class="notes-text">${esc(wo.notes)}</div>
+            <div class="notes-text">${escWithLinks(wo.notes)}</div>
            </div>`
         : '';
+    const attachmentsBlock = renderWorkOrderAttachments(wo);
     const partsBlock = (wo.parts && wo.parts.length)
         ? `<div class="wo-card-parts" onclick="event.stopPropagation();">
             ${renderPartsHeader()}
@@ -5065,16 +5362,20 @@ function renderWorkOrderCard(wo) {
     }
 
     // Archive button — works from any state (requested / flagged / delivered)
-    // as long as the WO isn't already archived. Preserves existing "Archive Now"
-    // for delivered-pending when the scheduler would otherwise handle it.
-    const archiveBtn = (canEdit && !isArchived)
+    // as long as the WO isn't already archived. Gated to admins, supervisors,
+    // and the originator only; plain editors who didn't create the WO don't
+    // see it (matches the Delete gate).
+    const archiveBtn = (canEdit && !isArchived && (isAdmin || isSupervisor || isOriginator))
         ? `<button class="table-btn wo-action-archive" title="Archive this work order (works from any status)" onclick="archiveWorkOrder(${wo.id})">Archive</button>`
+        : '';
+    const notDeliverableBtn = (canEdit && !readOnly)
+        ? `<button class="table-btn btn-not-deliverable" title="Archive this work order as not deliverable (prompts for reason and emails the salesperson)" onclick="markNotDeliverable(${wo.id})">Not Deliverable</button>`
         : '';
     const markDeliveredBtn = !readOnly
         ? `<button class="table-btn btn-mark-delivered" title="Mark as delivered / complete (archives tonight at 23:00)" onclick="markDelivered(${wo.id})">Mark Delivered</button>`
         : '';
-    const trailingGroup = (deleteBtn || archiveBtn || markDeliveredBtn)
-        ? `<span class="wo-actions-trailing">${deleteBtn}${archiveBtn}${markDeliveredBtn}</span>`
+    const trailingGroup = (deleteBtn || archiveBtn || notDeliverableBtn || markDeliveredBtn)
+        ? `<span class="wo-actions-trailing">${deleteBtn}${archiveBtn}${notDeliverableBtn}${markDeliveredBtn}</span>`
         : '';
     // Edit gating: only the originator, admins, and supervisors may edit the
     // work-order body. Plain editors see a greyed-out button with a tooltip
@@ -5085,15 +5386,35 @@ function renderWorkOrderCard(wo) {
         : (canEditBody
             ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>`
             : `<button class="table-btn" disabled title="Only the originator, an admin, or a supervisor can edit this work order. You can still add notes, photos, and flag parts.">Edit</button>`);
+    // The "more" buttons hide behind a pill-styled slideout (click the pill to
+    // reveal). Edit and Add Note stay visible since they're the two most-used
+    // actions on a WO card.
+    const reopenBtn = (isArchived || isDeliveredPending)
+        ? `<button class="table-btn" title="Reopen this work order back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>`
+        : '';
+    const emailUpdateBtn = !readOnly
+        ? `<button class="table-btn" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>`
+        : '';
+    const downloadPdfBtn = `<button class="table-btn" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>`;
+    const duplicateBtn = `<button class="table-btn" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>`;
+    const auditBtn = canViewAudit
+        ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>`
+        : '';
+    const moreButtons = [reopenBtn, emailUpdateBtn, downloadPdfBtn, duplicateBtn, auditBtn].filter(Boolean).join('');
+    const morePill = moreButtons
+        ? `<span class="wo-actions-more">
+            <button type="button" class="wo-actions-more-trigger" onclick="toggleWoActionsMore(this); event.stopPropagation();" title="More actions" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+            </button>
+            <span class="wo-actions-more-panel" aria-hidden="true">${moreButtons}</span>
+           </span>`
+        : '';
+
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
             ${editBtn}
             ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
-            ${(isArchived || isDeliveredPending) ? `<button class="table-btn" title="Reopen this work order back to Requested" onclick="reopenWorkOrder(${wo.id})">Reopen</button>` : ''}
-            ${!readOnly ? `<button class="table-btn" title="Email the salesperson a full status update" onclick="sendWorkOrderUpdate(${wo.id})">Email Update</button>` : ''}
-            <button class="table-btn" title="Download this work order as a PDF" onclick="downloadWorkOrderPdf(${wo.id})">Download PDF</button>
-            <button class="table-btn" title="Create a new work order with the same fields and parts" onclick="duplicateWorkOrder(${wo.id})">Duplicate</button>
-            ${canViewAudit ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>` : ''}
+            ${morePill}
             ${trailingGroup}
           </div>`
         : (canViewAudit
@@ -5141,6 +5462,7 @@ function renderWorkOrderCard(wo) {
             <div class="wo-card-collapsible">
                 <div class="wo-card-collapsible-inner">
                     ${notesBlock}
+                    ${attachmentsBlock}
                     ${notesThreadBlock}
                     ${partsBlock}
                 </div>
@@ -5148,6 +5470,51 @@ function renderWorkOrderCard(wo) {
         </div>
         ${actions}
     </div>`;
+}
+
+function toggleWoActionsMore(trigger) {
+    const wrap = trigger.closest('.wo-actions-more');
+    if (!wrap) return;
+    const wasOpen = wrap.classList.contains('open');
+    // Only one pill open at a time — close any others first
+    document.querySelectorAll('.wo-actions-more.open').forEach(el => {
+        if (el !== wrap) {
+            el.classList.remove('open');
+            const t = el.querySelector('.wo-actions-more-trigger');
+            const p = el.querySelector('.wo-actions-more-panel');
+            if (t) t.setAttribute('aria-expanded', 'false');
+            if (p) p.setAttribute('aria-hidden', 'true');
+        }
+    });
+    wrap.classList.toggle('open', !wasOpen);
+    trigger.setAttribute('aria-expanded', String(!wasOpen));
+    const panel = wrap.querySelector('.wo-actions-more-panel');
+    if (panel) panel.setAttribute('aria-hidden', String(wasOpen));
+}
+
+// Close any open pill when clicking anywhere outside it (once, on page load).
+if (!window._woActionsMoreBound) {
+    window._woActionsMoreBound = true;
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.wo-actions-more')) return;
+        document.querySelectorAll('.wo-actions-more.open').forEach(el => {
+            el.classList.remove('open');
+            const t = el.querySelector('.wo-actions-more-trigger');
+            const p = el.querySelector('.wo-actions-more-panel');
+            if (t) t.setAttribute('aria-expanded', 'false');
+            if (p) p.setAttribute('aria-hidden', 'true');
+        });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        document.querySelectorAll('.wo-actions-more.open').forEach(el => {
+            el.classList.remove('open');
+            const t = el.querySelector('.wo-actions-more-trigger');
+            const p = el.querySelector('.wo-actions-more-panel');
+            if (t) t.setAttribute('aria-expanded', 'false');
+            if (p) p.setAttribute('aria-hidden', 'true');
+        });
+    });
 }
 
 function toggleWoCardCollapse(wid, event) {
@@ -5160,6 +5527,91 @@ function toggleWoCardCollapse(wid, event) {
 function _fmtNoteTime(ts) {
     if (!ts) return '';
     return ts.replace('T', ' ').split('.')[0].substring(0, 16);
+}
+
+function renderWorkOrderAttachments(wo) {
+    const list = wo.attachments || [];
+    if (!list.length) return '';
+    const images = list.filter(a => a.is_image);
+    // Cache image URLs on the card so the lightbox can pull them by index
+    const imageUrls = images.map(a => `/api/work-orders/${wo.id}/attachments/${a.id}`);
+    const imageUrlsAttr = JSON.stringify(imageUrls).replace(/"/g, '&quot;');
+
+    const chips = list.map(a => {
+        const url = `/api/work-orders/${wo.id}/attachments/${a.id}`;
+        const size = _fmtAttachmentSize(a.file_size);
+        if (a.is_image) {
+            const idx = images.findIndex(im => im.id === a.id);
+            return `<div class="wo-attachment wo-attachment-img"
+                        title="${esc(a.original_name)}"
+                        onclick="openWorkOrderAttachmentLightbox(this, ${idx}); event.stopPropagation();"
+                        data-wo-att-images="${imageUrlsAttr}">
+                        <img src="${url}" alt="${esc(a.original_name)}" loading="lazy">
+                    </div>`;
+        }
+        const ext = (a.ext || '').toUpperCase();
+        return `<a class="wo-attachment wo-attachment-file"
+                   href="${url}" target="_blank" rel="noopener noreferrer"
+                   onclick="event.stopPropagation();"
+                   title="${esc(a.original_name)} (${size})">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span class="wo-attachment-name">${esc(a.original_name)}</span>
+                    <span class="wo-attachment-size">${ext || ''} · ${size}</span>
+                </a>`;
+    }).join('');
+
+    return `<div class="wo-attachments" onclick="event.stopPropagation();">
+        <div class="wo-attachments-label">Attachments</div>
+        <div class="wo-attachments-list">${chips}</div>
+    </div>`;
+}
+
+function openWorkOrderAttachmentLightbox(el, startIdx) {
+    try {
+        const raw = el.getAttribute('data-wo-att-images') || '[]';
+        const urls = JSON.parse(raw.replace(/&quot;/g, '"'));
+        if (!urls.length) return;
+        lightboxImages = urls;
+        openLightbox(Math.max(0, Math.min(startIdx || 0, urls.length - 1)));
+    } catch (e) {
+        console.error('attachment lightbox failed', e);
+    }
+}
+
+function markNotDeliverable(wid) {
+    document.getElementById('woNotDeliverableId').value = wid;
+    document.getElementById('woNotDeliverableReason').value = '';
+    openModal('woNotDeliverableModal');
+    setTimeout(() => {
+        const el = document.getElementById('woNotDeliverableReason');
+        if (el) el.focus();
+    }, 50);
+}
+
+async function submitNotDeliverable() {
+    const wid = document.getElementById('woNotDeliverableId').value;
+    const reason = document.getElementById('woNotDeliverableReason').value.trim();
+    if (!wid) return;
+    if (!reason) { showToast('A reason is required', 'error'); return; }
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/not-deliverable`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woNotDeliverableModal');
+        let msg = 'Marked not deliverable — archived';
+        if (data.email_sent) msg += ' — salesperson emailed';
+        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        showToast(msg, 'success');
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
 }
 
 function renderWorkOrderNotesThread(wo, canReply) {
@@ -5185,24 +5637,37 @@ function renderWorkOrderNotesThread(wo, canReply) {
     // the root so the conversation reads top-to-bottom.
     roots.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
+    const currentUid = currentUserData && currentUserData.id;
     const noteHtml = n => {
         // JSON-encode the preview for the onclick attribute so quotes are safe.
         const preview = `${n.author || ''} • ${_fmtNoteTime(n.created_at)}\n${n.note || ''}`;
         const previewAttr = JSON.stringify(preview).replace(/"/g, '&quot;');
+        const textAttr = JSON.stringify(n.note || '').replace(/"/g, '&quot;');
         const isReply = !!n.parent_id;
         const isFlag = (n.note_type || 'flag') === 'flag';
+        const isAuthor = currentUid && n.author_user_id === currentUid;
+        // A root is safe for the author to delete only if nobody else has
+        // replied. Admins bypass this check (backend enforces both.)
+        const hasForeignReply = !isReply && (childMap.get(n.id) || [])
+            .some(r => r.author_user_id !== currentUid);
+        const canEdit = isAdmin || isAuthor;
+        const canDelete = isAdmin || (isAuthor && !hasForeignReply);
         const replyTarget = n.parent_id || n.id;
+
         const replyBtn = canReply
             ? `<button type="button" class="wo-note-reply-btn" onclick="openReplyModal(${wo.id}, ${replyTarget}, ${previewAttr}); event.stopPropagation();" title="Reply — triggers an email to every participant in the thread">Reply</button>`
             : '';
-        const deleteBtn = isAdmin
-            ? `<button type="button" class="wo-note-delete-btn" onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note and its audit-log entry${!isReply ? ' (also removes replies)' : ''}">Delete</button>`
+        const editBtn = canEdit
+            ? `<button type="button" class="wo-note-edit-btn" onclick="openEditNoteModal(${wo.id}, ${n.id}, ${textAttr}); event.stopPropagation();" title="Edit this note">Edit</button>`
+            : '';
+        const deleteBtn = canDelete
+            ? `<button type="button" class="wo-note-delete-btn" onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note${!isReply && isAdmin ? ' (also removes replies)' : ''}">Delete</button>`
             : '';
         const cls = ['wo-note'];
         if (isReply) cls.push('wo-note-reply');
         if (isFlag) cls.push('wo-note-flag');
         const flagBadge = isFlag ? '<span class="wo-note-flag-badge">Flag</span>' : '';
-        const actions = [replyBtn, deleteBtn].filter(Boolean).join('');
+        const actions = [replyBtn, editBtn, deleteBtn].filter(Boolean).join('');
         return `<div class="${cls.join(' ')}" data-note-id="${n.id}" onclick="event.stopPropagation();">
             <div class="wo-note-head">
                 ${flagBadge}
@@ -5247,21 +5712,23 @@ function _formatPulledAt(ts) {
 function renderCardPartLine(wid, idx, p, canEdit, photoMode) {
     const pulled = !!p.pulled, flagged = !!p.flagged;
     const cbAttrs = canEdit ? '' : 'disabled';
-    const flagBtn = canEdit
-        ? `<button class="wo-part-flag-btn ${flagged ? 'flagged' : ''}" onclick="onPartFlagClick(${wid}, ${idx}, ${flagged}, ${JSON.stringify(p.flag_note || '').replace(/"/g, '&quot;')}); event.stopPropagation();" title="${flagged ? 'Edit flag note / unflag' : 'Flag part'}">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="${flagged ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-           </button>`
-        : '';
+    // Flagging is now handled via the Add Note modal (select parts + flag toggle).
+    // The per-part flag icon was removed to reduce UI redundancy; the photo
+    // button stays as the only action in this column.
     const photoBtn = canEdit
         ? `<button class="wo-part-photo-btn" onclick="openWorkOrderPartPhotoUpload(${wid}, '${esc(p.key || '')}'); event.stopPropagation();" title="Add photo">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
            </button>`
         : '';
-    const actBtns = (flagBtn || photoBtn)
-        ? `<span class="wo-part-acts">${flagBtn}${photoBtn}</span>`
+    const actBtns = photoBtn
+        ? `<span class="wo-part-acts">${photoBtn}</span>`
         : '<span></span>';
+    const unflagInline = (flagged && canEdit)
+        ? `<button type="button" class="wo-part-unflag-btn" onclick="unflagPart(${wid}, ${idx}); event.stopPropagation();" title="Remove the flag from this part">Unflag</button>`
+        : '';
     const noteLine = (flagged && p.flag_note)
-        ? `<div class="wo-part-note">⚑ ${esc(p.flag_note)}</div>` : '';
+        ? `<div class="wo-part-note">⚑ ${esc(p.flag_note)}${unflagInline}</div>`
+        : (flagged ? `<div class="wo-part-note">⚑ Flagged${unflagInline}</div>` : '');
     const pulledTs = (pulled && p.pulled_at)
         ? `<div class="wo-part-pulled-ts">Pulled ${esc(_formatPulledAt(p.pulled_at))}</div>` : '';
     // Photo UI: 'full' = detail modal (thumbnails + edit + delete), 'compact' = card summary, '' = hidden
@@ -5362,21 +5829,15 @@ async function togglePartPulled(wid, idx, pulled, rowEl) {
     } catch { showToast('Connection error', 'error'); }
 }
 
-function onPartFlagClick(wid, idx, isCurrentlyFlagged, currentNote) {
-    if (isCurrentlyFlagged) {
-        openFlagModal(`part:${wid}:${idx}`, 'part-edit', currentNote || '');
-    } else {
-        openFlagModal(`part:${wid}:${idx}`, 'flag');
-    }
-}
-
-async function submitPartUnflagFromModal() {
-    const id = document.getElementById('woFlagId').value;
-    if (!id.startsWith('part:')) return;
-    const [, widStr, idxStr] = id.split(':');
-    if (!confirm('Unflag this part?')) return;
-    closeModal('woFlagModal');
-    await submitPartFlag(parseInt(widStr), parseInt(idxStr), false, '');
+async function unflagPart(wid, idx) {
+    const ok = await openWoConfirm({
+        title: 'Unflag Part',
+        body: 'Remove the flag from this part?',
+        confirmLabel: 'Unflag',
+        confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
+    await submitPartFlag(wid, idx, false, '');
 }
 
 async function submitPartFlag(wid, idx, flagged, note) {
@@ -5556,6 +6017,11 @@ async function _prepareWoForm(wo) {
     prSel.innerHTML = prs.map(p => `<option value="${esc(p)}" ${isEdit && wo.priority === p ? 'selected' : (!isEdit && p === 'Normal' ? 'selected' : '')}>${esc(p)}</option>`).join('');
 
     renderPartsRows(isEdit ? (wo.parts || []) : []);
+
+    _woFormPending = [];
+    _woFormExisting = isEdit ? (wo.attachments || []).slice() : [];
+    _woFormExistingToDelete = new Set();
+    renderWoFormAttachments();
 }
 
 async function openAuditModal(wid) {
@@ -5583,6 +6049,7 @@ function renderAuditEntry(e) {
         'status_changed': 'Status',
         'note_added': 'Note',
         'deleted': 'Deleted',
+        'not_deliverable': 'Not Deliverable',
     }[e.action] || e.action;
     return `<div class="wo-audit-entry ${esc(e.action)}">
         <div class="wo-audit-when">${esc(when)}</div>
@@ -5650,6 +6117,88 @@ function collectPartsRows() {
     return out;
 }
 
+// Scratch state for the WO form's attachment UI.
+//  _pending: File objects chosen this session, not yet uploaded.
+//  _existing: attachments already on the WO (edit mode) — toggled into
+//             _existingToDelete when the user clicks the X.
+let _woFormPending = [];
+let _woFormExisting = [];
+let _woFormExistingToDelete = new Set();
+
+function onWoFormFilesPicked(e) {
+    const files = Array.from(e.target.files || []);
+    // Filter down to supported types so the user gets immediate feedback.
+    const okExts = ['png','jpg','jpeg','gif','webp','pdf','doc','docx'];
+    const allowed = [];
+    const rejected = [];
+    for (const f of files) {
+        const ext = (f.name.split('.').pop() || '').toLowerCase();
+        if (okExts.includes(ext)) allowed.push(f);
+        else rejected.push(f.name);
+    }
+    _woFormPending.push(...allowed);
+    if (rejected.length) showToast(`Skipped unsupported: ${rejected.join(', ')}`, 'error');
+    e.target.value = '';
+    renderWoFormAttachments();
+}
+
+function removeWoFormPending(idx) {
+    _woFormPending.splice(idx, 1);
+    renderWoFormAttachments();
+}
+
+function toggleWoFormExistingDelete(id) {
+    if (_woFormExistingToDelete.has(id)) _woFormExistingToDelete.delete(id);
+    else _woFormExistingToDelete.add(id);
+    renderWoFormAttachments();
+}
+
+function renderWoFormAttachments() {
+    const existingEl = document.getElementById('woFormAttachmentsExisting');
+    const pendingEl = document.getElementById('woFormAttachmentsPending');
+    if (existingEl) {
+        existingEl.innerHTML = _woFormExisting.map(a => {
+            const marked = _woFormExistingToDelete.has(a.id);
+            const size = _fmtAttachmentSize(a.file_size);
+            return `<div class="wo-form-attachment-row" style="${marked ? 'opacity:0.45;text-decoration:line-through;' : ''}">
+                <span class="wo-form-att-name">${esc(a.original_name)}</span>
+                <span class="wo-form-att-size">${size}</span>
+                <button type="button" class="wo-form-att-remove"
+                        title="${marked ? 'Keep this attachment' : 'Remove on save'}"
+                        onclick="toggleWoFormExistingDelete(${a.id})">
+                    ${marked ? '↶' : '×'}
+                </button>
+            </div>`;
+        }).join('');
+    }
+    if (pendingEl) {
+        pendingEl.innerHTML = _woFormPending.map((f, i) => {
+            return `<div class="wo-form-attachment-row">
+                <span class="wo-form-att-name">${esc(f.name)} <span style="color:var(--text-muted);font-size:0.7rem;">(pending upload)</span></span>
+                <span class="wo-form-att-size">${_fmtAttachmentSize(f.size)}</span>
+                <button type="button" class="wo-form-att-remove" title="Drop this file" onclick="removeWoFormPending(${i})">×</button>
+            </div>`;
+        }).join('');
+    }
+}
+
+async function _uploadWoAttachments(wid, files) {
+    if (!files || !files.length) return { ok: true };
+    const fd = new FormData();
+    for (const f of files) fd.append('file', f);
+    const res = await fetch(`/api/work-orders/${wid}/attachments`, { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+}
+
+async function _deleteWoAttachments(wid, ids) {
+    for (const id of ids) {
+        try {
+            await fetch(`/api/work-orders/${wid}/attachments/${id}`, { method: 'DELETE' });
+        } catch {}
+    }
+}
+
 async function saveWorkOrder() {
     const id = document.getElementById('woFormId').value;
     const body = {
@@ -5672,6 +6221,22 @@ async function saveWorkOrder() {
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        const savedId = id || (data && data.id);
+
+        // Apply attachment changes after the WO exists. Deletes first so the
+        // user's cleanup isn't blocked by a failed upload.
+        if (savedId) {
+            if (id && _woFormExistingToDelete.size) {
+                await _deleteWoAttachments(savedId, [..._woFormExistingToDelete]);
+            }
+            if (_woFormPending.length) {
+                const up = await _uploadWoAttachments(savedId, _woFormPending);
+                if (!up.ok) {
+                    showToast((up.data && up.data.error) || 'Attachment upload failed', 'error');
+                }
+            }
+        }
+
         closeModal('woFormModal');
         showToast(id ? 'Work order updated' : `Created ${data.wo_number}`, 'success');
         if (currentWoView) await loadWorkOrders();
@@ -5695,22 +6260,33 @@ function renderWorkOrderPartsTable(wid, parts, canEdit) {
     </div>`;
 }
 
-function openGeneralNoteModal(wid, parentId, parentPreview) {
+async function openGeneralNoteModal(wid, parentId, parentPreview) {
     document.getElementById('woGeneralNoteId').value = wid;
     document.getElementById('woGeneralNoteParentId').value = parentId || '';
     document.getElementById('woGeneralNoteText').value = '';
+    const flagCb = document.getElementById('woGeneralNoteFlag');
+    if (flagCb) flagCb.checked = false;
     const ctx = document.getElementById('woGeneralNoteReplyContext');
     const title = document.getElementById('woGeneralNoteTitle');
     const label = document.getElementById('woGeneralNoteLabel');
     const saveBtn = document.getElementById('woGeneralNoteSaveBtn');
     const disc = document.getElementById('woGeneralNoteDisclaimer');
+    const partsSection = document.getElementById('woGeneralNotePartsSection');
+    const flagRow = document.getElementById('woGeneralNoteFlagRow');
+    const partsList = document.getElementById('woGeneralNotePartsList');
+
     if (parentId) {
+        // Replies don't get the parts checklist or flag toggle — they inherit
+        // context from the thread and just continue the conversation.
         title.textContent = 'Reply to Note';
         label.textContent = 'Your reply';
         saveBtn.textContent = 'Send Reply';
         ctx.style.display = '';
         ctx.textContent = parentPreview || '';
         disc.textContent = 'Sending this reply will email every participant in the thread (and the salesperson).';
+        if (partsSection) partsSection.style.display = 'none';
+        if (flagRow) flagRow.style.display = 'none';
+        if (partsList) partsList.innerHTML = '';
     } else {
         title.textContent = 'Add Note';
         label.textContent = 'Note';
@@ -5718,6 +6294,33 @@ function openGeneralNoteModal(wid, parentId, parentPreview) {
         ctx.style.display = 'none';
         ctx.textContent = '';
         disc.textContent = 'Saving this note will email the salesperson on this work order.';
+        if (partsSection) partsSection.style.display = '';
+        if (flagRow) flagRow.style.display = '';
+        // Fetch fresh parts so the list reflects any edits/flag state since load
+        if (partsList) partsList.innerHTML = '<div class="wo-note-parts-empty">Loading parts…</div>';
+        try {
+            const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
+            const parts = (wo && wo.parts) || [];
+            if (partsList) {
+                if (!parts.length) {
+                    partsList.innerHTML = '<div class="wo-note-parts-empty">No parts on this work order.</div>';
+                } else {
+                    partsList.innerHTML = parts.map(p => {
+                        const key = esc(p.key || '');
+                        const label = `${esc(String(p.quantity || 1))} × ${esc(p.description || '')}`;
+                        const flaggedBadge = p.flagged
+                            ? ' <span style="font-family:var(--mono);font-size:0.58rem;color:var(--danger);">(flagged)</span>'
+                            : '';
+                        return `<label class="wo-note-part-row ${p.flagged ? 'flagged' : ''}">
+                            <input type="checkbox" value="${key}">
+                            <span>${label}${flaggedBadge}</span>
+                        </label>`;
+                    }).join('');
+                }
+            }
+        } catch {
+            if (partsList) partsList.innerHTML = '<div class="wo-note-parts-empty">Could not load parts.</div>';
+        }
     }
     openModal('woGeneralNoteModal');
     setTimeout(() => { const el = document.getElementById('woGeneralNoteText'); if (el) el.focus(); }, 50);
@@ -5733,9 +6336,20 @@ async function submitGeneralNote() {
     const parentId = parentIdRaw ? parseInt(parentIdRaw, 10) : null;
     const note = document.getElementById('woGeneralNoteText').value.trim();
     if (!note) { showToast('Note is required', 'error'); return; }
+
+    // Root notes can optionally be flagged and/or scoped to specific parts.
+    // Replies carry neither — they inherit context from the thread.
+    const flag = !parentId && !!document.getElementById('woGeneralNoteFlag').checked;
+    const partKeys = !parentId
+        ? Array.from(document.querySelectorAll('#woGeneralNotePartsList input[type="checkbox"]:checked'))
+            .map(cb => cb.value).filter(Boolean)
+        : [];
+
     try {
         const body = { note };
         if (parentId) body.parent_id = parentId;
+        if (flag) body.flag = true;
+        if (partKeys.length) body.part_keys = partKeys;
         const res = await fetch(`/api/work-orders/${wid}/general-notes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -5744,7 +6358,7 @@ async function submitGeneralNote() {
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         closeModal('woGeneralNoteModal');
-        let msg = parentId ? 'Reply sent' : 'Note added';
+        let msg = parentId ? 'Reply sent' : (flag ? 'Flag note added' : 'Note added');
         if (data.email_sent) {
             const n = (data.email_recipients || []).length;
             msg += ` — email sent${n ? ` to ${n} recipient${n === 1 ? '' : 's'}` : ''}`;
@@ -5752,19 +6366,55 @@ async function submitGeneralNote() {
             msg += ` — email not sent (${data.email_error})`;
         }
         showToast(msg, 'success');
-        const wo = data.work_order || data;
-        if (false) {  // detail modal removed; kept branch harmless
-            renderWorkOrderDetail(wo);
-        }
+        if (currentWoView) await loadWorkOrders();
+        loadWoCounts();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function openEditNoteModal(wid, noteId, currentText) {
+    document.getElementById('woEditNoteWid').value = wid;
+    document.getElementById('woEditNoteId').value = noteId;
+    document.getElementById('woEditNoteText').value = currentText || '';
+    openModal('woEditNoteModal');
+    setTimeout(() => {
+        const el = document.getElementById('woEditNoteText');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 50);
+}
+
+async function submitEditNote() {
+    const wid = document.getElementById('woEditNoteWid').value;
+    const noteId = document.getElementById('woEditNoteId').value;
+    const text = document.getElementById('woEditNoteText').value.trim();
+    if (!text) { showToast('Note is required', 'error'); return; }
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/notes/${noteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: text }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        closeModal('woEditNoteModal');
+        showToast('Note updated', 'success');
         if (currentWoView) await loadWorkOrders();
     } catch { showToast('Connection error', 'error'); }
 }
 
 async function deleteWorkOrderNote(wid, noteId, isRoot) {
-    const msg = isRoot
-        ? 'Delete this note? If it has replies, they will be deleted too. This also removes the matching entries from the audit log.'
-        : 'Delete this reply? This also removes the matching entry from the audit log.';
-    if (!confirm(msg)) return;
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    const body = isRoot
+        ? (isAdmin
+            ? 'Delete this note? Any replies to it will be deleted too, and the matching entries will be removed from the audit log.'
+            : 'Delete this note? The matching entry in the audit log will be removed too.')
+        : 'Delete this reply? The matching entry in the audit log will be removed too.';
+    const ok = await openWoConfirm({
+        title: 'Delete Note',
+        body,
+        confirmLabel: 'Delete',
+        confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
     try {
         const res = await fetch(`/api/work-orders/${wid}/notes/${noteId}`, { method: 'DELETE' });
         const data = await res.json();
@@ -5775,44 +6425,44 @@ async function deleteWorkOrderNote(wid, noteId, isRoot) {
     } catch { showToast('Connection error', 'error'); }
 }
 
-function openFlagModal(id, mode, prefillNote) {
-    // id is a string "part:wid:idx" — only per-part flagging is supported now.
-    document.getElementById('woFlagId').value = String(id);
-    document.getElementById('woFlagMode').value = mode;
-    document.getElementById('woFlagNote').value = prefillNote || '';
-    const unflagBtn = document.getElementById('woFlagUnflagBtn');
-    if (mode === 'part-edit') {
-        document.getElementById('woFlagTitle').textContent = 'Edit Part Flag';
-        document.getElementById('woFlagLabel').textContent = 'Flag note';
-        document.getElementById('woFlagSaveBtn').textContent = 'Save Note';
-        if (unflagBtn) unflagBtn.style.display = '';
-    } else {
-        document.getElementById('woFlagTitle').textContent = 'Flag Part';
-        document.getElementById('woFlagLabel').textContent = 'Reason for flagging this part';
-        document.getElementById('woFlagSaveBtn').textContent = 'Flag Part';
-        if (unflagBtn) unflagBtn.style.display = 'none';
-    }
-    openModal('woFlagModal');
-    setTimeout(() => {
-        const el = document.getElementById('woFlagNote');
-        if (el) { el.focus(); if (prefillNote) el.select(); }
-    }, 50);
-}
+// Reusable yes/no confirmation modal. Returns a Promise<boolean>.
+// Replaces native confirm() for actions like Delete / Archive / Mark Delivered
+// so the UX matches the Add Note / Not Deliverable dialogs.
+function openWoConfirm({ title, body, confirmLabel, confirmClass }) {
+    return new Promise(resolve => {
+        document.getElementById('woConfirmTitle').textContent = title;
+        document.getElementById('woConfirmBody').textContent = body;
+        const okBtn = document.getElementById('woConfirmOkBtn');
+        okBtn.textContent = confirmLabel;
+        okBtn.className = 'btn ' + (confirmClass || 'btn-primary');
 
-async function submitFlagNote() {
-    const id = document.getElementById('woFlagId').value;
-    const note = document.getElementById('woFlagNote').value.trim();
-    if (!note) { showToast('Note is required', 'error'); return; }
+        const cancelBtn = document.getElementById('woConfirmCancelBtn');
+        const closeBtn = document.getElementById('woConfirmCloseBtn');
 
-    if (!id.startsWith('part:')) return;  // only per-part flagging now
+        const cleanup = (result) => {
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+            closeBtn.onclick = null;
+            closeModal('woConfirmModal');
+            resolve(result);
+        };
+        okBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+        closeBtn.onclick = () => cleanup(false);
 
-    const [, widStr, idxStr] = id.split(':');
-    closeModal('woFlagModal');
-    await submitPartFlag(parseInt(widStr), parseInt(idxStr), true, note);
+        openModal('woConfirmModal');
+        setTimeout(() => okBtn.focus(), 50);
+    });
 }
 
 async function markDelivered(wid) {
-    if (!confirm('Mark this work order as delivered/complete?')) return;
+    const ok = await openWoConfirm({
+        title: 'Mark Delivered',
+        body: 'Mark this work order as delivered/complete?',
+        confirmLabel: 'Mark Delivered',
+        confirmClass: 'btn-success',
+    });
+    if (!ok) return;
     // Kick off the card "delivered" animation if there's a matching card in the list
     const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
     if (card) card.classList.add('flash-delivered');
@@ -5898,7 +6548,13 @@ async function archiveNowWorkOrder(wid) {
 // Archive in any state — requested / flagged / delivered. Not-delivered
 // archives show a "Not Delivered" flag on the archive list.
 async function archiveWorkOrder(wid) {
-    if (!confirm('Archive this work order? You can reopen it later from the Archive view.')) return;
+    const ok = await openWoConfirm({
+        title: 'Archive Work Order',
+        body: 'Archive this work order? You can reopen it later from the Archive view.',
+        confirmLabel: 'Archive',
+        confirmClass: 'btn-primary',
+    });
+    if (!ok) return;
     const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
     if (card) card.classList.add('flash-archiving');
     try {
@@ -5939,7 +6595,13 @@ async function reopenWorkOrder(wid) {
 }
 
 async function deleteWorkOrder(wid) {
-    if (!confirm('Delete this work order? This cannot be undone.')) return;
+    const ok = await openWoConfirm({
+        title: 'Delete Work Order',
+        body: 'Delete this work order? This cannot be undone.',
+        confirmLabel: 'Delete',
+        confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
     try {
         const res = await fetch(`/api/work-orders/${wid}`, { method: 'DELETE' });
         const data = await res.json();
@@ -6207,6 +6869,31 @@ async function sendSmtpTest() {
 //  UTILITIES
 // ══════════════════════════════════════════
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Escape the text and turn any http(s) URLs into clickable links (new tab).
+// Tokenizes the raw text so we escape non-URL pieces independently and wrap
+// each URL in an <a> — avoids any chance of the regex chewing up HTML entities.
+function escWithLinks(s) {
+    if (!s) return '';
+    const urlRe = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?\])}])/g;
+    let out = '';
+    let last = 0;
+    for (const m of s.matchAll(urlRe)) {
+        out += esc(s.substring(last, m.index));
+        const url = m[0];
+        out += `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`;
+        last = m.index + url.length;
+    }
+    out += esc(s.substring(last));
+    return out;
+}
+
+function _fmtAttachmentSize(bytes) {
+    bytes = Number(bytes) || 0;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('active'); }

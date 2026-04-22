@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.11'
+APP_VERSION = '1.5.16'
 
 app = Flask(__name__)
 
@@ -51,6 +51,12 @@ app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+# Work-order attachments accept images plus common document formats.
+ALLOWED_ATTACHMENT_EXTS = {
+    'png', 'jpg', 'jpeg', 'gif', 'webp',
+    'pdf', 'doc', 'docx',
+}
+IMAGE_EXTS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Account-lockout policy: lock after N consecutive failures for LOCKOUT_MINUTES.
 LOGIN_FAIL_LIMIT = 5
@@ -916,6 +922,28 @@ def migrate_v25(conn):
             _ = matched  # rowcount not needed; silent backfill
 
 
+def migrate_v30(conn):
+    """Add work_order_attachments table: files (images / PDFs / Word docs)
+    that customers attach to a new-request form. The on-disk filename is a
+    UUID so name collisions are impossible; original_name is preserved for
+    display and for Content-Disposition when the file is served back."""
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS work_order_attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            mime_type TEXT DEFAULT '',
+            file_size INTEGER DEFAULT 0,
+            uploaded_by TEXT DEFAULT '',
+            uploaded_by_user_id INTEGER DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_woa_attach_wo ON work_order_attachments(work_order_id);
+    ''')
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -949,6 +977,7 @@ MIGRATIONS = [
     (27, migrate_v27),
     (28, migrate_v28),
     (29, migrate_v29),
+    (30, migrate_v30),
 ]
 
 
@@ -1085,6 +1114,33 @@ def delete_image(filename):
         path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         if os.path.exists(path):
             os.remove(path)
+
+
+def _attachment_ext_ok(filename):
+    return (
+        '.' in filename
+        and filename.rsplit('.', 1)[1].lower() in ALLOWED_ATTACHMENT_EXTS
+    )
+
+
+def save_work_order_attachment(file_field):
+    """Persist a work-order attachment file verbatim (no resize) and return
+    (stored_filename, original_name, mime_type, size_bytes) — or None if the
+    extension is not allowed or the save fails."""
+    if not (file_field and file_field.filename and _attachment_ext_ok(file_field.filename)):
+        return None
+    import mimetypes
+    original = os.path.basename(file_field.filename)
+    ext = original.rsplit('.', 1)[1].lower()
+    stored = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
+    try:
+        file_field.save(path)
+    except Exception:
+        return None
+    size = os.path.getsize(path) if os.path.exists(path) else 0
+    mime = file_field.mimetype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
+    return (stored, original, mime, size)
 
 
 def get_part_images(conn, part_id):
@@ -3516,6 +3572,23 @@ def _work_order_to_dict(conn, row):
         for p in parts:
             p['photos'] = by_key.get(p['key'], [])
     d['parts'] = parts
+
+    # Attach request-level files (images / PDFs / Word docs) uploaded on the
+    # new-request form. is_image lets the frontend decide thumbnail vs file chip.
+    att_rows = conn.execute(
+        "SELECT id, filename, original_name, mime_type, file_size, "
+        "uploaded_by, created_at FROM work_order_attachments "
+        "WHERE work_order_id = ? ORDER BY created_at, id",
+        (d['id'],)
+    ).fetchall()
+    attachments = []
+    for r in att_rows:
+        a = dict(r)
+        ext = (a['filename'].rsplit('.', 1)[-1] if '.' in a['filename'] else '').lower()
+        a['is_image'] = ext in IMAGE_EXTS
+        a['ext'] = ext
+        attachments.append(a)
+    d['attachments'] = attachments
     return d
 
 
@@ -3762,15 +3835,29 @@ def archive_work_order(wid):
     """Archive a work order in *any* status (requested, flagged, delivered).
     Non-delivered archives keep was_delivered=0 so the archive view can flag
     them 'Not Delivered'. Reopening (via the existing status endpoint) will
-    put it back to requested/flagged with was_delivered still at 0."""
+    put it back to requested/flagged with was_delivered still at 0.
+    Gated to admins, supervisors, and the originator only — plain editors
+    cannot archive a work order they didn't create."""
     conn = get_db()
-    row = conn.execute("SELECT id, status, archived_at, wo_number FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    row = conn.execute(
+        "SELECT id, status, archived_at, wo_number, created_by_user_id "
+        "FROM work_orders WHERE id = ?", (wid,)
+    ).fetchone()
     if not row:
         conn.close()
         return jsonify({'error': 'Not found'}), 404
     if row['archived_at']:
         conn.close()
         return jsonify({'error': 'Work order is already archived'}), 400
+
+    is_admin = current_user.is_admin
+    is_supervisor = current_user.role == 'supervisor'
+    is_originator = row['created_by_user_id'] == current_user.id
+    if not (is_admin or is_supervisor or is_originator):
+        conn.close()
+        return jsonify({
+            'error': 'Only the originator, an admin, or a supervisor can archive this work order.'
+        }), 403
     conn.execute(
         "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
         "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -3787,6 +3874,165 @@ def archive_work_order(wid):
     wo = _work_order_to_dict(conn, new_row)
     conn.close()
     return jsonify(wo)
+
+
+@app.route('/api/work-orders/<int:wid>/attachments', methods=['POST'])
+@editor_required
+def upload_work_order_attachments(wid):
+    """Attach one or more files (images / PDFs / Word docs) to a work order.
+    Expects multipart/form-data with one or more `file` fields."""
+    conn = get_db()
+    wo_row = conn.execute("SELECT id FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    if not wo_row:
+        conn.close()
+        return jsonify({'error': 'Work order not found'}), 404
+
+    files = request.files.getlist('file') or request.files.getlist('files')
+    if not files or not files[0].filename:
+        conn.close()
+        return jsonify({'error': 'No file provided'}), 400
+
+    author = _actor()
+    author_uid = current_user.id if current_user.is_authenticated else None
+    saved_ids = []
+    for f in files:
+        result = save_work_order_attachment(f)
+        if not result:
+            continue
+        stored, original, mime, size = result
+        cur = conn.execute(
+            "INSERT INTO work_order_attachments "
+            "(work_order_id, filename, original_name, mime_type, file_size, "
+            " uploaded_by, uploaded_by_user_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (wid, stored, original, mime, size, author, author_uid)
+        )
+        saved_ids.append(cur.lastrowid)
+
+    if not saved_ids:
+        conn.close()
+        return jsonify({'error': 'No supported files in upload (images, PDF, DOC, DOCX)'}), 400
+
+    _log_wo_audit(conn, wid, 'edited',
+                  f"Attachment{'s' if len(saved_ids) > 1 else ''} added ({len(saved_ids)})")
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo, 'added_ids': saved_ids})
+
+
+@app.route('/api/work-orders/<int:wid>/attachments/<int:att_id>', methods=['GET'])
+@login_required
+def get_work_order_attachment(wid, att_id):
+    """Serve an attachment file inline with its original filename preserved
+    in Content-Disposition so browser downloads use the name the user chose."""
+    from flask import send_file
+    conn = get_db()
+    row = conn.execute(
+        "SELECT filename, original_name, mime_type FROM work_order_attachments "
+        "WHERE id = ? AND work_order_id = ?",
+        (att_id, wid)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return '', 404
+    path = os.path.join(app.config['UPLOAD_FOLDER'], row['filename'])
+    if not os.path.exists(path):
+        return '', 404
+    return send_file(
+        path,
+        mimetype=row['mime_type'] or 'application/octet-stream',
+        as_attachment=False,
+        download_name=row['original_name'],
+    )
+
+
+@app.route('/api/work-orders/<int:wid>/attachments/<int:att_id>', methods=['DELETE'])
+@editor_required
+def delete_work_order_attachment(wid, att_id):
+    """Remove an attachment from a work order (both DB row and the file on disk)."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT filename, original_name FROM work_order_attachments "
+        "WHERE id = ? AND work_order_id = ?",
+        (att_id, wid)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Attachment not found'}), 404
+    delete_image(row['filename'])
+    conn.execute("DELETE FROM work_order_attachments WHERE id = ?", (att_id,))
+    _log_wo_audit(conn, wid, 'edited', f"Attachment removed: {row['original_name']}")
+    conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo})
+
+
+@app.route('/api/work-orders/<int:wid>/not-deliverable', methods=['POST'])
+@editor_required
+def mark_work_order_not_deliverable(wid):
+    """Mark a work order as not deliverable: requires a reason, archives the
+    WO immediately (was_delivered stays 0 so the 'Not Delivered' badge shows),
+    logs the reason into the audit trail + notes thread, and emails the
+    salesperson so they know why the order is being closed."""
+    data = request.get_json() or {}
+    reason = str(data.get('reason', '') or '').strip()
+    if not reason:
+        return jsonify({'error': 'Reason is required'}), 400
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id, wo_number, status, archived_at, customer_name, vehicle, sales_person "
+        "FROM work_orders WHERE id = ?", (wid,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    if row['archived_at']:
+        conn.close()
+        return jsonify({'error': 'Work order is already archived'}), 400
+
+    conn.execute(
+        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
+        "flag_note = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (wid,)
+    )
+    _log_wo_audit(conn, wid, 'not_deliverable', f"Marked not deliverable: {reason}")
+    author = _actor()
+    conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) "
+        "VALUES (?, ?, ?, 'general')",
+        (wid, f"Not deliverable — {reason}", author)
+    )
+    conn.commit()
+
+    email_sent = False
+    email_error = None
+    sp_email = _lookup_salesperson_email(conn, row['sales_person'])
+    if sp_email:
+        subject = f"[Not Deliverable] Work Order {row['wo_number']}"
+        body = (
+            f"Work Order: {row['wo_number']}\n"
+            f"Customer: {row['customer_name'] or '—'}\n"
+            f"Vehicle: {row['vehicle'] or '—'}\n"
+            f"Status: NOT DELIVERABLE (archived)\n\n"
+            f"Marked not deliverable by {author}:\n{reason}\n"
+        )
+        email_sent, email_error = _send_email(sp_email, subject, body)
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({
+        'work_order': wo,
+        'email_sent': email_sent,
+        'email_error': None if email_sent else email_error,
+    })
 
 
 @app.route('/api/work-orders/<int:wid>/duplicate', methods=['POST'])
@@ -4139,9 +4385,16 @@ def _send_note_email(wo_row, author_name, note_text, parent_id, recipients, is_r
 @app.route('/api/work-orders/<int:wid>/general-notes', methods=['POST'])
 @editor_required
 def add_general_note(wid):
-    """Append a running work-order note. Optionally `parent_id` threads it as a
-    reply to an existing note. Sends a notification email to the salesperson +
-    every prior participant in the thread (minus the current author)."""
+    """Append a running work-order note. Optional payload:
+      - parent_id: threads this as a reply under an existing note.
+      - flag (bool): when true, the note is stored with note_type='flag' (red
+            in the thread) and — if part_keys is also supplied — each matching
+            part is marked flagged with this note as its flag_note. The WO's
+            derived status recomputes from the per-part flags.
+      - part_keys (list[str]): parts the note applies to. Ignored on replies.
+    Sends the appropriate email (flag vs. general note) to the salesperson and
+    prior thread participants (minus the current author)."""
+    import json as json_mod
     data = request.get_json() or {}
     note = str(data.get('note', '') or '').strip()
     if not note:
@@ -4152,6 +4405,16 @@ def add_general_note(wid):
         parent_id = int(parent_id) if parent_id not in (None, '', 0, '0') else None
     except (TypeError, ValueError):
         parent_id = None
+
+    # flag + part_keys only apply to root notes, not replies
+    is_flag = bool(data.get('flag', False)) and parent_id is None
+    raw_part_keys = data.get('part_keys') if parent_id is None else []
+    part_keys = []
+    if isinstance(raw_part_keys, list):
+        for k in raw_part_keys:
+            s = str(k or '').strip()
+            if s:
+                part_keys.append(s)
 
     conn = get_db()
     row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
@@ -4173,24 +4436,89 @@ def add_general_note(wid):
         if parent['parent_id']:
             parent_id = parent['parent_id']
 
+    # If parts were selected, resolve them + (when flagging) mutate parts_json
+    matched_parts = []
+    flagged_any_new = False
+    if part_keys:
+        try:
+            parts = json_mod.loads(row['parts_json'] or '[]') or []
+        except Exception:
+            parts = []
+        key_set = set(part_keys)
+        for p in parts:
+            if isinstance(p, dict) and p.get('key') in key_set:
+                matched_parts.append(p)
+                if is_flag:
+                    if not p.get('flagged'):
+                        flagged_any_new = True
+                    p['flagged'] = True
+                    p['flag_note'] = note
+        if is_flag and matched_parts:
+            conn.execute(
+                "UPDATE work_orders SET parts_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (json_mod.dumps(parts), wid)
+            )
+            _recompute_wo_status(conn, wid, parts, row['status'])
+
+    # Build the text stored in work_order_notes so the thread shows what
+    # parts the note concerns. Flag notes lead with "⚑ Flagged …"; general
+    # notes with parts use "Re: …".
+    parts_label = ', '.join(
+        f"{p.get('quantity', 1)}× {p.get('description', '')}"
+        for p in matched_parts
+    )
+    if is_flag and matched_parts:
+        display_note = f"⚑ Flagged — {parts_label}: {note}"
+    elif matched_parts:
+        display_note = f"Re: {parts_label} — {note}"
+    else:
+        display_note = note
+
+    note_type = 'flag' if is_flag else 'general'
     author = current_user.display_name or current_user.username
     author_user_id = current_user.id
     conn.execute(
         "INSERT INTO work_order_notes "
         "(work_order_id, note, author, author_user_id, note_type, parent_id) "
-        "VALUES (?, ?, ?, ?, 'general', ?)",
-        (wid, note, author, author_user_id, parent_id)
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (wid, display_note, author, author_user_id, note_type, parent_id)
     )
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
-    _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else 'Note'}: {note}")
+    _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else ('Flag' if is_flag else 'Note')}: {display_note}")
     conn.commit()
 
-    # Determine recipients and send
+    # Determine recipients and send. Use the per-part flag email when new
+    # flags were raised; otherwise the standard note / reply email.
     current_email = current_user.username
     recipients = _collect_note_recipients(conn, row, parent_id, current_email)
-    email_sent, email_error = _send_note_email(
-        row, author, note, parent_id, recipients, is_reply=(parent_id is not None)
-    )
+    if is_flag and flagged_any_new:
+        subject = f"[Part Flagged] Work Order {row['wo_number']}"
+        body_lines = [
+            f"Work Order: {row['wo_number']}",
+            f"Customer: {row['customer_name'] or '—'}",
+            f"Vehicle: {row['vehicle'] or '—'}",
+            f"Parts flagged: {parts_label}",
+            '',
+            f"{author} wrote:",
+            '',
+            note,
+            '',
+            'Log in to Warehouse Manager to reply.',
+        ]
+        body = '\n'.join(body_lines) + '\n'
+        email_sent, email_error = False, None
+        for to in recipients:
+            ok, err = _send_email(to, subject, body)
+            if ok:
+                email_sent = True
+            elif err:
+                email_error = err
+        if not recipients:
+            email_error = 'no_recipients'
+    else:
+        email_sent, email_error = _send_note_email(
+            row, author, display_note, parent_id, recipients, is_reply=(parent_id is not None)
+        )
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, new_row)
@@ -4203,22 +4531,95 @@ def add_general_note(wid):
     })
 
 
-@app.route('/api/work-orders/<int:wid>/notes/<int:note_id>', methods=['DELETE'])
-@admin_required
-def delete_work_order_note(wid, note_id):
-    """Admin-only: delete a note from a work order and scrub the matching
-    'note_added' entries from the audit log. If the target is a root note,
-    its replies (and their audit entries) are removed too so the thread
-    doesn't leave orphaned children."""
+@app.route('/api/work-orders/<int:wid>/notes/<int:note_id>', methods=['PUT'])
+@login_required
+def edit_work_order_note(wid, note_id):
+    """Edit a note's text. Allowed for admins or the original author only."""
+    data = request.get_json() or {}
+    new_text = str(data.get('note', '') or '').strip()
+    if not new_text:
+        return jsonify({'error': 'Note is required'}), 400
+
     conn = get_db()
     note = conn.execute(
-        "SELECT id, note, note_type, parent_id, created_at "
+        "SELECT id, note, author_user_id, note_type, parent_id "
         "FROM work_order_notes WHERE id = ? AND work_order_id = ?",
         (note_id, wid)
     ).fetchone()
     if not note:
         conn.close()
         return jsonify({'error': 'Note not found'}), 404
+
+    is_admin = current_user.is_admin
+    is_author = note['author_user_id'] == current_user.id
+    if not (is_admin or is_author):
+        conn.close()
+        return jsonify({'error': 'Only the author or an admin can edit this note.'}), 403
+
+    if note['note'] == new_text:
+        # No-op: return current state without churning the DB
+        new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+        wo = _work_order_to_dict(conn, new_row)
+        conn.close()
+        return jsonify({'work_order': wo})
+
+    conn.execute(
+        "UPDATE work_order_notes SET note = ? WHERE id = ? AND work_order_id = ?",
+        (new_text, note_id, wid)
+    )
+    conn.execute(
+        "UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,)
+    )
+    _log_wo_audit(conn, wid, 'note_edited', f"Note edited: {new_text}")
+    conn.commit()
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo})
+
+
+@app.route('/api/work-orders/<int:wid>/notes/<int:note_id>', methods=['DELETE'])
+@login_required
+def delete_work_order_note(wid, note_id):
+    """Delete a note from a work order and scrub the matching 'note_added'
+    entries from the audit log.
+      * Admins: can delete any note; if the target is a root with replies,
+        those replies (and their audit entries) are removed too.
+      * Author: can only delete their own note, and only if nobody else has
+        already replied to it (otherwise we'd be deleting someone else's
+        content). Their own replies on their own root are fine.
+      * Everyone else: 403."""
+    conn = get_db()
+    note = conn.execute(
+        "SELECT id, note, note_type, parent_id, created_at, author_user_id "
+        "FROM work_order_notes WHERE id = ? AND work_order_id = ?",
+        (note_id, wid)
+    ).fetchone()
+    if not note:
+        conn.close()
+        return jsonify({'error': 'Note not found'}), 404
+
+    is_admin = current_user.is_admin
+    is_author = note['author_user_id'] == current_user.id
+
+    # Permission check — authors can only delete if no one else has replied.
+    if not is_admin:
+        if not is_author:
+            conn.close()
+            return jsonify({'error': 'Only the author or an admin can delete this note.'}), 403
+        if note['parent_id'] is None:
+            has_foreign_reply = conn.execute(
+                "SELECT 1 FROM work_order_notes "
+                "WHERE parent_id = ? AND work_order_id = ? AND COALESCE(author_user_id, -1) != ? "
+                "LIMIT 1",
+                (note_id, wid, current_user.id)
+            ).fetchone()
+            if has_foreign_reply:
+                conn.close()
+                return jsonify({
+                    'error': 'This note has replies from other people — only an admin can delete it.'
+                }), 403
 
     targets = [dict(note)]
     if note['parent_id'] is None:
@@ -4316,6 +4717,13 @@ def delete_work_order(wid):
     for pr in photo_rows:
         delete_image(pr['filename'])
     conn.execute("DELETE FROM work_order_part_photos WHERE work_order_id = ?", (wid,))
+    # Same for request-level attachments
+    att_rows = conn.execute(
+        "SELECT filename FROM work_order_attachments WHERE work_order_id = ?", (wid,)
+    ).fetchall()
+    for ar in att_rows:
+        delete_image(ar['filename'])
+    conn.execute("DELETE FROM work_order_attachments WHERE work_order_id = ?", (wid,))
     conn.execute("DELETE FROM work_order_notes WHERE work_order_id = ?", (wid,))
     conn.execute("DELETE FROM work_orders WHERE id = ?", (wid,))
     conn.commit()
