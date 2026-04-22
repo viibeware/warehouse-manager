@@ -236,9 +236,29 @@ body {
     transition: opacity var(--transition);
     z-index: 120;
     white-space: normal;
-    /* Never exceed the viewport height; scroll internally if the content is tall. */
-    max-height: calc(100vh - 24px);
+    /* Never exceed the viewport height; scroll internally if the content is
+       tall. Capped at 70vh so the tooltip reads as a floating panel with a
+       clear scroll region rather than taking over the whole screen. */
+    max-height: min(70vh, calc(100vh - 48px));
     overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.section-help-tip .wo-tooltip-divider {
+    border-top: 1px solid var(--border);
+    margin: 0.85rem 0;
+}
+.section-help-tip .wo-tooltip-email-block {
+    font-size: 0.82rem;
+}
+.section-help-tip .wo-email-info-list {
+    padding-left: 1.1rem; margin: 0.3rem 0;
+}
+.section-help-tip .wo-email-info-list li { margin-bottom: 0.3rem; line-height: 1.4; }
+.section-help-tip .wo-email-info-title {
+    font-weight: 600; color: var(--accent); margin-bottom: 0.35rem;
+}
+.section-help-tip .wo-email-info-note {
+    margin-top: 0.3rem; font-size: 0.76rem; color: var(--text-muted); font-style: italic;
 }
 .section-help-tip strong { color: var(--accent); font-weight: 600; }
 .section-help-tip em { font-style: normal; color: var(--text-secondary); }
@@ -556,6 +576,21 @@ body {
     border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Translucent spinner overlay sized to fill its nearest positioned ancestor
+   (typically the .modal). Used to block interaction during long uploads. */
+.modal-busy {
+    position: absolute; inset: 0;
+    background: color-mix(in srgb, var(--bg-card) 85%, transparent);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.85rem;
+    z-index: 15;
+    border-radius: inherit;
+    font-size: 0.9rem; color: var(--text-secondary);
+}
+.modal-busy-text { font-weight: 500; color: var(--text-primary); }
+.modal-busy-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: -4px; }
 .pagination { display: flex; justify-content: center; align-items: center; gap: 0.4rem; margin-top: 1.5rem; }
 .pagination button {
     padding: 7px 12px; border: 1px solid var(--border); background: var(--bg-card);
@@ -1340,18 +1375,6 @@ body {
     background: color-mix(in srgb, #4a8eff 6%, var(--bg-card));
     border-style: dashed;
 }
-.wo-note.wo-note-flag {
-    border-left: 3px solid var(--danger);
-    background: color-mix(in srgb, var(--bg-input) 88%, var(--danger) 12%);
-}
-.wo-note-flag-badge {
-    font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--danger);
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    padding: 1px 6px; border-radius: 10px;
-}
 .wo-note-head {
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
     font-size: 0.74rem;
@@ -1594,21 +1617,6 @@ body {
     transition: all var(--transition);
 }
 .wo-part-photo-btn:hover { border-color: var(--accent); color: var(--accent); }
-.wo-part-note {
-    grid-column: 3 / 5; font-size: 0.72rem; color: var(--danger);
-    font-style: italic; padding-left: 0; margin-top: 2px;
-    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
-}
-.wo-part-unflag-btn {
-    font-family: var(--mono); font-size: 0.62rem; font-style: normal;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-    padding: 1px 6px; border-radius: 8px; cursor: pointer;
-    background: transparent; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-    color: var(--danger);
-    transition: background var(--transition), color var(--transition);
-}
-.wo-part-unflag-btn:hover { background: var(--danger); color: #fff; }
-
 /* Add Note modal: parts checklist */
 .wo-note-parts-list {
     max-height: 160px; overflow-y: auto;
@@ -1623,15 +1631,9 @@ body {
 .wo-note-parts-list .wo-note-part-row input[type="checkbox"] {
     flex-shrink: 0; cursor: pointer;
 }
-.wo-note-parts-list .wo-note-part-row.flagged {
-    color: var(--danger);
-}
 .wo-note-parts-empty {
     padding: 0.35rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;
 }
-/* Red variant of the toggle switch for the flag option */
-.toggle-switch-flag input:checked + .toggle-track { background: rgba(239, 68, 68, 0.3); }
-.toggle-switch-flag input:checked + .toggle-track::before { background: var(--danger); }
 
 /* Per-part photo blocks (card summary and detail-modal editor) */
 .wo-part-photos-compact {
@@ -1752,7 +1754,21 @@ body {
 .wo-list-row {
     display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.35rem;
 }
-.wo-list-row input { flex: 1; }
+.wo-list-row input[type="text"] { flex: 1; }
+.wo-list-row input[type="color"] { flex: 0 0 44px; }
+.wo-list-row .wo-default-radio {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.7rem; color: var(--text-muted);
+    padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px;
+    cursor: pointer; flex-shrink: 0;
+    transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.wo-list-row .wo-default-radio input[type="radio"] {
+    flex: 0 0 auto; width: auto; height: auto; margin: 0; cursor: pointer;
+}
+.wo-list-row .wo-default-radio:has(input:checked) {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-dim);
+}
 .wo-list-row .wo-list-remove {
     width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--bg-input); color: var(--text-muted); cursor: pointer;
@@ -1797,25 +1813,24 @@ body {
     border-radius: var(--radius);
 }
 .wo-email-info-title {
-    font-family: var(--mono); font-size: 0.64rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--accent); margin-bottom: 0.35rem;
+    font-family: var(--font); font-size: 0.86rem; font-weight: 600;
+    color: var(--accent); margin-bottom: 0.4rem;
 }
-.wo-email-info-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 0.5rem; }
+.wo-email-info-desc { font-size: 0.86rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.5rem; }
 .wo-email-info-list {
     list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-direction: column; gap: 4px;
 }
 .wo-email-info-list li {
     position: relative;
     padding-left: 16px;
-    font-size: 0.78rem; color: var(--text-primary); line-height: 1.45;
+    font-size: 0.86rem; color: var(--text-primary); line-height: 1.5;
 }
 .wo-email-info-list li::before {
-    content: ''; position: absolute; left: 4px; top: 8px;
+    content: ''; position: absolute; left: 4px; top: 10px;
     width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
 }
 .wo-email-info-list li strong { color: var(--accent); font-weight: 600; }
-.wo-email-info-note { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+.wo-email-info-note { font-size: 0.82rem; color: var(--text-muted); font-style: italic; line-height: 1.45; }
 .wo-parts-table {
     width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.82rem;
 }
@@ -2353,7 +2368,6 @@ body:has(.sidebar.open) .hamburger-icon {
         <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             Work Orders <span class="nav-count" id="countWoActive"></span>
-            <span class="nav-flag-badge" id="navWoFlaggedBadge" style="display:none;" title="Flagged work orders"></span>
         </button>
         <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -2590,10 +2604,17 @@ body:has(.sidebar.open) .hamburger-icon {
                 </div>
                 <div class="settings-row">
                     <div>
-                        <div class="settings-label">Work Order Lists</div>
-                        <div class="settings-desc">Manage warehouse locations, sales people, and priorities</div>
+                        <div class="settings-label">Work Order Settings</div>
+                        <div class="settings-desc">Manage warehouse locations (with a default for new requests), priorities, and sales people</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openWoListsModal();">Manage</button>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Display &amp; Time</div>
+                        <div class="settings-desc">Timezone and 12h / 24h clock used when rendering timestamps across the app</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openDisplaySettingsModal();">Configure</button>
                 </div>
                 <div class="settings-row">
                     <div>
@@ -2920,12 +2941,12 @@ body:has(.sidebar.open) .hamburger-icon {
                     <select class="form-select" id="woFormPriority"></select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Customer Name</label>
-                    <input class="form-input" type="text" id="woFormCustomer">
+                    <label class="form-label">Customer Name <span style="color:var(--danger);">*</span></label>
+                    <input class="form-input" type="text" id="woFormCustomer" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Quote / Invoice #</label>
-                    <input class="form-input" type="text" id="woFormQuote">
+                    <label class="form-label">Quote / Invoice # <span style="color:var(--danger);">*</span></label>
+                    <input class="form-input" type="text" id="woFormQuote" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Sales Person</label>
@@ -2959,21 +2980,7 @@ body:has(.sidebar.open) .hamburger-icon {
                     </div>
                     <div id="woFormPartsList"></div>
                 </div>
-                <div class="form-group full-width wo-email-info">
-                    <div class="wo-email-info-title">Email notifications</div>
-                    <div class="wo-email-info-desc">
-                        The salesperson gets automatic emails at key moments. For replies, every prior participant in that thread is emailed too. Photos and reason text are included in the messages where relevant.
-                    </div>
-                    <ul class="wo-email-info-list">
-                        <li><strong>Note added</strong> — posting a note emails the salesperson. If you turn on <em>Flag this note</em> and select parts, those parts are flagged and a <em>Part Flagged</em> email is sent instead.</li>
-                        <li><strong>Reply</strong> — emails the salesperson and every prior participant in the thread.</li>
-                        <li><strong>Photo added to a part</strong> — the resized JPEG is attached, along with any comment you wrote.</li>
-                        <li><strong>Marked delivered</strong> — one-time notification that the order is complete.</li>
-                        <li><strong>Marked not deliverable</strong> — archives the work order and emails the salesperson the reason.</li>
-                        <li><strong>Email Update button</strong> — sends a full current-status snapshot to the salesperson on demand.</li>
-                    </ul>
-                    <div class="wo-email-info-note">No email is sent for creating a work order, editing fields, unflagging, marking a part pulled, archiving, reopening, attaching files to a note, or editing/deleting notes.</div>
-                </div>
+                <div class="form-group full-width wo-email-info" id="woFormEmailInfo"></div>
             </div>
         </div>
         <div class="modal-footer">
@@ -2989,9 +2996,14 @@ body:has(.sidebar.open) .hamburger-icon {
 
 <!-- ═══ GENERAL (RUNNING) NOTE MODAL ═══ -->
 <div class="modal-overlay" id="woGeneralNoteModal" style="z-index:210;">
-    <div class="modal" style="max-width:480px;">
+    <div class="modal" style="max-width:480px;position:relative;">
+        <div class="modal-busy" id="woGeneralNoteBusy" style="display:none;">
+            <div class="spinner"></div>
+            <div class="modal-busy-text">Uploading…</div>
+            <div class="modal-busy-sub" id="woGeneralNoteBusySub">Large images may take a moment</div>
+        </div>
         <div class="modal-header">
-            <h2 id="woGeneralNoteTitle">Add Note</h2>
+            <h2 id="woGeneralNoteTitle">Add Note/Photos</h2>
             <button class="modal-close" onclick="closeModal('woGeneralNoteModal')">&times;</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
@@ -3005,15 +3017,6 @@ body:has(.sidebar.open) .hamburger-icon {
             <div class="form-group" id="woGeneralNotePartsSection">
                 <label class="form-label">Applies to parts <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">optional</span></label>
                 <div id="woGeneralNotePartsList" class="wo-note-parts-list"></div>
-            </div>
-            <div class="form-group" id="woGeneralNoteFlagRow">
-                <label class="toggle-row" style="cursor:pointer;">
-                    <span class="toggle-label-text">Flag this note (shows in red)</span>
-                    <span class="toggle-switch toggle-switch-flag">
-                        <input type="checkbox" id="woGeneralNoteFlag">
-                        <span class="toggle-track"></span>
-                    </span>
-                </label>
             </div>
             <div class="form-group">
                 <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">images, PDFs, Word docs — 16 MB each, optional</span></label>
@@ -3030,7 +3033,7 @@ body:has(.sidebar.open) .hamburger-icon {
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal('woGeneralNoteModal')">Cancel</button>
-            <button class="btn btn-primary" id="woGeneralNoteSaveBtn" onclick="submitGeneralNote()">Add Note</button>
+            <button class="btn btn-primary" id="woGeneralNoteSaveBtn" onclick="submitGeneralNote()">Add Note/Photos</button>
         </div>
     </div>
 </div>
@@ -3186,7 +3189,7 @@ body:has(.sidebar.open) .hamburger-icon {
 <div class="modal-overlay" id="woListsModal">
     <div class="modal" style="max-width:640px;">
         <div class="modal-header">
-            <h2>Work Order Lists</h2>
+            <h2>Work Order Settings</h2>
             <button class="modal-close" onclick="closeSubModal('woListsModal')">&times;</button>
         </div>
         <div class="modal-body">
@@ -3213,6 +3216,39 @@ body:has(.sidebar.open) .hamburger-icon {
         </div>
         <div class="modal-footer">
             <button class="btn btn-primary" onclick="saveWoLists()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ DISPLAY & TIME SETTINGS (admin) ═══ -->
+<div class="modal-overlay" id="displaySettingsModal">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h2>Display &amp; Time</h2>
+            <button class="modal-close" onclick="closeSubModal('displaySettingsModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div style="font-size:0.78rem;color:var(--text-muted);">These settings control how every timestamp is shown in the app — work-order dates, note timestamps, part-pulled markers, audit-trail entries, and photo captions. All timestamps are stored in UTC on the server and converted for display.</div>
+            <div class="form-group">
+                <label class="form-label">Timezone</label>
+                <select class="form-select" id="displayTimezoneSelect"></select>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.25rem;">Pick the IANA name that matches your primary warehouse location.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time format</label>
+                <div style="display:flex;gap:1rem;align-items:center;">
+                    <label style="display:inline-flex;gap:0.4rem;align-items:center;cursor:pointer;">
+                        <input type="radio" name="displayTimeFormat" value="12h" id="displayTimeFormat12"> 12-hour (1:30 PM)
+                    </label>
+                    <label style="display:inline-flex;gap:0.4rem;align-items:center;cursor:pointer;">
+                        <input type="radio" name="displayTimeFormat" value="24h" id="displayTimeFormat24"> 24-hour (13:30)
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeSubModal('displaySettingsModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveDisplaySettings()">Save</button>
         </div>
     </div>
 </div>
@@ -4992,18 +5028,7 @@ async function loadWoCounts() {
     try {
         const counts = await (await fetch('/api/work-orders/counts')).json();
         const a = document.getElementById('countWoActive');
-        const flag = document.getElementById('navWoFlaggedBadge');
         if (a) a.textContent = counts.active || 0;
-        if (flag) {
-            const f = counts.flagged || 0;
-            if (f > 0) {
-                flag.textContent = String(f);
-                flag.title = `${f} flagged work order${f === 1 ? '' : 's'}`;
-                flag.style.display = '';
-            } else {
-                flag.style.display = 'none';
-            }
-        }
     } catch {}
 }
 
@@ -5226,7 +5251,7 @@ function renderRecentWos(orders) {
     if (!el) return;
     if (!orders.length) { el.innerHTML = '<div class="widget-empty">No active work orders</div>'; return; }
     el.innerHTML = orders.map(wo => {
-        const when = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        const when = _fmtServerTs(wo.request_date);
         return `<div class="widget-row" onclick="showWorkOrdersView('active')">
             <div></div>
             <div class="widget-row-text">
@@ -5271,7 +5296,6 @@ async function renderWorkOrdersView() {
         <div class="wo-status-filters">
             <button class="wo-status-filter ${currentWoStatusFilter==='all'?'active':''}" onclick="setWoStatusFilter('all')">All Active</button>
             <button class="wo-status-filter ${currentWoStatusFilter==='requested'?'active':''}" onclick="setWoStatusFilter('requested')">Requested</button>
-            <button class="wo-status-filter ${currentWoStatusFilter==='flagged'?'active':''}" onclick="setWoStatusFilter('flagged')">Flagged</button>
         </div>`;
     const title = isArchive ? 'Work Orders — Archive' : 'Work Orders';
     const newBtn = (!isArchive && currentUserData && currentUserData.can_edit)
@@ -5292,13 +5316,7 @@ async function renderWorkOrdersView() {
             <h2 style="display:inline-flex;align-items:center;gap:8px;">
                 ${title}
                 <button type="button" class="section-help page-help" tabindex="0" aria-label="About Work Orders">?
-                    <span class="section-help-tip" role="tooltip">
-                        <strong>Work Orders</strong> track parts requests from sales to warehouse.<br><br>
-                        <strong>Delivered</strong> — the Mark Delivered button signals the order is fulfilled. The salesperson gets a delivery email. It stays visible in the active list (pale green) until tonight at <strong>23:00 local time</strong>, when it auto-archives. <em>Archive Now</em> moves it immediately; <em>Reopen</em> sends it back to Requested.<br><br>
-                        <strong>Not Deliverable</strong> — the order cannot be fulfilled (out of stock, wrong part, customer cancelled, etc.). The button prompts for a reason, archives the work order immediately, and emails the salesperson the explanation so they can follow up with the customer.<br><br>
-                        <strong>Notes &amp; replies</strong> — adding a note starts a thread and emails the salesperson. Any reply emails every prior participant plus the salesperson so the conversation stays in email.<br><br>
-                        <strong>Archive</strong> holds every delivered or not-deliverable work order for historical reference and reporting.
-                    </span>
+                    <span class="section-help-tip" role="tooltip" id="woPageHelpTip"></span>
                 </button>
             </h2>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">${filters}${newBtn}</div>
@@ -5335,7 +5353,44 @@ async function renderWorkOrdersView() {
     }
     // Refresh the banner for this view; the container was just re-rendered.
     loadGlobalNotificationsState();
+    // Populate the "?" tooltip with the shared help content (includes the
+    // Email notifications explainer, kept in one place).
+    const tipEl = document.getElementById('woPageHelpTip');
+    if (tipEl) tipEl.innerHTML = _woPageHelpHtml();
     await loadWorkOrders();
+}
+
+// ── Shared explainer text ─────────────────────────────────────────────────
+// The Email Notifications explainer appears both inside the New Request
+// modal and inside the Work Orders "?" tooltip. Keeping it in a single
+// function means one edit updates every appearance.
+function _emailNotificationsHtml() {
+    return `
+        <div class="wo-email-info-title">Email notifications</div>
+        <div class="wo-email-info-desc">
+            The salesperson gets automatic emails at key moments. For replies, every prior participant in that thread is emailed too. Photos and reason text are included in the messages where relevant.
+        </div>
+        <ul class="wo-email-info-list">
+            <li><strong>Note added</strong> — posting a note emails the salesperson.</li>
+            <li><strong>Reply</strong> — emails the salesperson and every prior participant in the thread.</li>
+            <li><strong>Marked delivered</strong> — one-time notification that the order is complete.</li>
+            <li><strong>Marked not deliverable</strong> — archives the work order and emails the salesperson the reason.</li>
+            <li><strong>Email Update button</strong> — sends a full current-status snapshot to the salesperson on demand.</li>
+        </ul>
+        <div class="wo-email-info-note">No email is sent for creating a work order, editing fields, marking a part pulled, archiving, reopening, attaching files to a note, or editing/deleting notes.</div>
+    `;
+}
+
+function _woPageHelpHtml() {
+    return `
+        <strong>Work Orders</strong> track parts requests from sales to warehouse.<br><br>
+        <strong>Delivered</strong> — the Mark Delivered button signals the order is fulfilled. The salesperson gets a delivery email. It stays visible in the active list (pale green) until tonight at <strong>23:00 local time</strong>, when it auto-archives. <em>Archive Now</em> moves it immediately; <em>Reopen</em> sends it back to Requested.<br><br>
+        <strong>Not Deliverable</strong> — the order cannot be fulfilled (out of stock, wrong part, customer cancelled, etc.). The button prompts for a reason, archives the work order immediately, and emails the salesperson the explanation so they can follow up with the customer.<br><br>
+        <strong>Notes &amp; replies</strong> — adding a note starts a thread and emails the salesperson. Any reply emails every prior participant plus the salesperson so the conversation stays in email. Notes can include photos or other files — images are resized automatically.<br><br>
+        <strong>Archive</strong> holds every delivered or not-deliverable work order for historical reference and reporting.
+        <div class="wo-tooltip-divider"></div>
+        <div class="wo-tooltip-email-block">${_emailNotificationsHtml()}</div>
+    `;
 }
 
 function setWoStatusFilter(f) { currentWoStatusFilter = f; renderWorkOrdersView(); }
@@ -5473,7 +5528,7 @@ function renderWorkOrderCard(wo) {
     const canEdit = currentUserData && currentUserData.can_edit;
     const canViewAudit = currentUserData && currentUserData.can_view_audit;
     const prioClass = (wo.priority || '').toLowerCase().replace(/\s+/g, '-');
-    const reqDate = (wo.request_date || '').split('.')[0].replace('T', ' ').substring(0, 16);
+    const reqDate = _fmtServerTs(wo.request_date);
     // The old "Flagged: …" alert bar was removed — flag notes now live in the
     // Notes thread below (same render path as Add Note / Reply), so they can
     // be replied to and don't duplicate a static banner at the top of the card.
@@ -5576,7 +5631,7 @@ function renderWorkOrderCard(wo) {
     const actions = canEdit
         ? `<div class="wo-card-actions" onclick="event.stopPropagation();">
             ${editBtn}
-            ${!readOnly ? `<button class="table-btn" title="Add a running note to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note</button>` : ''}
+            ${!readOnly ? `<button class="table-btn" title="Add a note (with optional photos / files) to the activity log" onclick="openGeneralNoteModal(${wo.id})">Add Note/Photos</button>` : ''}
             ${morePill}
             ${trailingGroup}
           </div>`
@@ -5687,10 +5742,40 @@ function toggleWoCardCollapse(wid, event) {
     card.classList.toggle('wo-collapsed');
 }
 
-function _fmtNoteTime(ts) {
+// Central timestamp formatter. The server sends everything as a SQLite
+// TIMESTAMP (UTC, "YYYY-MM-DD HH:MM:SS[.ffff]"). We parse it as UTC, then
+// render in the admin-configured timezone + 12h/24h format. Fall back to
+// UTC + 12h if currentUserData isn't loaded yet (login page, early boot).
+function _fmtServerTs(ts, opts) {
     if (!ts) return '';
-    return ts.replace('T', ' ').split('.')[0].substring(0, 16);
+    const options = opts || {};
+    // Build a reliable UTC-anchored Date. Replace space with T and append Z.
+    const iso = String(ts).includes('T') ? ts : ts.replace(' ', 'T');
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    if (isNaN(d.getTime())) return String(ts).replace('T', ' ').split('.')[0].substring(0, 16);
+    const tz = (currentUserData && currentUserData.timezone) || 'UTC';
+    const fmt = (currentUserData && currentUserData.time_format) || '12h';
+    const hour12 = fmt === '12h';
+    const withTime = options.withTime !== false;
+    try {
+        const intlOpts = {
+            timeZone: tz,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+        };
+        if (withTime) {
+            intlOpts.hour = '2-digit';
+            intlOpts.minute = '2-digit';
+            intlOpts.hour12 = hour12;
+        }
+        // Intl produces "MM/DD/YYYY, HH:MM [AM]"; swap the comma for a space
+        // for compactness.
+        return new Intl.DateTimeFormat('en-US', intlOpts).format(d).replace(',', '');
+    } catch {
+        return String(ts).replace('T', ' ').split('.')[0].substring(0, 16);
+    }
 }
+
+function _fmtNoteTime(ts) { return _fmtServerTs(ts); }
 
 function renderWorkOrderAttachments(wo) {
     const list = wo.attachments || [];
@@ -5883,7 +5968,6 @@ function renderWorkOrderNotesThread(wo, canReply) {
         const previewAttr = JSON.stringify(preview).replace(/"/g, '&quot;');
         const textAttr = JSON.stringify(n.note || '').replace(/"/g, '&quot;');
         const isReply = !!n.parent_id;
-        const isFlag = (n.note_type || 'flag') === 'flag';
         const isAuthor = currentUid && n.author_user_id === currentUid;
         // A root is safe for the author to delete only if nobody else has
         // replied. Admins bypass this check (backend enforces both.)
@@ -5904,18 +5988,15 @@ function renderWorkOrderNotesThread(wo, canReply) {
             : '';
         const cls = ['wo-note'];
         if (isReply) cls.push('wo-note-reply');
-        if (isFlag) cls.push('wo-note-flag');
-        const flagBadge = isFlag ? '<span class="wo-note-flag-badge">Flag</span>' : '';
         const actions = [replyBtn, editBtn, deleteBtn].filter(Boolean).join('');
         const attachmentsHtml = renderNoteAttachments(wo.id, n, isAdmin || isAuthor);
         return `<div class="${cls.join(' ')}" data-note-id="${n.id}" onclick="event.stopPropagation();">
             <div class="wo-note-head">
-                ${flagBadge}
                 <span class="wo-note-author">${esc(n.author || 'Unknown')}</span>
                 <span class="wo-note-time">${esc(_fmtNoteTime(n.created_at))}</span>
                 ${isReply ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted);">↳ reply</span>' : ''}
             </div>
-            <div class="wo-note-text">${esc(n.note || '')}</div>
+            ${(n.note || '').trim() ? `<div class="wo-note-text">${esc(n.note)}</div>` : ''}
             ${attachmentsHtml}
             ${actions ? `<div class="wo-note-actions">${actions}</div>` : ''}
         </div>`;
@@ -5944,32 +6025,16 @@ function renderPartsHeader() {
     </div>`;
 }
 
-function _formatPulledAt(ts) {
-    if (!ts) return '';
-    // Backend stores UTC "YYYY-MM-DD HH:MM:SS"; show YYYY-MM-DD HH:MM
-    return ts.replace('T', ' ').split('.')[0].substring(0, 16);
-}
+function _formatPulledAt(ts) { return _fmtServerTs(ts); }
 
 function renderCardPartLine(wid, idx, p, canEdit, photoMode) {
     const pulled = !!p.pulled, flagged = !!p.flagged;
     const cbAttrs = canEdit ? '' : 'disabled';
-    // Flagging is now handled via the Add Note modal (select parts + flag toggle).
-    // The per-part flag icon was removed to reduce UI redundancy; the photo
-    // button stays as the only action in this column.
-    const photoBtn = canEdit
-        ? `<button class="wo-part-photo-btn" onclick="openWorkOrderPartPhotoUpload(${wid}, '${esc(p.key || '')}'); event.stopPropagation();" title="Add photo">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-           </button>`
-        : '';
-    const actBtns = photoBtn
-        ? `<span class="wo-part-acts">${photoBtn}</span>`
-        : '<span></span>';
-    const unflagInline = (flagged && canEdit)
-        ? `<button type="button" class="wo-part-unflag-btn" onclick="unflagPart(${wid}, ${idx}); event.stopPropagation();" title="Remove the flag from this part">Unflag</button>`
-        : '';
-    const noteLine = (flagged && p.flag_note)
-        ? `<div class="wo-part-note">⚑ ${esc(p.flag_note)}${unflagInline}</div>`
-        : (flagged ? `<div class="wo-part-note">⚑ Flagged${unflagInline}</div>` : '');
+    // Flagging and photos are both handled through the Add Note / Photos
+    // modal now — the per-part flag icon and camera icon were removed to
+    // consolidate those actions into a single flow.
+    const actBtns = '<span></span>';
+    const noteLine = '';
     const pulledTs = (pulled && p.pulled_at)
         ? `<div class="wo-part-pulled-ts">Pulled ${esc(_formatPulledAt(p.pulled_at))}</div>` : '';
     // Photo UI: 'full' = detail modal (thumbnails + edit + delete), 'compact' = card summary, '' = hidden
@@ -5980,7 +6045,7 @@ function renderCardPartLine(wid, idx, p, canEdit, photoMode) {
     } else if (photoMode === 'compact' && photos.length) {
         photoBlock = renderPartPhotosCompact(photos);
     }
-    return `<div class="wo-part-line ${pulled ? 'pulled' : ''} ${flagged ? 'flagged' : ''}">
+    return `<div class="wo-part-line ${pulled ? 'pulled' : ''}">
         <input type="checkbox" class="wo-part-check" ${pulled ? 'checked' : ''} ${cbAttrs}
                onchange="togglePartPulled(${wid}, ${idx}, this.checked, this.closest('.wo-part-line')); event.stopPropagation();"
                onclick="event.stopPropagation();"
@@ -6008,7 +6073,7 @@ function renderPartPhotosCompact(photos) {
 
 function renderPartPhotosFull(wid, partKey, photos, canEdit) {
     const items = photos.map((ph, i) => {
-        const when = (ph.created_at || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        const when = _fmtServerTs(ph.created_at);
         const author = ph.uploaded_by || '';
         const commentHtml = ph.comment
             ? `<div class="wo-photo-comment">${esc(ph.comment)}</div>`
@@ -6067,38 +6132,6 @@ async function togglePartPulled(wid, idx, pulled, rowEl) {
         if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data);
         }
-    } catch { showToast('Connection error', 'error'); }
-}
-
-async function unflagPart(wid, idx) {
-    const ok = await openWoConfirm({
-        title: 'Unflag Part',
-        body: 'Remove the flag from this part?',
-        confirmLabel: 'Unflag',
-        confirmClass: 'btn-danger',
-    });
-    if (!ok) return;
-    await submitPartFlag(wid, idx, false, '');
-}
-
-async function submitPartFlag(wid, idx, flagged, note) {
-    try {
-        const res = await fetch(`/api/work-orders/${wid}/parts/${idx}/flag`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ flagged, flag_note: note }),
-        });
-        const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
-        let msg = flagged ? 'Part flagged' : 'Part unflagged';
-        if (data.email_sent) msg += ' — email sent';
-        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
-        showToast(msg, 'success');
-        if (currentWoView) await loadWorkOrders();
-        if (false) {  // detail modal removed; kept branch harmless
-            renderWorkOrderDetail(data.work_order);
-        }
-        loadWoCounts();
     } catch { showToast('Connection error', 'error'); }
 }
 
@@ -6230,6 +6263,9 @@ async function openEditWorkOrderModal(wid) {
 async function _prepareWoForm(wo) {
     // Always pull fresh settings so newly-flagged sales people appear immediately.
     await loadWoSettings();
+    // Populate the shared Email Notifications panel from the central helper
+    const emailInfoEl = document.getElementById('woFormEmailInfo');
+    if (emailInfoEl) emailInfoEl.innerHTML = _emailNotificationsHtml();
     const isEdit = !!wo;
     document.getElementById('woFormTitle').textContent = isEdit ? `Edit Work Order ${wo.wo_number}` : 'New Work Order Request';
     document.getElementById('woFormSaveBtn').textContent = isEdit ? 'Save Changes' : 'Create Request';
@@ -6240,16 +6276,35 @@ async function _prepareWoForm(wo) {
     document.getElementById('woFormVin').value = isEdit ? (wo.vin || '') : '';
     document.getElementById('woFormNotes').value = isEdit ? (wo.notes || '') : '';
 
-    // Populate dropdowns — ensure current value is present even if it was since removed from settings
+    // Populate dropdowns — ensure current value is present even if it was since removed from settings.
+    // On new requests, apply the admin-configured default location.
     const locSel = document.getElementById('woFormLocation');
     const locs = [...(woSettings.locations || [])];
     if (isEdit && wo.warehouse_location && !locs.includes(wo.warehouse_location)) locs.push(wo.warehouse_location);
-    locSel.innerHTML = '<option value="">—</option>' + locs.map(l => `<option value="${esc(l)}" ${isEdit && wo.warehouse_location === l ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    const defaultLoc = (!isEdit && woSettings.default_location) || '';
+    const selectedLoc = isEdit ? (wo.warehouse_location || '') : defaultLoc;
+    locSel.innerHTML = '<option value="">—</option>' +
+        locs.map(l => `<option value="${esc(l)}" ${l === selectedLoc ? 'selected' : ''}>${esc(l)}</option>`).join('');
 
+    // Sales Person dropdown. On new requests, auto-select the current user if
+    // they are flagged as a salesperson (match on user_id; fall back to name
+    // if the backend stripped the id for non-admins).
     const spSel = document.getElementById('woFormSalesPerson');
-    const sps = (woSettings.salespeople || []).map(s => s.name);
+    const spList = (woSettings.salespeople || []);
+    const sps = spList.map(s => s.name);
     if (isEdit && wo.sales_person && !sps.includes(wo.sales_person)) sps.push(wo.sales_person);
-    spSel.innerHTML = '<option value="">—</option>' + sps.map(n => `<option value="${esc(n)}" ${isEdit && wo.sales_person === n ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    let autoSp = '';
+    if (!isEdit && currentUserData) {
+        const mine = spList.find(s =>
+            (s.user_id && s.user_id === currentUserData.id)
+            || s.name === currentUserData.display_name
+            || s.name === currentUserData.username
+        );
+        if (mine) autoSp = mine.name;
+    }
+    const selectedSp = isEdit ? (wo.sales_person || '') : autoSp;
+    spSel.innerHTML = '<option value="">—</option>' +
+        sps.map(n => `<option value="${esc(n)}" ${n === selectedSp ? 'selected' : ''}>${esc(n)}</option>`).join('');
 
     const prSel = document.getElementById('woFormPriority');
     const prs = (woSettings.priorities || []).map(p => typeof p === 'string' ? p : (p && p.name) || '').filter(Boolean);
@@ -6283,7 +6338,7 @@ async function openAuditModal(wid) {
 }
 
 function renderAuditEntry(e) {
-    const when = (e.created_at || '').split('.')[0].replace('T', ' ');
+    const when = _fmtServerTs(e.created_at);
     const actionLabel = {
         'created': 'Created',
         'edited': 'Edited',
@@ -6454,6 +6509,7 @@ async function saveWorkOrder() {
         parts: collectPartsRows(),
     };
     if (!body.customer_name) { showToast('Customer name is required', 'error'); return; }
+    if (!body.quote_invoice) { showToast('Quote / invoice number is required', 'error'); return; }
     try {
         const res = await fetch(id ? `/api/work-orders/${id}` : '/api/work-orders', {
             method: id ? 'PUT' : 'POST',
@@ -6554,22 +6610,20 @@ async function openGeneralNoteModal(wid, parentId, parentPreview) {
     document.getElementById('woGeneralNoteId').value = wid;
     document.getElementById('woGeneralNoteParentId').value = parentId || '';
     document.getElementById('woGeneralNoteText').value = '';
-    const flagCb = document.getElementById('woGeneralNoteFlag');
-    if (flagCb) flagCb.checked = false;
     _noteModalPending = [];
     renderGeneralNotePendingFiles();
+    _setNoteModalBusy(false);
     const ctx = document.getElementById('woGeneralNoteReplyContext');
     const title = document.getElementById('woGeneralNoteTitle');
     const label = document.getElementById('woGeneralNoteLabel');
     const saveBtn = document.getElementById('woGeneralNoteSaveBtn');
     const disc = document.getElementById('woGeneralNoteDisclaimer');
     const partsSection = document.getElementById('woGeneralNotePartsSection');
-    const flagRow = document.getElementById('woGeneralNoteFlagRow');
     const partsList = document.getElementById('woGeneralNotePartsList');
 
     if (parentId) {
-        // Replies don't get the parts checklist or flag toggle — they inherit
-        // context from the thread and just continue the conversation.
+        // Replies don't get the parts checklist — they inherit context from
+        // the thread and just continue the conversation.
         title.textContent = 'Reply to Note';
         label.textContent = 'Your reply';
         saveBtn.textContent = 'Send Reply';
@@ -6577,18 +6631,15 @@ async function openGeneralNoteModal(wid, parentId, parentPreview) {
         ctx.textContent = parentPreview || '';
         disc.textContent = 'Sending this reply will email every participant in the thread (and the salesperson).';
         if (partsSection) partsSection.style.display = 'none';
-        if (flagRow) flagRow.style.display = 'none';
         if (partsList) partsList.innerHTML = '';
     } else {
-        title.textContent = 'Add Note';
+        title.textContent = 'Add Note/Photos';
         label.textContent = 'Note';
-        saveBtn.textContent = 'Add Note';
+        saveBtn.textContent = 'Add Note/Photos';
         ctx.style.display = 'none';
         ctx.textContent = '';
         disc.textContent = 'Saving this note will email the salesperson on this work order.';
         if (partsSection) partsSection.style.display = '';
-        if (flagRow) flagRow.style.display = '';
-        // Fetch fresh parts so the list reflects any edits/flag state since load
         if (partsList) partsList.innerHTML = '<div class="wo-note-parts-empty">Loading parts…</div>';
         try {
             const wo = await (await fetch(`/api/work-orders/${wid}`)).json();
@@ -6600,12 +6651,9 @@ async function openGeneralNoteModal(wid, parentId, parentPreview) {
                     partsList.innerHTML = parts.map(p => {
                         const key = esc(p.key || '');
                         const label = `${esc(String(p.quantity || 1))} × ${esc(p.description || '')}`;
-                        const flaggedBadge = p.flagged
-                            ? ' <span style="font-family:var(--mono);font-size:0.58rem;color:var(--danger);">(flagged)</span>'
-                            : '';
-                        return `<label class="wo-note-part-row ${p.flagged ? 'flagged' : ''}">
+                        return `<label class="wo-note-part-row">
                             <input type="checkbox" value="${key}">
-                            <span>${label}${flaggedBadge}</span>
+                            <span>${label}</span>
                         </label>`;
                     }).join('');
                 }
@@ -6622,25 +6670,52 @@ function openReplyModal(wid, parentId, parentPreview) {
     openGeneralNoteModal(wid, parentId, parentPreview);
 }
 
+function _setNoteModalBusy(busy, text, sub) {
+    const overlay = document.getElementById('woGeneralNoteBusy');
+    if (!overlay) return;
+    if (busy) {
+        const t = overlay.querySelector('.modal-busy-text');
+        const s = overlay.querySelector('.modal-busy-sub');
+        if (t) t.textContent = text || 'Working…';
+        if (s) s.textContent = sub || '';
+    }
+    overlay.style.display = busy ? 'flex' : 'none';
+    // Disable the action buttons so the user can't double-submit or close
+    // the modal mid-upload
+    const saveBtn = document.getElementById('woGeneralNoteSaveBtn');
+    if (saveBtn) saveBtn.disabled = !!busy;
+    document.querySelectorAll('#woGeneralNoteModal .btn-ghost, #woGeneralNoteModal .modal-close')
+        .forEach(b => { b.disabled = !!busy; if (busy) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); });
+}
+
 async function submitGeneralNote() {
     const wid = document.getElementById('woGeneralNoteId').value;
     const parentIdRaw = document.getElementById('woGeneralNoteParentId').value;
     const parentId = parentIdRaw ? parseInt(parentIdRaw, 10) : null;
     const note = document.getElementById('woGeneralNoteText').value.trim();
-    if (!note) { showToast('Note is required', 'error'); return; }
+    const hasPending = _noteModalPending && _noteModalPending.length > 0;
+    // Note text is only required when there are no pending files. If the
+    // user is uploading photos/files they can skip typing a message.
+    if (!note && !hasPending) {
+        showToast('Add a note or attach at least one file', 'error');
+        return;
+    }
 
     // Root notes can optionally be flagged and/or scoped to specific parts.
     // Replies carry neither — they inherit context from the thread.
-    const flag = !parentId && !!document.getElementById('woGeneralNoteFlag').checked;
     const partKeys = !parentId
         ? Array.from(document.querySelectorAll('#woGeneralNotePartsList input[type="checkbox"]:checked'))
             .map(cb => cb.value).filter(Boolean)
         : [];
 
+    // Kick up the busy overlay so the user sees immediate feedback while the
+    // note saves and the files upload. Phase 1 = save note, phase 2 = upload.
+    const savingLabel = parentId ? 'Sending reply…' : 'Saving note…';
+    _setNoteModalBusy(true, savingLabel, hasPending ? 'Note first, then files' : '');
+
     try {
         const body = { note };
         if (parentId) body.parent_id = parentId;
-        if (flag) body.flag = true;
         if (partKeys.length) body.part_keys = partKeys;
         const res = await fetch(`/api/work-orders/${wid}/general-notes`, {
             method: 'POST',
@@ -6648,18 +6723,27 @@ async function submitGeneralNote() {
             body: JSON.stringify(body),
         });
         const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        if (!res.ok) {
+            _setNoteModalBusy(false);
+            showToast(data.error || 'Failed', 'error');
+            return;
+        }
 
         // Upload any pending files against the newly-created note id.
         let attachError = null;
         if (_noteModalPending.length && data.note_id) {
+            const count = _noteModalPending.length;
+            _setNoteModalBusy(true,
+                `Uploading ${count} file${count === 1 ? '' : 's'}…`,
+                'Large images may take a moment');
             const up = await _uploadNoteAttachments(wid, data.note_id, _noteModalPending);
             if (!up.ok) attachError = (up.data && up.data.error) || 'Attachment upload failed';
         }
         _noteModalPending = [];
 
+        _setNoteModalBusy(false);
         closeModal('woGeneralNoteModal');
-        let msg = parentId ? 'Reply sent' : (flag ? 'Flag note added' : 'Note added');
+        let msg = parentId ? 'Reply sent' : 'Note added';
         if (data.email_sent) {
             const n = (data.email_recipients || []).length;
             msg += ` — email sent${n ? ` to ${n} recipient${n === 1 ? '' : 's'}` : ''}`;
@@ -6670,7 +6754,10 @@ async function submitGeneralNote() {
         showToast(msg, attachError ? 'error' : 'success');
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
-    } catch { showToast('Connection error', 'error'); }
+    } catch {
+        _setNoteModalBusy(false);
+        showToast('Connection error', 'error');
+    }
 }
 
 function openEditNoteModal(wid, noteId, currentText) {
@@ -6997,9 +7084,20 @@ function switchWoListTab(name, btn) {
 
 function renderWoListRows() {
     const locs = document.getElementById('woListLocations');
-    locs.innerHTML = (woSettings.locations || []).map(l =>
-        `<div class="wo-list-row"><input class="form-input" type="text" value="${esc(l)}"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`
-    ).join('') || '';
+    const defaultLoc = (woSettings && woSettings.default_location) || '';
+    const locRow = (value) => {
+        const isDefault = value && value === defaultLoc;
+        return `<div class="wo-list-row">
+            <label class="wo-default-radio" title="Pre-fill this location on new work-order requests">
+                <input type="radio" name="woDefaultLocation" value="${esc(value)}" ${isDefault ? 'checked' : ''}>
+                <span>Default</span>
+            </label>
+            <input class="form-input" type="text" value="${esc(value)}"
+                   oninput="this.closest('.wo-list-row').querySelector('input[type=radio]').value = this.value;">
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`;
+    };
+    locs.innerHTML = (woSettings.locations || []).map(locRow).join('') || '';
 
     const prs = document.getElementById('woListPriorities');
     prs.innerHTML = (woSettings.priorities || []).map(p => {
@@ -7017,7 +7115,15 @@ function renderWoListRows() {
 function addLocationRow() {
     const el = document.getElementById('woListLocations');
     el.insertAdjacentHTML('beforeend',
-        `<div class="wo-list-row"><input class="form-input" type="text" placeholder="e.g. Main Warehouse"><button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button></div>`);
+        `<div class="wo-list-row">
+            <label class="wo-default-radio" title="Pre-fill this location on new work-order requests">
+                <input type="radio" name="woDefaultLocation" value="">
+                <span>Default</span>
+            </label>
+            <input class="form-input" type="text" placeholder="e.g. Main Warehouse"
+                   oninput="this.closest('.wo-list-row').querySelector('input[type=radio]').value = this.value;">
+            <button class="wo-list-remove" onclick="this.parentElement.remove()">✕</button>
+        </div>`);
 }
 function addPriorityRow() {
     const el = document.getElementById('woListPriorities');
@@ -7031,7 +7137,14 @@ function addPriorityRow() {
 }
 
 async function saveWoLists() {
-    const locations = [...document.querySelectorAll('#woListLocations .wo-list-row input')].map(i => i.value.trim()).filter(Boolean);
+    // Only gather the text inputs (not the radios) for the locations list.
+    const locations = [...document.querySelectorAll('#woListLocations .wo-list-row input[type="text"]')]
+        .map(i => i.value.trim()).filter(Boolean);
+    // Default location: whichever radio is checked, if any, and only if its
+    // value still appears in the saved locations list.
+    const defaultRadio = document.querySelector('#woListLocations input[name="woDefaultLocation"]:checked');
+    let defaultLocation = defaultRadio ? defaultRadio.value.trim() : '';
+    if (defaultLocation && !locations.includes(defaultLocation)) defaultLocation = '';
     const priorities = [...document.querySelectorAll('#woListPriorities .wo-list-row')].map(row => {
         const inputs = row.querySelectorAll('input');
         const name = inputs[0].value.trim();
@@ -7043,12 +7156,13 @@ async function saveWoLists() {
         const res = await fetch('/api/settings/work-order', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ locations, priorities }),
+            body: JSON.stringify({ locations, priorities, default_location: defaultLocation }),
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         woSettings.locations = locations;
         woSettings.priorities = priorities;
+        woSettings.default_location = defaultLocation;
         closeSubModal('woListsModal');
         openSettingsModal('admin');
         showToast('Work order lists saved', 'success');
@@ -7056,6 +7170,73 @@ async function saveWoLists() {
 }
 
 // ──────── Cloudflare Turnstile ────────
+// Common IANA timezones. Intl.supportedValuesOf('timeZone') gives the full
+// list in modern browsers, but we fall back to a curated set so older
+// browsers still work.
+function _commonTimezones() {
+    try {
+        if (typeof Intl.supportedValuesOf === 'function') {
+            return Intl.supportedValuesOf('timeZone');
+        }
+    } catch {}
+    return [
+        'UTC',
+        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+        'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu',
+        'America/Toronto', 'America/Vancouver', 'America/Mexico_City',
+        'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid',
+        'Europe/Rome', 'Europe/Amsterdam', 'Europe/Stockholm', 'Europe/Moscow',
+        'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Singapore',
+        'Asia/Kolkata', 'Asia/Dubai',
+        'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland',
+    ];
+}
+
+async function openDisplaySettingsModal() {
+    // Populate timezone dropdown
+    const sel = document.getElementById('displayTimezoneSelect');
+    const tzs = _commonTimezones();
+    sel.innerHTML = tzs.map(tz => `<option value="${esc(tz)}">${esc(tz)}</option>`).join('');
+    let current = { timezone: 'UTC', time_format: '12h' };
+    try {
+        const r = await fetch('/api/settings/display');
+        if (r.ok) current = await r.json();
+    } catch {}
+    // Ensure the current value is present in the list (in case it's uncommon)
+    if (!tzs.includes(current.timezone)) {
+        sel.insertAdjacentHTML('afterbegin',
+            `<option value="${esc(current.timezone)}">${esc(current.timezone)}</option>`);
+    }
+    sel.value = current.timezone;
+    document.getElementById('displayTimeFormat12').checked = current.time_format !== '24h';
+    document.getElementById('displayTimeFormat24').checked = current.time_format === '24h';
+    openModal('displaySettingsModal');
+}
+
+async function saveDisplaySettings() {
+    const tz = document.getElementById('displayTimezoneSelect').value;
+    const fmt = document.getElementById('displayTimeFormat24').checked ? '24h' : '12h';
+    try {
+        const res = await fetch('/api/settings/display', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timezone: tz, time_format: fmt }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        // Reflect immediately without a reload
+        if (currentUserData) {
+            currentUserData.timezone = data.timezone;
+            currentUserData.time_format = data.time_format;
+        }
+        closeSubModal('displaySettingsModal');
+        showToast('Display settings saved', 'success');
+        // Refresh any list currently shown so timestamps re-render with the
+        // new tz/format immediately.
+        if (currentWoView) loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+}
+
 async function openTurnstileModal() {
     try {
         const cfg = await (await fetch('/api/settings/turnstile')).json();

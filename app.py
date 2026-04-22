@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.19'
+APP_VERSION = '1.5.20'
 
 app = Flask(__name__)
 
@@ -1137,14 +1137,24 @@ def _attachment_ext_ok(filename):
 
 
 def save_work_order_attachment(file_field):
-    """Persist a work-order attachment file verbatim (no resize) and return
-    (stored_filename, original_name, mime_type, size_bytes) — or None if the
-    extension is not allowed or the save fails."""
+    """Persist a work-order or note attachment. Images (png/jpg/jpeg/gif/webp)
+    go through save_image_resized so they land as web-sized JPEGs — matches
+    the treatment part photos get and keeps disk usage bounded. PDFs and
+    Word docs are saved byte-for-byte since there's no meaningful way to
+    recompress them. Returns (stored_filename, original_name, mime_type,
+    size_bytes) — or None if the extension is not allowed or the save fails."""
     if not (file_field and file_field.filename and _attachment_ext_ok(file_field.filename)):
         return None
     import mimetypes
     original = os.path.basename(file_field.filename)
     ext = original.rsplit('.', 1)[1].lower()
+    if ext in IMAGE_EXTS:
+        stored = save_image_resized(file_field)
+        if not stored:
+            return None
+        path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
+        size = os.path.getsize(path) if os.path.exists(path) else 0
+        return (stored, original, 'image/jpeg', size)
     stored = f"{uuid.uuid4().hex}.{ext}"
     path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
     try:
@@ -1365,6 +1375,14 @@ def logout():
 @app.route('/api/auth/me')
 @login_required
 def auth_me():
+    # Include the display settings (timezone + 12h/24h time format) so the
+    # frontend can render every timestamp through a single formatter without
+    # a second round-trip. Both default to UTC / 12h until an admin changes
+    # them.
+    conn = get_db()
+    tz = _get_setting(conn, 'display_timezone', 'UTC')
+    time_fmt = _get_setting(conn, 'display_time_format', '12h')
+    conn.close()
     return jsonify({
         'id': current_user.id,
         'username': current_user.username,
@@ -1373,7 +1391,46 @@ def auth_me():
         'can_edit': current_user.can_edit,
         'can_view_audit': current_user.can_view_audit,
         'version': APP_VERSION,
+        'timezone': tz,
+        'time_format': time_fmt if time_fmt in ('12h', '24h') else '12h',
     })
+
+
+@app.route('/api/settings/display', methods=['GET'])
+@login_required
+def get_display_settings():
+    """Global timezone + time format used to render timestamps client-side.
+    Any logged-in user can read these; only admins can change them."""
+    conn = get_db()
+    tz = _get_setting(conn, 'display_timezone', 'UTC')
+    fmt = _get_setting(conn, 'display_time_format', '12h')
+    conn.close()
+    return jsonify({
+        'timezone': tz,
+        'time_format': fmt if fmt in ('12h', '24h') else '12h',
+    })
+
+
+@app.route('/api/settings/display', methods=['PUT'])
+@admin_required
+def update_display_settings():
+    data = request.get_json() or {}
+    tz = str(data.get('timezone', '') or '').strip() or 'UTC'
+    fmt = str(data.get('time_format', '') or '').strip()
+    if fmt not in ('12h', '24h'):
+        return jsonify({'error': 'time_format must be 12h or 24h'}), 400
+    # Validate the timezone is a name Python/the browser can parse.
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except Exception:
+        return jsonify({'error': f'Unknown timezone: {tz}'}), 400
+    conn = get_db()
+    _set_setting(conn, 'display_timezone', tz)
+    _set_setting(conn, 'display_time_format', fmt)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'timezone': tz, 'time_format': fmt})
 
 
 #
@@ -2879,21 +2936,28 @@ def _derive_salespeople(conn):
 @app.route('/api/settings/work-order', methods=['GET'])
 @login_required
 def get_wo_settings():
-    """Return work-order related settings (locations, salespeople, priorities).
-    Salespeople are derived from users with is_sales_person=1; emails are stripped
-    for non-admins."""
+    """Return work-order related settings (locations, salespeople, priorities,
+    default_location). Salespeople are derived from users with
+    is_sales_person=1; user_id is exposed so the frontend can auto-select the
+    current user if they are a salesperson. Emails are stripped for non-admins
+    (internal user_id is kept — it's not PII)."""
     conn = get_db()
     locations = _get_setting(conn, 'wo_locations', [])
     salespeople = _derive_salespeople(conn)
     raw_priorities = _get_setting(conn, 'wo_priorities', ['Normal', 'Next Day Air'])
     priorities = [_normalize_priority(p) for p in raw_priorities if _normalize_priority(p)['name']]
+    default_location = _get_setting(conn, 'wo_default_location', '')
     conn.close()
     if not current_user.is_admin:
-        salespeople = [{'name': s.get('name', '')} for s in salespeople]
+        salespeople = [
+            {'name': s.get('name', ''), 'user_id': s.get('user_id')}
+            for s in salespeople
+        ]
     return jsonify({
         'locations': locations,
         'salespeople': salespeople,
         'priorities': priorities,
+        'default_location': default_location,
     })
 
 
@@ -2914,6 +2978,9 @@ def update_wo_settings():
             if n['name']:
                 pr.append(n)
         _set_setting(conn, 'wo_priorities', pr)
+    if 'default_location' in data:
+        dl = str(data.get('default_location') or '').strip()
+        _set_setting(conn, 'wo_default_location', dl)
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -3816,6 +3883,12 @@ def get_work_order(wid):
 def create_work_order():
     import json as json_mod
     data = request.get_json() or {}
+    customer = str(data.get('customer_name', '') or '').strip()
+    invoice = str(data.get('quote_invoice', '') or '').strip()
+    if not customer:
+        return jsonify({'error': 'Customer name is required'}), 400
+    if not invoice:
+        return jsonify({'error': 'Quote / invoice number is required'}), 400
     conn = get_db()
     wo_num = _assign_wo_number(conn)
     created_by = current_user.display_name or current_user.username
@@ -3828,8 +3901,8 @@ def create_work_order():
     ''', (
         wo_num,
         str(data.get('warehouse_location', '')).strip(),
-        str(data.get('customer_name', '')).strip(),
-        str(data.get('quote_invoice', '')).strip(),
+        customer,
+        invoice,
         str(data.get('sales_person', '')).strip(),
         str(data.get('vehicle', '')).strip(),
         str(data.get('vin', '')).strip(),
@@ -4260,6 +4333,17 @@ def update_work_order(wid):
             'error': 'Only the originator, an admin, or a supervisor can edit this work order. You can still add notes and photos.'
         }), 403
 
+    # Same required-field rules as create: customer + quote/invoice must not
+    # be cleared on edit either.
+    if 'customer_name' in data:
+        if not str(data.get('customer_name') or '').strip():
+            conn.close()
+            return jsonify({'error': 'Customer name is required'}), 400
+    if 'quote_invoice' in data:
+        if not str(data.get('quote_invoice') or '').strip():
+            conn.close()
+            return jsonify({'error': 'Quote / invoice number is required'}), 400
+
     import json as json_mod
     editable = ['warehouse_location', 'customer_name', 'quote_invoice', 'sales_person',
                 'vehicle', 'vin', 'priority', 'notes']
@@ -4510,18 +4594,13 @@ def _send_note_email(wo_row, author_name, note_text, parent_id, recipients, is_r
 def add_general_note(wid):
     """Append a running work-order note. Optional payload:
       - parent_id: threads this as a reply under an existing note.
-      - flag (bool): when true, the note is stored with note_type='flag' (red
-            in the thread) and — if part_keys is also supplied — each matching
-            part is marked flagged with this note as its flag_note. The WO's
-            derived status recomputes from the per-part flags.
       - part_keys (list[str]): parts the note applies to. Ignored on replies.
-    Sends the appropriate email (flag vs. general note) to the salesperson and
-    prior thread participants (minus the current author)."""
+    Sends a note/reply email to the salesperson (and, for replies, every
+    prior participant in the thread). Note text may be empty when the
+    frontend is going to upload files against the returned note_id."""
     import json as json_mod
     data = request.get_json() or {}
     note = str(data.get('note', '') or '').strip()
-    if not note:
-        return jsonify({'error': 'Note is required'}), 400
 
     parent_id = data.get('parent_id')
     try:
@@ -4529,8 +4608,8 @@ def add_general_note(wid):
     except (TypeError, ValueError):
         parent_id = None
 
-    # flag + part_keys only apply to root notes, not replies
-    is_flag = bool(data.get('flag', False)) and parent_id is None
+    # part_keys are meaningful on root notes only — replies inherit context
+    # from their parent.
     raw_part_keys = data.get('part_keys') if parent_id is None else []
     part_keys = []
     if isinstance(raw_part_keys, list):
@@ -4559,9 +4638,9 @@ def add_general_note(wid):
         if parent['parent_id']:
             parent_id = parent['parent_id']
 
-    # If parts were selected, resolve them + (when flagging) mutate parts_json
+    # If parts were selected, pull their descriptions so we can prefix the
+    # note with which parts it's about.
     matched_parts = []
-    flagged_any_new = False
     if part_keys:
         try:
             parts = json_mod.loads(row['parts_json'] or '[]') or []
@@ -4571,33 +4650,18 @@ def add_general_note(wid):
         for p in parts:
             if isinstance(p, dict) and p.get('key') in key_set:
                 matched_parts.append(p)
-                if is_flag:
-                    if not p.get('flagged'):
-                        flagged_any_new = True
-                    p['flagged'] = True
-                    p['flag_note'] = note
-        if is_flag and matched_parts:
-            conn.execute(
-                "UPDATE work_orders SET parts_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (json_mod.dumps(parts), wid)
-            )
-            _recompute_wo_status(conn, wid, parts, row['status'])
 
-    # Build the text stored in work_order_notes so the thread shows what
-    # parts the note concerns. Flag notes lead with "⚑ Flagged …"; general
-    # notes with parts use "Re: …".
     parts_label = ', '.join(
         f"{p.get('quantity', 1)}× {p.get('description', '')}"
         for p in matched_parts
     )
-    if is_flag and matched_parts:
-        display_note = f"⚑ Flagged — {parts_label}: {note}"
-    elif matched_parts:
-        display_note = f"Re: {parts_label} — {note}"
+    if matched_parts:
+        display_note = f"Re: {parts_label} — {note}" if note else f"Re: {parts_label}"
     else:
         display_note = note
 
-    note_type = 'flag' if is_flag else 'general'
+    # note_type is always 'general' now — the flag variant was retired.
+    note_type = 'general'
     author = current_user.display_name or current_user.username
     author_user_id = current_user.id
     cur = conn.execute(
@@ -4608,41 +4672,14 @@ def add_general_note(wid):
     )
     new_note_id = cur.lastrowid
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
-    _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else ('Flag' if is_flag else 'Note')}: {display_note}")
+    _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else 'Note'}: {display_note}")
     conn.commit()
 
-    # Determine recipients and send. Use the per-part flag email when new
-    # flags were raised; otherwise the standard note / reply email.
     current_email = current_user.username
     recipients = _collect_note_recipients(conn, row, parent_id, current_email)
-    if is_flag and flagged_any_new:
-        subject = f"[Part Flagged] Work Order {row['wo_number']}"
-        body_lines = [
-            f"Work Order: {row['wo_number']}",
-            f"Customer: {row['customer_name'] or '—'}",
-            f"Vehicle: {row['vehicle'] or '—'}",
-            f"Parts flagged: {parts_label}",
-            '',
-            f"{author} wrote:",
-            '',
-            note,
-            '',
-            'Log in to Warehouse Manager to reply.',
-        ]
-        body = '\n'.join(body_lines) + '\n'
-        email_sent, email_error = False, None
-        for to in recipients:
-            ok, err = _send_email(to, subject, body)
-            if ok:
-                email_sent = True
-            elif err:
-                email_error = err
-        if not recipients:
-            email_error = 'no_recipients'
-    else:
-        email_sent, email_error = _send_note_email(
-            row, author, display_note, parent_id, recipients, is_reply=(parent_id is not None)
-        )
+    email_sent, email_error = _send_note_email(
+        row, author, display_note, parent_id, recipients, is_reply=(parent_id is not None)
+    )
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, new_row)
