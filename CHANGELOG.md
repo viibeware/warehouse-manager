@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.5.10
+- <strong>Mobile responsiveness pass</strong> — Global fixed hamburger button (two-line icon embedded as <code>static/hamburger.svg</code> / <code>static/close.svg</code> via CSS mask) slides with the sidebar and morphs into an X when open. Sidebar interior links scroll vertically when the viewport is too short while the logo and footer stay pinned. Page outer padding trimmed from 1.5rem to 1rem on mobile. Work Orders search bar now takes the full row on mobile so Sort wraps underneath, and the search input is white with dark text. Work Orders page no longer causes horizontal page scroll. Settings modal tab bar scrolls horizontally when tabs overflow. User Management modal fills the viewport on mobile and collapses the users table into stacked cards (labels from <code>data-label</code>).
+- <strong>Smooth WO expand/collapse</strong> — Cards animate their collapsible region via <code>grid-template-rows: 1fr ↔ 0fr</code> at 200ms so expand/collapse glides to the actual content height. Meta row (fitment / VIN / warehouse / salesperson / date) keeps the same font size in both states.
+- <strong>Click-to-pin help tooltip</strong> — The <code>?</code> tooltips no longer open on hover. Click/tap toggles them open; they stay visible until you tap the icon again or anywhere outside. On mobile they anchor to the viewport (<code>position: fixed</code>) with 1rem insets so long help text can never overflow off-screen.
+
 ## v1.5.9
 - <strong>Your Access tab</strong> — New top-level tab in Settings (visible to every role) that shows the user's role badge, display name, email, a plain-English summary, and five grouped capability lists (Browse &amp; View, Parts, Work Orders, Delete &amp; Admin, Your Account). Each capability has a green check for "you can do this" or a muted line for capabilities that your role doesn't include — at a glance you see both what you have and what a higher role would add.
 

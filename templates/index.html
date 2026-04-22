@@ -168,11 +168,12 @@ body {
 /*  SIDEBAR                                  */
 /* ══════════════════════════════════════════ */
 .sidebar {
-    width: var(--sidebar-w); min-height: 100vh; background: var(--bg-sidebar);
+    width: var(--sidebar-w); height: 100vh; background: var(--bg-sidebar);
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
     position: fixed; top: 0; left: 0; z-index: 100;
     transition: transform 0.25s ease;
 }
+.sidebar-logo, .sidebar-footer { flex: 0 0 auto; }
 .sidebar-logo {
     padding: 1.25rem 1rem; display: flex; align-items: flex-start; gap: 0.75rem;
     border-bottom: 1px solid var(--border);
@@ -189,7 +190,7 @@ body {
     font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted);
     letter-spacing: 0.03em; margin-top: 2px;
 }
-.sidebar-nav { flex: 1; padding: 0.75rem 0.5rem; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0.75rem 0.5rem; display: flex; flex-direction: column; gap: 2px; }
 .sidebar-section-label {
     font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
@@ -241,7 +242,7 @@ body {
 }
 .section-help-tip strong { color: var(--accent); font-weight: 600; }
 .section-help-tip em { font-style: normal; color: var(--text-secondary); }
-.section-help:hover .section-help-tip,
+.section-help.section-help--open .section-help-tip,
 .section-help:focus-visible .section-help-tip { opacity: 1; pointer-events: auto; }
 /* Larger flavor for a page-heading (next to an <h2>) */
 .section-help.page-help {
@@ -1154,8 +1155,12 @@ body {
 .wo-collapse-btn:hover { color: var(--accent); border-color: var(--accent); }
 .wo-collapse-btn .chev { transition: transform 0.2s ease; }
 .wo-card.wo-collapsed .wo-collapse-btn .chev { transform: rotate(-90deg); }
-.wo-card.wo-collapsed .wo-card-collapsible { display: none; }
-.wo-card.wo-collapsed .wo-meta-row { font-size: 0.72rem; }
+.wo-card-collapsible {
+    display: grid; grid-template-rows: 1fr;
+    transition: grid-template-rows 200ms ease;
+}
+.wo-card-collapsible-inner { overflow: hidden; min-height: 0; }
+.wo-card.wo-collapsed .wo-card-collapsible { grid-template-rows: 0fr; }
 .wo-flag-note {
     margin-top: 0.5rem; padding: 0.5rem 0.65rem; background: rgba(239,68,68,0.08);
     border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.78rem; color: var(--text-secondary);
@@ -1405,9 +1410,9 @@ body {
     color: var(--text-muted); pointer-events: none;
 }
 .wo-search-box input {
-    width: 100%; padding: 7px 10px 7px 32px; background: var(--bg-input);
+    width: 100%; padding: 7px 10px 7px 32px; background: #fff;
     border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text-primary); font-family: var(--font); font-size: 0.85rem;
+    color: #111; font-family: var(--font); font-size: 0.85rem;
     outline: none; transition: border var(--transition);
 }
 .wo-search-box input:focus { border-color: var(--border-focus); }
@@ -1641,20 +1646,29 @@ body {
 /* ── SETTINGS ── */
 /* ── SETTINGS TABS ── */
 .settings-tabs {
-    display: flex; border-bottom: 1px solid var(--border); margin: -1.25rem -1.25rem 1rem;
+    display: flex; flex-wrap: nowrap; border-bottom: 1px solid var(--border); margin: -1.25rem -1.25rem 1rem;
     padding: 0 1.25rem;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.settings-tabs::-webkit-scrollbar { height: 4px; }
+.settings-tabs::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 4px;
 }
 .settings-tab {
     padding: 0.7rem 1rem; font-family: var(--font); font-size: 0.85rem; font-weight: 600;
     letter-spacing: 0; color: var(--text-muted);
     cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent;
     margin-bottom: -1px; transition: all var(--transition);
+    flex-shrink: 0; white-space: nowrap;
 }
 
 /* Keep settings modal at a fixed height so switching tabs doesn't resize it */
 #settingsModal .modal {
     display: flex; flex-direction: column;
-    height: 640px; max-height: 90vh;
+    height: 780px; max-height: 92vh;
     overflow: hidden;
 }
 #settingsModal .modal-body {
@@ -1911,22 +1925,99 @@ body {
 
 /* ── MOBILE ── */
 .sidebar-toggle { display: none; }
+.hamburger-icon {
+    display: block; width: 22px; height: 22px; background-color: currentColor;
+    -webkit-mask: url('/static/hamburger.svg') center / 22px 22px no-repeat;
+            mask: url('/static/hamburger.svg') center / 22px 22px no-repeat;
+}
+body:has(.sidebar.open) .hamburger-icon {
+    -webkit-mask-image: url('/static/close.svg');
+            mask-image: url('/static/close.svg');
+}
 @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); }
     .sidebar.open { transform: translateX(0); }
-    .main-wrapper { margin-left: 0; max-width: 100%; }
+    .main-wrapper { margin-left: 0; max-width: 100%; overflow-x: hidden; }
+    .main-content { min-width: 0; padding: 1rem 1rem 2rem; }
+    .toolbar { padding: 1rem 1rem 1rem 52px; }
     .sidebar-toggle {
         display: flex; align-items: center; justify-content: center;
-        width: 36px; height: 36px; border: 1px solid var(--border); background: var(--bg-input);
-        border-radius: var(--radius); color: var(--text-secondary); cursor: pointer;
+        position: fixed; top: 12px; left: 10px; z-index: 101;
+        width: 36px; height: 36px; padding: 0; border: none; background: transparent;
+        color: var(--text-secondary); cursor: pointer;
+        transition: transform 0.25s ease, color 0.15s ease;
+    }
+    .sidebar-toggle:hover { color: var(--text-primary); }
+    body:has(.sidebar.open) .sidebar-toggle {
+        transform: translateX(calc(var(--sidebar-w) - 56px));
+        color: var(--text-primary);
     }
     .parts-grid { grid-template-columns: 1fr; }
     .form-grid { grid-template-columns: 1fr; }
     .detail-grid { grid-template-columns: 1fr; }
+
+    /* Work Orders toolbar: push search to its own line so Sort drops below */
+    .wo-search-box { flex: 1 1 100%; max-width: 100%; }
+
+    /* Help tooltip: pin to the viewport on mobile so it can't overflow */
+    .section-help-tip,
+    .section-help.page-help .section-help-tip {
+        position: fixed;
+        left: 1rem; right: 1rem; top: 60px;
+        width: auto; max-width: none;
+        max-height: calc(100vh - 80px);
+    }
+    .section-help-tip::before { display: none; }
+
+    /* Admin (User Management) modal — full height + stacked card rows */
+    #adminModal .modal {
+        display: flex; flex-direction: column;
+        height: 100vh; max-height: 100vh;
+        max-width: 100%; width: 100%;
+        border-radius: 0; border: none;
+    }
+    #adminModal .modal-header { flex-shrink: 0; }
+    #adminModal .modal-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    #adminModal .admin-table,
+    #adminModal .admin-table thead,
+    #adminModal .admin-table tbody,
+    #adminModal .admin-table tr,
+    #adminModal .admin-table td { display: block; width: 100%; }
+    #adminModal .admin-table thead { display: none; }
+    #adminModal .admin-table tr {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 0.6rem 0.75rem; margin-bottom: 0.6rem;
+        background: var(--bg-card); box-sizing: border-box;
+    }
+    #adminModal .admin-table tr:hover td { background: transparent; }
+    #adminModal .admin-table td {
+        padding: 4px 0; border-bottom: none;
+        display: flex; align-items: flex-start; gap: 0.6rem;
+        font-size: 0.82rem; box-sizing: border-box; min-width: 0;
+    }
+    #adminModal .admin-table td::before {
+        content: attr(data-label);
+        flex: 0 0 86px;
+        font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--text-muted); padding-top: 3px;
+    }
+    #adminModal .admin-cell-value {
+        flex: 1 1 auto; min-width: 0;
+        display: block; word-break: break-word; overflow-wrap: anywhere;
+    }
+    #adminModal .admin-cell-value .table-actions { flex-wrap: wrap; }
+    #adminModal .admin-table td.admin-actions-cell { padding-top: 8px; }
+    #adminModal .admin-table td.admin-actions-cell .table-actions { justify-content: flex-start !important; }
 }
 </style>
 </head>
 <body>
+
+<!-- ═══ MOBILE HAMBURGER (global) ═══ -->
+<button class="sidebar-toggle" id="sidebarToggleBtn" onclick="document.getElementById('sidebar').classList.toggle('open')" aria-label="Toggle menu">
+    <span class="hamburger-icon" aria-hidden="true"></span>
+</button>
 
 <!-- ═══ SIDEBAR ═══ -->
 <aside class="sidebar" id="sidebar">
@@ -2000,9 +2091,6 @@ body {
 <!-- ═══ MAIN ═══ -->
 <div class="main-wrapper">
     <div class="toolbar" id="partsToolbar">
-        <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
         <div class="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="searchInput" placeholder="Search by SKU, fitment, number…" autocomplete="off">
@@ -3221,6 +3309,21 @@ async function loadGlobalNotificationsState() {
         updateNotificationsBanner(!!cfg.global_enabled);
     } catch {}
 }
+// Help tooltip: click-to-toggle so it stays open until the user taps again or clicks outside.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.section-help');
+    if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wasOpen = btn.classList.contains('section-help--open');
+        document.querySelectorAll('.section-help--open').forEach(el => el.classList.remove('section-help--open'));
+        if (!wasOpen) btn.classList.add('section-help--open');
+        return;
+    }
+    if (e.target.closest('.section-help-tip')) return;
+    document.querySelectorAll('.section-help--open').forEach(el => el.classList.remove('section-help--open'));
+});
+
 document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => { currentSearch = e.target.value; currentPage = 1; loadParts(); }, 250);
@@ -3334,6 +3437,12 @@ function renderYourAccessCard() {
     const displayName = currentUserData.display_name || email;
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
+    // Keep only capabilities the current user actually has; drop groups that
+    // end up empty so the card only shows a positive list.
+    const allowedGroups = groups
+        .map(g => ({ title: g.title, items: g.items.filter(([_, allowed]) => allowed) }))
+        .filter(g => g.items.length > 0);
+
     el.innerHTML = `
         <div class="role-access-head">
             <span class="role-badge ${role}">${roleLabel}</span>
@@ -3342,13 +3451,11 @@ function renderYourAccessCard() {
         </div>
         <div class="role-access-summary">${summary}</div>
         <div class="role-access-groups">
-            ${groups.map(g => `
+            ${allowedGroups.map(g => `
                 <div class="role-access-group">
                     <div class="role-access-group-title">${esc(g.title)}</div>
                     <ul class="role-access-list">
-                        ${g.items.map(([label, allowed]) =>
-                            `<li class="${allowed ? '' : 'role-access-locked'}">${label}</li>`
-                        ).join('')}
+                        ${g.items.map(([label]) => `<li>${label}</li>`).join('')}
                     </ul>
                 </div>
             `).join('')}
@@ -3394,16 +3501,14 @@ async function loadUsers() {
         document.getElementById('adminUserTable').innerHTML = `
             <table class="admin-table"><thead><tr><th>User</th><th>Role</th><th>Sales&nbsp;Person</th><th>Status</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
             ${users.map(u => `<tr>
-                <td><span class="username-cell">${esc(u.display_name || u.username)}</span>
-                    ${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">${esc(u.username)}</span>` : ''}
-                    ${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</td>
-                <td><span class="role-badge ${u.role}">${u.role}</span></td>
-                <td>${u.is_sales_person ? '<span class="role-badge" style="background:var(--accent-dim);color:var(--accent);">Yes</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
-                <td><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</td>
-                <td style="font-family:var(--mono);font-size:0.72rem;color:var(--text-muted);">${u.created_at?u.created_at.split(' ')[0]:''}</td>
-                <td><div class="table-actions" style="justify-content:flex-end;">
+                <td data-label="User"><span class="admin-cell-value"><span class="username-cell">${esc(u.display_name || u.username)}</span>${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">${esc(u.username)}</span>` : ''}${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</span></td>
+                <td data-label="Role"><span class="admin-cell-value"><span class="role-badge ${u.role}">${u.role}</span></span></td>
+                <td data-label="Sales Person"><span class="admin-cell-value">${u.is_sales_person ? '<span class="role-badge" style="background:var(--accent-dim);color:var(--accent);">Yes</span>' : '<span style="color:var(--text-muted);">—</span>'}</span></td>
+                <td data-label="Status"><span class="admin-cell-value"><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</span></td>
+                <td data-label="Created" class="admin-cell-created"><span class="admin-cell-value">${u.created_at?u.created_at.split(' ')[0]:''}</span></td>
+                <td data-label="Actions" class="admin-actions-cell"><span class="admin-cell-value"><div class="table-actions" style="justify-content:flex-end;">
                     <button class="table-btn" onclick='openUserForm(${JSON.stringify(u)})'>Edit</button>
-                    ${!isSelf(u.id)?`<button class="table-btn danger" onclick="deleteUser(${u.id},'${esc(u.username)}')">Delete</button>`:''}</div></td>
+                    ${!isSelf(u.id)?`<button class="table-btn danger" onclick="deleteUser(${u.id},'${esc(u.username)}')">Delete</button>`:''}</div></span></td>
             </tr>`).join('')}</tbody></table>`;
     } catch { showToast('Failed to load users', 'error'); }
 }
@@ -5024,9 +5129,11 @@ function renderWorkOrderCard(wo) {
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
             <div class="wo-card-collapsible">
-                ${notesBlock}
-                ${notesThreadBlock}
-                ${partsBlock}
+                <div class="wo-card-collapsible-inner">
+                    ${notesBlock}
+                    ${notesThreadBlock}
+                    ${partsBlock}
+                </div>
             </div>
         </div>
         ${actions}
