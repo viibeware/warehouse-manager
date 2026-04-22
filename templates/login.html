@@ -384,8 +384,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         const j = Math.floor(Math.random() * (i + 1));
         [hues[i], hues[j]] = [hues[j], hues[i]];
     }
-    const sat = 0.42 + Math.random() * 0.12;   // 42%-54% — softer than jewel-tone
-    const lum = 0.76 + Math.random() * 0.06;   // 76%-82% — pastel high-key
+    const sat = 0.68 + Math.random() * 0.14;   // 68%-82% — richer, more saturated
+    const lum = 0.58 + Math.random() * 0.08;   // 58%-66% — lets saturation read
     const rgb = hues.map(h => hslToRgb(h, sat, lum));
     const n = rgb.length;
 
@@ -469,7 +469,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         const hues = [baseHue - spread, baseHue, baseHue + spread].map(
             h => ((h % 360) + 360) % 360
         );
-        const rgb = hues.map(h => hslToRgb(h, 0.48, 0.79));
+        const rgb = hues.map(h => hslToRgb(h, 0.75, 0.62));
         g.addColorStop(0,   `rgb(${rgb[0].join(',')})`);
         g.addColorStop(0.5, `rgb(${rgb[1].join(',')})`);
         g.addColorStop(1,   `rgb(${rgb[2].join(',')})`);
