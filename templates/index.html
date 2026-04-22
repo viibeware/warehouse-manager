@@ -1312,7 +1312,7 @@ body {
 /* Scrollable list — roughly five notes visible before scrolling. Newest
    notes always at the top (render path sorts roots desc + replies asc). */
 .wo-notes-thread-list {
-    max-height: 420px;
+    max-height: 320px;
     overflow-y: auto;
     padding-right: 4px;  /* keep the scrollbar off the note cards */
 }
@@ -1327,12 +1327,19 @@ body {
 .wo-note {
     display: flex; flex-direction: column; gap: 3px;
     padding: 0.5rem 0.65rem;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
+    /* Pale blue tint so general notes read as "informational" rather than
+       washed-out grey. Uses a fixed blue (not --accent) so the color stays
+       blue even in themes whose accent is pink/green. */
+    background: color-mix(in srgb, #4a8eff 12%, var(--bg-input));
+    border: 1px solid color-mix(in srgb, #4a8eff 22%, var(--border));
     border-radius: var(--radius);
     margin-bottom: 6px;
 }
-.wo-note-reply { margin-left: 22px; background: var(--bg-card); border-style: dashed; }
+.wo-note-reply {
+    margin-left: 22px;
+    background: color-mix(in srgb, #4a8eff 6%, var(--bg-card));
+    border-style: dashed;
+}
 .wo-note.wo-note-flag {
     border-left: 3px solid var(--danger);
     background: color-mix(in srgb, var(--bg-input) 88%, var(--danger) 12%);
@@ -1384,6 +1391,55 @@ body {
 .wo-note-edit-btn:hover {
     border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
 }
+
+/* File attachments on an individual note / reply */
+.wo-note-attachments {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    margin-top: 0.35rem;
+}
+.wo-note-att {
+    position: relative;
+    display: inline-flex; align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    transition: border-color var(--transition);
+    max-width: 220px;
+}
+.wo-note-att:hover { border-color: var(--accent); }
+.wo-note-att-img {
+    cursor: pointer;
+    width: 64px; height: 64px; padding: 0; overflow: hidden;
+}
+.wo-note-att-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.wo-note-att-file a {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.5rem; color: var(--text-primary); text-decoration: none;
+}
+.wo-note-att-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 130px;
+}
+.wo-note-att-size { color: var(--text-muted); font-family: var(--mono); font-size: 0.62rem; }
+.wo-note-att-remove {
+    position: absolute; top: 3px; right: 3px;
+    width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; font-size: 0.75rem; line-height: 1;
+    background: rgba(0, 0, 0, 0.6); color: #fff;
+    border: none; border-radius: 50%; cursor: pointer;
+    opacity: 0; transition: opacity var(--transition), background var(--transition);
+}
+.wo-note-att:hover .wo-note-att-remove { opacity: 1; }
+.wo-note-att-remove:hover { background: var(--danger); }
+/* File-chip variant: the × lives inline at the right instead of overlapping */
+.wo-note-att-file .wo-note-att-remove {
+    position: static; opacity: 1;
+    background: transparent; color: var(--text-muted);
+    margin-right: 4px;
+}
+.wo-note-att-file .wo-note-att-remove:hover { color: var(--danger); background: transparent; }
 
 /* Request-level attachments rendered on the work-order card */
 .wo-attachments {
@@ -1473,7 +1529,7 @@ body {
 
 /* Card parts list */
 .wo-card-parts {
-    margin-top: 0.55rem; padding-top: 0.55rem;
+    margin-top: 2rem; margin-bottom: 2rem; padding-top: 0.55rem;
     display: flex; flex-direction: column; gap: 0.2rem;
 }
 .wo-parts-head, .wo-part-line {
@@ -2301,7 +2357,7 @@ body:has(.sidebar.open) .hamburger-icon {
         </button>
         <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-            Archive <span class="nav-count" id="countWoArchive"></span>
+            Archive
         </button>
 
         <div style="flex:1;"></div>
@@ -2906,17 +2962,17 @@ body:has(.sidebar.open) .hamburger-icon {
                 <div class="form-group full-width wo-email-info">
                     <div class="wo-email-info-title">Email notifications</div>
                     <div class="wo-email-info-desc">
-                        The selected sales person receives an automatic email (to their account email address) whenever one of these events happens. Photos and flag notes are included in the messages so they stay in the loop without opening the app.
+                        The salesperson gets automatic emails at key moments. For replies, every prior participant in that thread is emailed too. Photos and reason text are included in the messages where relevant.
                     </div>
                     <ul class="wo-email-info-list">
-                        <li><strong>Part flagged</strong> — any part on the work order is flagged. The flag description is required and posted into the Notes thread so anyone can reply.</li>
-                        <li><strong>Flag note updated</strong> — the flag note on a flagged part is edited.</li>
-                        <li><strong>Note added</strong> — starts a new thread; emails the salesperson. Every reply emails every participant in that thread.</li>
-                        <li><strong>Photo added to a part</strong> — resized JPEG attached; any comment you wrote is included.</li>
+                        <li><strong>Note added</strong> — posting a note emails the salesperson. If you turn on <em>Flag this note</em> and select parts, those parts are flagged and a <em>Part Flagged</em> email is sent instead.</li>
+                        <li><strong>Reply</strong> — emails the salesperson and every prior participant in the thread.</li>
+                        <li><strong>Photo added to a part</strong> — the resized JPEG is attached, along with any comment you wrote.</li>
                         <li><strong>Marked delivered</strong> — one-time notification that the order is complete.</li>
-                        <li><strong>Manual Email Update</strong> — the "Email Update" button sends a full current-status snapshot on demand.</li>
+                        <li><strong>Marked not deliverable</strong> — archives the work order and emails the salesperson the reason.</li>
+                        <li><strong>Email Update button</strong> — sends a full current-status snapshot to the salesperson on demand.</li>
                     </ul>
-                    <div class="wo-email-info-note">No email is sent for creating a work order, editing fields, unflagging, archiving, or reopening.</div>
+                    <div class="wo-email-info-note">No email is sent for creating a work order, editing fields, unflagging, marking a part pulled, archiving, reopening, attaching files to a note, or editing/deleting notes.</div>
                 </div>
             </div>
         </div>
@@ -2958,6 +3014,14 @@ body:has(.sidebar.open) .hamburger-icon {
                         <span class="toggle-track"></span>
                     </span>
                 </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">images, PDFs, Word docs — 16 MB each, optional</span></label>
+                <input type="file" id="woGeneralNoteFileInput" multiple
+                       accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                       onchange="onGeneralNoteFilesPicked(event)"
+                       style="display:block;margin-bottom:0.4rem;font-size:0.8rem;">
+                <div id="woGeneralNoteFilesPending"></div>
             </div>
             <div class="wo-note-disclaimer">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -4928,10 +4992,8 @@ async function loadWoCounts() {
     try {
         const counts = await (await fetch('/api/work-orders/counts')).json();
         const a = document.getElementById('countWoActive');
-        const b = document.getElementById('countWoArchive');
         const flag = document.getElementById('navWoFlaggedBadge');
         if (a) a.textContent = counts.active || 0;
-        if (b) b.textContent = counts.delivered || 0;
         if (flag) {
             const f = counts.flagged || 0;
             if (f > 0) {
@@ -4950,6 +5012,7 @@ function exitWorkOrdersView() {
     document.getElementById('workOrdersContainer').style.display = 'none';
     document.getElementById('partsToolbar').style.display = '';
     // Restore parts visibility handled by loadParts
+    if (typeof stopWoLivePulse === 'function') stopWoLivePulse();
 }
 
 function exitDashboard() {
@@ -4982,6 +5045,9 @@ async function showWorkOrdersView(view, push=true) {
     }
     await loadWoSettings();
     await renderWorkOrdersView();
+    // Kick off the live-refresh poller after the initial render so the list
+    // stays fresh when other users make changes.
+    startWoLivePulse();
 }
 
 // ══════════════════════════════════════════
@@ -5306,6 +5372,103 @@ async function loadWorkOrders() {
     }
 }
 
+// ── LIVE POLL ─────────────────────────────────────────────────────────────
+// Poll a cheap signature endpoint every few seconds; when the fingerprint
+// changes (someone else edited, added, deleted, or added a note/photo/etc.)
+// refresh the list while preserving per-card expand/pill state. Pauses while
+// the tab is hidden or any modal is open so the user isn't disrupted.
+const WO_PULSE_INTERVAL_MS = 5000;
+let _woPulseTimer = null;
+let _woPulseSig = { count: null, max_updated: null };
+let _woPulseBusy = false;
+
+function startWoLivePulse() {
+    if (_woPulseTimer) return;
+    _woPulseSig = { count: null, max_updated: null };
+    _woPulseTimer = setInterval(pollWoPulse, WO_PULSE_INTERVAL_MS);
+    // Immediate pulse to establish baseline after the initial list render
+    setTimeout(pollWoPulse, 600);
+}
+
+function stopWoLivePulse() {
+    if (_woPulseTimer) {
+        clearInterval(_woPulseTimer);
+        _woPulseTimer = null;
+    }
+    _woPulseSig = { count: null, max_updated: null };
+}
+
+async function pollWoPulse() {
+    if (_woPulseBusy) return;
+    if (!currentWoView) return;
+    if (document.hidden) return;
+    // Don't refresh while the user has a modal open — no rug-pulling mid-edit.
+    if (document.querySelector('.modal-overlay.active')) return;
+    _woPulseBusy = true;
+    try {
+        const r = await fetch('/api/work-orders/pulse');
+        if (!r.ok) return;
+        const data = await r.json();
+        const firstRun = _woPulseSig.max_updated === null && _woPulseSig.count === null;
+        const changed = !firstRun
+            && (_woPulseSig.count !== data.count
+                || _woPulseSig.max_updated !== data.max_updated);
+        _woPulseSig = data;
+        if (changed) await refreshWoListPreservingState();
+    } catch {
+        /* swallow — try again next tick */
+    } finally {
+        _woPulseBusy = false;
+    }
+}
+
+async function refreshWoListPreservingState() {
+    // Snapshot DOM state we care about before blowing away innerHTML
+    const collapsedIds = new Set();
+    const expandedIds = new Set();
+    document.querySelectorAll('#woList .wo-card').forEach(c => {
+        const id = c.getAttribute('data-wo-id');
+        if (!id) return;
+        if (c.classList.contains('wo-collapsed')) collapsedIds.add(id);
+        else expandedIds.add(id);
+    });
+    const openPillCard = (() => {
+        const el = document.querySelector('#woList .wo-actions-more.open');
+        return el ? el.closest('.wo-card')?.getAttribute('data-wo-id') : null;
+    })();
+    await loadWorkOrders();
+    // Restore collapse state: respect the user's manual toggles. Cards not in
+    // either set are new — leave them at their rendered default.
+    document.querySelectorAll('#woList .wo-card').forEach(c => {
+        const id = c.getAttribute('data-wo-id');
+        if (!id) return;
+        if (collapsedIds.has(id)) c.classList.add('wo-collapsed');
+        else if (expandedIds.has(id)) c.classList.remove('wo-collapsed');
+    });
+    if (openPillCard) {
+        const el = document.querySelector(
+            `#woList .wo-card[data-wo-id="${openPillCard}"] .wo-actions-more`
+        );
+        if (el) {
+            el.classList.add('open');
+            const t = el.querySelector('.wo-actions-more-trigger');
+            const p = el.querySelector('.wo-actions-more-panel');
+            if (t) t.setAttribute('aria-expanded', 'true');
+            if (p) p.setAttribute('aria-hidden', 'false');
+        }
+    }
+    // Also refresh the sidebar status counts so badges stay in sync
+    if (typeof loadWoCounts === 'function') loadWoCounts();
+}
+
+// Poll immediately when the tab becomes visible again after being hidden
+if (!window._woPulseVisibilityBound) {
+    window._woPulseVisibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _woPulseTimer) pollWoPulse();
+    });
+}
+
 function renderWorkOrderCard(wo) {
     const canEdit = currentUserData && currentUserData.can_edit;
     const canViewAudit = currentUserData && currentUserData.can_view_audit;
@@ -5463,8 +5626,8 @@ function renderWorkOrderCard(wo) {
                 <div class="wo-card-collapsible-inner">
                     ${notesBlock}
                     ${attachmentsBlock}
-                    ${notesThreadBlock}
                     ${partsBlock}
+                    ${notesThreadBlock}
                 </div>
             </div>
         </div>
@@ -5569,6 +5732,82 @@ function renderWorkOrderAttachments(wo) {
     </div>`;
 }
 
+// Render the file attachments attached to a single note — mirrors the WO
+// request-level attachment block but compact + inline. Image attachments
+// on the note each get their own mini lightbox scoped to the note.
+function renderNoteAttachments(woId, note, canRemove) {
+    const list = (note && note.attachments) || [];
+    if (!list.length) return '';
+    const images = list.filter(a => a.is_image);
+    const imageUrls = images.map(a => `/api/work-orders/${woId}/attachments/${a.id}`);
+    const imageUrlsAttr = JSON.stringify(imageUrls).replace(/"/g, '&quot;');
+
+    const chips = list.map(a => {
+        const url = `/api/work-orders/${woId}/attachments/${a.id}`;
+        const size = _fmtAttachmentSize(a.file_size);
+        const rm = canRemove
+            ? `<button type="button" class="wo-note-att-remove"
+                      title="Remove this file"
+                      onclick="deleteNoteAttachment(${woId}, ${a.id}); event.stopPropagation();">×</button>`
+            : '';
+        if (a.is_image) {
+            const idx = images.findIndex(im => im.id === a.id);
+            return `<div class="wo-note-att wo-note-att-img"
+                        title="${esc(a.original_name)}"
+                        onclick="openNoteAttachmentLightbox(this, ${idx}); event.stopPropagation();"
+                        data-wo-att-images="${imageUrlsAttr}">
+                        <img src="${url}" alt="${esc(a.original_name)}" loading="lazy">
+                        ${rm}
+                    </div>`;
+        }
+        const ext = (a.ext || '').toUpperCase();
+        return `<div class="wo-note-att wo-note-att-file">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer"
+                       onclick="event.stopPropagation();"
+                       title="${esc(a.original_name)} (${size})">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        <span class="wo-note-att-name">${esc(a.original_name)}</span>
+                        <span class="wo-note-att-size">${ext || ''} · ${size}</span>
+                    </a>
+                    ${rm}
+                </div>`;
+    }).join('');
+
+    return `<div class="wo-note-attachments">${chips}</div>`;
+}
+
+function openNoteAttachmentLightbox(el, startIdx) {
+    try {
+        const raw = el.getAttribute('data-wo-att-images') || '[]';
+        const urls = JSON.parse(raw.replace(/&quot;/g, '"'));
+        if (!urls.length) return;
+        lightboxImages = urls;
+        openLightbox(Math.max(0, Math.min(startIdx || 0, urls.length - 1)));
+    } catch (e) {
+        console.error('note attachment lightbox failed', e);
+    }
+}
+
+async function deleteNoteAttachment(woId, attId) {
+    const ok = await openWoConfirm({
+        title: 'Remove File',
+        body: 'Remove this file from the note?',
+        confirmLabel: 'Remove',
+        confirmClass: 'btn-danger',
+    });
+    if (!ok) return;
+    try {
+        const res = await fetch(`/api/work-orders/${woId}/attachments/${attId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        showToast('File removed', 'success');
+        if (currentWoView) await loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+}
+
 function openWorkOrderAttachmentLightbox(el, startIdx) {
     try {
         const raw = el.getAttribute('data-wo-att-images') || '[]';
@@ -5668,6 +5907,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
         if (isFlag) cls.push('wo-note-flag');
         const flagBadge = isFlag ? '<span class="wo-note-flag-badge">Flag</span>' : '';
         const actions = [replyBtn, editBtn, deleteBtn].filter(Boolean).join('');
+        const attachmentsHtml = renderNoteAttachments(wo.id, n, isAdmin || isAuthor);
         return `<div class="${cls.join(' ')}" data-note-id="${n.id}" onclick="event.stopPropagation();">
             <div class="wo-note-head">
                 ${flagBadge}
@@ -5676,6 +5916,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
                 ${isReply ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted);">↳ reply</span>' : ''}
             </div>
             <div class="wo-note-text">${esc(n.note || '')}</div>
+            ${attachmentsHtml}
             ${actions ? `<div class="wo-note-actions">${actions}</div>` : ''}
         </div>`;
     };
@@ -6260,12 +6501,63 @@ function renderWorkOrderPartsTable(wid, parts, canEdit) {
     </div>`;
 }
 
+// Pending file attachments for the Add Note / Reply modal. Cleared each
+// time the modal is opened; uploaded after the note saves successfully.
+let _noteModalPending = [];
+
+function onGeneralNoteFilesPicked(e) {
+    const files = Array.from(e.target.files || []);
+    const okExts = ['png','jpg','jpeg','gif','webp','pdf','doc','docx'];
+    const allowed = [];
+    const rejected = [];
+    for (const f of files) {
+        const ext = (f.name.split('.').pop() || '').toLowerCase();
+        if (okExts.includes(ext)) allowed.push(f);
+        else rejected.push(f.name);
+    }
+    _noteModalPending.push(...allowed);
+    if (rejected.length) showToast(`Skipped unsupported: ${rejected.join(', ')}`, 'error');
+    e.target.value = '';
+    renderGeneralNotePendingFiles();
+}
+
+function removeGeneralNotePending(idx) {
+    _noteModalPending.splice(idx, 1);
+    renderGeneralNotePendingFiles();
+}
+
+function renderGeneralNotePendingFiles() {
+    const el = document.getElementById('woGeneralNoteFilesPending');
+    if (!el) return;
+    el.innerHTML = _noteModalPending.map((f, i) => `
+        <div class="wo-form-attachment-row">
+            <span class="wo-form-att-name">${esc(f.name)}</span>
+            <span class="wo-form-att-size">${_fmtAttachmentSize(f.size)}</span>
+            <button type="button" class="wo-form-att-remove" title="Drop this file"
+                    onclick="removeGeneralNotePending(${i})">×</button>
+        </div>
+    `).join('');
+}
+
+async function _uploadNoteAttachments(wid, noteId, files) {
+    if (!files || !files.length) return { ok: true };
+    const fd = new FormData();
+    for (const f of files) fd.append('file', f);
+    const res = await fetch(`/api/work-orders/${wid}/notes/${noteId}/attachments`, {
+        method: 'POST', body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+}
+
 async function openGeneralNoteModal(wid, parentId, parentPreview) {
     document.getElementById('woGeneralNoteId').value = wid;
     document.getElementById('woGeneralNoteParentId').value = parentId || '';
     document.getElementById('woGeneralNoteText').value = '';
     const flagCb = document.getElementById('woGeneralNoteFlag');
     if (flagCb) flagCb.checked = false;
+    _noteModalPending = [];
+    renderGeneralNotePendingFiles();
     const ctx = document.getElementById('woGeneralNoteReplyContext');
     const title = document.getElementById('woGeneralNoteTitle');
     const label = document.getElementById('woGeneralNoteLabel');
@@ -6357,6 +6649,15 @@ async function submitGeneralNote() {
         });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+
+        // Upload any pending files against the newly-created note id.
+        let attachError = null;
+        if (_noteModalPending.length && data.note_id) {
+            const up = await _uploadNoteAttachments(wid, data.note_id, _noteModalPending);
+            if (!up.ok) attachError = (up.data && up.data.error) || 'Attachment upload failed';
+        }
+        _noteModalPending = [];
+
         closeModal('woGeneralNoteModal');
         let msg = parentId ? 'Reply sent' : (flag ? 'Flag note added' : 'Note added');
         if (data.email_sent) {
@@ -6365,7 +6666,8 @@ async function submitGeneralNote() {
         } else if (data.email_error && data.email_error !== 'no_recipients') {
             msg += ` — email not sent (${data.email_error})`;
         }
-        showToast(msg, 'success');
+        if (attachError) msg += ` — ${attachError}`;
+        showToast(msg, attachError ? 'error' : 'success');
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
     } catch { showToast('Connection error', 'error'); }
