@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3061,7 +3061,7 @@ const VALID_THEMES = ['light', 'dark', 'neobrutal-light', 'neobrutal-dark', 'sol
 const DARK_THEMES = ['dark', 'neobrutal-dark', 'cyberpunk'];
 
 function setTheme(theme) {
-    if (!VALID_THEMES.includes(theme)) theme = 'dark';
+    if (!VALID_THEMES.includes(theme)) theme = 'light';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('wm-theme', theme);
     const dark = DARK_THEMES.includes(theme);
@@ -3080,13 +3080,13 @@ function setTheme(theme) {
 }
 
 function toggleThemeFromButton() {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
     setTheme(DARK_THEMES.includes(current) ? 'light' : 'dark');
 }
 
 function initTheme() {
     const saved = localStorage.getItem('wm-theme');
-    setTheme(VALID_THEMES.includes(saved) ? saved : 'dark');
+    setTheme(VALID_THEMES.includes(saved) ? saved : 'light');
 }
 function openSettingsModal(tab) {
     const av = document.getElementById('aboutVersion');
