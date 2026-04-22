@@ -1247,6 +1247,16 @@ body {
     transition: all var(--transition);
 }
 .wo-note-reply-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.wo-note-delete-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    padding: 3px 9px; border-radius: 10px; cursor: pointer;
+    transition: all var(--transition);
+}
+.wo-note-delete-btn:hover {
+    border-color: var(--danger); color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
 
 /* Disclaimer inside the Add Note / Reply modal explaining the email */
 .wo-note-disclaimer {
@@ -5158,6 +5168,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
     // a "Flag" badge.
     const all = wo.notes_log || [];
     if (!all.length) return '';
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
     // Group by parent: roots are notes with parent_id=null, children are replies.
     const roots = [];
     const childMap = new Map();
@@ -5184,10 +5195,14 @@ function renderWorkOrderNotesThread(wo, canReply) {
         const replyBtn = canReply
             ? `<button type="button" class="wo-note-reply-btn" onclick="openReplyModal(${wo.id}, ${replyTarget}, ${previewAttr}); event.stopPropagation();" title="Reply — triggers an email to every participant in the thread">Reply</button>`
             : '';
+        const deleteBtn = isAdmin
+            ? `<button type="button" class="wo-note-delete-btn" onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note and its audit-log entry${!isReply ? ' (also removes replies)' : ''}">Delete</button>`
+            : '';
         const cls = ['wo-note'];
         if (isReply) cls.push('wo-note-reply');
         if (isFlag) cls.push('wo-note-flag');
         const flagBadge = isFlag ? '<span class="wo-note-flag-badge">Flag</span>' : '';
+        const actions = [replyBtn, deleteBtn].filter(Boolean).join('');
         return `<div class="${cls.join(' ')}" data-note-id="${n.id}" onclick="event.stopPropagation();">
             <div class="wo-note-head">
                 ${flagBadge}
@@ -5196,7 +5211,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
                 ${isReply ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted);">↳ reply</span>' : ''}
             </div>
             <div class="wo-note-text">${esc(n.note || '')}</div>
-            ${replyBtn ? `<div class="wo-note-actions">${replyBtn}</div>` : ''}
+            ${actions ? `<div class="wo-note-actions">${actions}</div>` : ''}
         </div>`;
     };
 
@@ -5741,6 +5756,21 @@ async function submitGeneralNote() {
         if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(wo);
         }
+        if (currentWoView) await loadWorkOrders();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+async function deleteWorkOrderNote(wid, noteId, isRoot) {
+    const msg = isRoot
+        ? 'Delete this note? If it has replies, they will be deleted too. This also removes the matching entries from the audit log.'
+        : 'Delete this reply? This also removes the matching entry from the audit log.';
+    if (!confirm(msg)) return;
+    try {
+        const res = await fetch(`/api/work-orders/${wid}/notes/${noteId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
+        const n = data.deleted_count || 1;
+        showToast(`Note deleted${n > 1 ? ` (${n} entries)` : ''}`, 'success');
         if (currentWoView) await loadWorkOrders();
     } catch { showToast('Connection error', 'error'); }
 }

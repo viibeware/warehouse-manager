@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.5.11
+- <strong>Admin note deletion</strong> — Admins see a <strong>Delete</strong> button on every entry in a work order's Notes and Activity thread. Deleting a note also scrubs the matching <code>note_added</code> row from the audit log (matched on work_order_id + description + created_at), so removed notes leave no trace. Deleting a root note also removes its replies (and their audit entries). New endpoint <code>DELETE /api/work-orders/&lt;id&gt;/notes/&lt;note_id&gt;</code>, admin-gated.
+
 ## v1.5.10
 - <strong>Mobile responsiveness pass</strong> — Global fixed hamburger button (two-line icon embedded as <code>static/hamburger.svg</code> / <code>static/close.svg</code> via CSS mask) slides with the sidebar and morphs into an X when open. Sidebar interior links scroll vertically when the viewport is too short while the logo and footer stay pinned. Page outer padding trimmed from 1.5rem to 1rem on mobile. Work Orders search bar now takes the full row on mobile so Sort wraps underneath, and the search input is white with dark text. Work Orders page no longer causes horizontal page scroll. Settings modal tab bar scrolls horizontally when tabs overflow. User Management modal fills the viewport on mobile and collapses the users table into stacked cards (labels from <code>data-label</code>).
 - <strong>Smooth WO expand/collapse</strong> — Cards animate their collapsible region via <code>grid-template-rows: 1fr ↔ 0fr</code> at 200ms so expand/collapse glides to the actual content height. Meta row (fitment / VIN / warehouse / salesperson / date) keeps the same font size in both states.

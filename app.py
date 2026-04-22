@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.5.10'
+APP_VERSION = '1.5.11'
 
 app = Flask(__name__)
 
@@ -4201,6 +4201,68 @@ def add_general_note(wid):
         'email_error': None if email_sent else (email_error or 'no_recipients'),
         'email_recipients': recipients,
     })
+
+
+@app.route('/api/work-orders/<int:wid>/notes/<int:note_id>', methods=['DELETE'])
+@admin_required
+def delete_work_order_note(wid, note_id):
+    """Admin-only: delete a note from a work order and scrub the matching
+    'note_added' entries from the audit log. If the target is a root note,
+    its replies (and their audit entries) are removed too so the thread
+    doesn't leave orphaned children."""
+    conn = get_db()
+    note = conn.execute(
+        "SELECT id, note, note_type, parent_id, created_at "
+        "FROM work_order_notes WHERE id = ? AND work_order_id = ?",
+        (note_id, wid)
+    ).fetchone()
+    if not note:
+        conn.close()
+        return jsonify({'error': 'Note not found'}), 404
+
+    targets = [dict(note)]
+    if note['parent_id'] is None:
+        replies = conn.execute(
+            "SELECT id, note, note_type, parent_id, created_at "
+            "FROM work_order_notes WHERE parent_id = ? AND work_order_id = ?",
+            (note_id, wid)
+        ).fetchall()
+        targets.extend(dict(r) for r in replies)
+
+    # Audit rows and note rows are inserted in the same transaction, so their
+    # created_at values match — that plus the exact description lets us pick
+    # only the audit entries that originated from the notes being deleted.
+    for t in targets:
+        if t['note_type'] == 'flag':
+            descs = [f"Flag note added: {t['note']}"]
+        else:
+            descs = [f"Note: {t['note']}", f"Reply: {t['note']}"]
+        placeholders = ','.join('?' for _ in descs)
+        conn.execute(
+            f"DELETE FROM work_order_audit WHERE work_order_id = ? "
+            f"AND action = 'note_added' AND description IN ({placeholders}) "
+            f"AND created_at = ?",
+            (wid, *descs, t['created_at'])
+        )
+
+    if note['parent_id'] is None:
+        conn.execute(
+            "DELETE FROM work_order_notes WHERE parent_id = ? AND work_order_id = ?",
+            (note_id, wid)
+        )
+    conn.execute(
+        "DELETE FROM work_order_notes WHERE id = ? AND work_order_id = ?",
+        (note_id, wid)
+    )
+    conn.execute(
+        "UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,)
+    )
+    conn.commit()
+
+    new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
+    wo = _work_order_to_dict(conn, new_row)
+    conn.close()
+    return jsonify({'work_order': wo, 'deleted_count': len(targets)})
 
 
 @app.route('/api/work-orders/<int:wid>', methods=['DELETE'])
