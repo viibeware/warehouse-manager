@@ -4257,7 +4257,7 @@ def update_work_order(wid):
     if not (current_user.is_admin or current_user.role == 'supervisor' or is_originator):
         conn.close()
         return jsonify({
-            'error': 'Only the originator, an admin, or a supervisor can edit this work order. You can still add notes, photos, and flag parts.'
+            'error': 'Only the originator, an admin, or a supervisor can edit this work order. You can still add notes and photos.'
         }), 403
 
     import json as json_mod

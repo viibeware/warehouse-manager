@@ -2994,10 +2994,10 @@ body:has(.sidebar.open) .hamburger-icon {
             <h2 id="woGeneralNoteTitle">Add Note</h2>
             <button class="modal-close" onclick="closeModal('woGeneralNoteModal')">&times;</button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
             <input type="hidden" id="woGeneralNoteId">
             <input type="hidden" id="woGeneralNoteParentId">
-            <div id="woGeneralNoteReplyContext" style="display:none;margin-bottom:0.7rem;padding:0.55rem 0.7rem;border-left:3px solid var(--accent);background:var(--accent-dim);border-radius:4px;font-size:0.76rem;color:var(--text-secondary);"></div>
+            <div id="woGeneralNoteReplyContext" style="display:none;padding:0.55rem 0.7rem;border-left:3px solid var(--accent);background:var(--accent-dim);border-radius:4px;font-size:0.76rem;color:var(--text-secondary);"></div>
             <div class="form-group">
                 <label class="form-label" id="woGeneralNoteLabel">Note</label>
                 <textarea class="form-textarea" id="woGeneralNoteText" rows="4" placeholder="Add a note about this work order as you work on it…"></textarea>
@@ -5294,10 +5294,10 @@ async function renderWorkOrdersView() {
                 <button type="button" class="section-help page-help" tabindex="0" aria-label="About Work Orders">?
                     <span class="section-help-tip" role="tooltip">
                         <strong>Work Orders</strong> track parts requests from sales to warehouse.<br><br>
-                        <strong>Flagged</strong> — any part marked with the flag icon needs attention (wrong SKU, missing, damaged). The flag description you enter is required and is posted into the card's Notes thread so anyone can reply to it. The whole work order shows a red <em>Flagged</em> pill and the salesperson gets an email with the flag note. Clearing the last flag returns it to <em>Requested</em>.<br><br>
                         <strong>Delivered</strong> — the Mark Delivered button signals the order is fulfilled. The salesperson gets a delivery email. It stays visible in the active list (pale green) until tonight at <strong>23:00 local time</strong>, when it auto-archives. <em>Archive Now</em> moves it immediately; <em>Reopen</em> sends it back to Requested.<br><br>
+                        <strong>Not Deliverable</strong> — the order cannot be fulfilled (out of stock, wrong part, customer cancelled, etc.). The button prompts for a reason, archives the work order immediately, and emails the salesperson the explanation so they can follow up with the customer.<br><br>
                         <strong>Notes &amp; replies</strong> — adding a note starts a thread and emails the salesperson. Any reply emails every prior participant plus the salesperson so the conversation stays in email.<br><br>
-                        <strong>Archive</strong> holds every delivered work order for historical reference and reporting.
+                        <strong>Archive</strong> holds every delivered or not-deliverable work order for historical reference and reporting.
                     </span>
                 </button>
             </h2>
@@ -5548,7 +5548,7 @@ function renderWorkOrderCard(wo) {
         ? ''
         : (canEditBody
             ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>`
-            : `<button class="table-btn" disabled title="Only the originator, an admin, or a supervisor can edit this work order. You can still add notes, photos, and flag parts.">Edit</button>`);
+            : `<button class="table-btn" disabled title="Only the originator, an admin, or a supervisor can edit this work order. You can still add notes and photos.">Edit</button>`);
     // The "more" buttons hide behind a pill-styled slideout (click the pill to
     // reveal). Edit and Add Note stay visible since they're the two most-used
     // actions on a WO card.
