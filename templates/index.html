@@ -1133,6 +1133,14 @@ body {
     cursor: pointer; padding: 2px 7px; border-radius: 4px;
     transition: color var(--transition), background var(--transition);
 }
+/* .wo-number.clickable renders as an <a> (links to the single-WO page) — strip
+   the default anchor styling so it reads as the same compact chip as before. */
+a.wo-number.clickable { text-decoration: none; color: inherit; }
+a.wo-number.clickable:hover { text-decoration: none; }
+/* The chip's 7px horizontal padding would otherwise indent the WO # text
+   relative to the meta row below it; pull it back with a matching negative
+   left margin so the text (not the chip) aligns with the card's left edge. */
+.wo-card-top > .wo-number.clickable:first-child { margin-left: -7px; }
 .wo-invoice.clickable:hover,
 .wo-number.clickable:hover {
     color: var(--accent); background: var(--accent-dim);
@@ -1152,6 +1160,12 @@ body {
     color: var(--yes);
 }
 .wo-card-main { min-width: 0; }
+/* Collapsed WO cards: clicking anywhere in the main area expands. */
+.wo-card.wo-collapsed .wo-card-main { cursor: pointer; }
+/* Expanded WO cards: clicking the title bar (top row) collapses. The body
+   (notes, parts, etc.) stays in its natural cursor since its contents are
+   interactive and shouldn't look like a collapse surface. */
+.wo-card:not(.wo-collapsed) .wo-card-top { cursor: pointer; }
 .wo-card-top {
     display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.35rem; flex-wrap: wrap;
 }
@@ -1350,7 +1364,9 @@ body {
 }
 .wo-collapse-btn:hover { color: var(--accent); border-color: var(--accent); }
 .wo-collapse-btn .chev { transition: transform 0.2s ease; }
-.wo-card.wo-collapsed .wo-collapse-btn .chev { transform: rotate(-90deg); }
+/* Chevron mirrors the card state: down when collapsed (SVG default),
+   up when expanded. */
+.wo-card:not(.wo-collapsed) .wo-collapse-btn .chev { transform: rotate(180deg); }
 .wo-card-collapsible {
     display: grid; grid-template-rows: 1fr;
     transition: grid-template-rows 200ms ease;
@@ -3387,6 +3403,11 @@ body:has(.sidebar.open) .hamburger-icon {
                     <span class="form-hint">Disable for port 465 (implicit SSL). Keep enabled for port 587.</span>
                 </div>
                 <div class="form-group full-width">
+                    <label class="form-label">Public URL</label>
+                    <input class="form-input" type="url" id="smtpPublicUrl" placeholder="https://warehouse.example.com" autocomplete="off">
+                    <span class="form-hint">Used to build the "View this Work Order" deep-link in email notifications. Leave blank to fall back to the host used when the email was triggered.</span>
+                </div>
+                <div class="form-group full-width">
                     <label class="form-label">Test Email</label>
                     <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0.4rem;">
                         <input class="form-input" type="email" id="smtpTestTo" placeholder="recipient@example.com">
@@ -5129,6 +5150,80 @@ async function showWorkOrdersView(view, push=true) {
     startWoLivePulse();
 }
 
+// Single-work-order view. Same card rendering as the list, but only one WO —
+// reached via /workorders/<wo_number> (used by the deep-links in email
+// notifications). Accepts either a numeric id or a wo_number string; the
+// canonical URL pushed to history always uses the wo_number so shared links
+// stay human-readable and stable across DB restores.
+async function showSingleWorkOrder(ident, push=true) {
+    exitDashboard();
+    // Reuse the list-view's container + status helpers so the layout matches
+    currentWoView = 'active';
+    currentWoStatusFilter = 'all';
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    const woc = document.getElementById('workOrdersContainer');
+    woc.style.display = '';
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === 'active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.getElementById('sidebar').classList.remove('open');
+    await loadWoSettings();
+    woc.innerHTML = `
+        <div class="wo-header">
+            <h2 style="display:inline-flex;align-items:center;gap:8px;">
+                Work Order
+                <span id="woSingleTitleNum" style="color:var(--text-muted);font-family:var(--mono);font-size:0.9rem;"></span>
+            </h2>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <a class="btn btn-ghost btn-sm" href="/workorders" onclick="event.preventDefault(); showWorkOrdersView('active');" title="Back to active work orders">← All Work Orders</a>
+            </div>
+        </div>
+        <div id="woList" class="wo-list"></div>
+    `;
+    const listEl = document.getElementById('woList');
+    const identStr = String(ident);
+    // Digit-only → legacy id lookup; anything else → WO number lookup.
+    // Old bookmarks like /workorders/42 keep working; we rewrite the URL
+    // below to the canonical /workorders/<wo_number> once resolved.
+    const url = /^\d+$/.test(identStr)
+        ? `/api/work-orders/${encodeURIComponent(identStr)}`
+        : `/api/work-orders/by-number/${encodeURIComponent(identStr)}`;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) {
+            if (push) history.pushState({ view: 'wo-single', wo: identStr }, '', `/workorders/${encodeURIComponent(identStr)}`);
+            listEl.innerHTML = `<div class="empty-state" style="padding:2rem;text-align:center;color:var(--text-muted);">Work order not found.</div>`;
+            return;
+        }
+        const wo = await res.json();
+        const canonicalUrl = wo.wo_number ? `/workorders/${encodeURIComponent(wo.wo_number)}` : `/workorders/${encodeURIComponent(identStr)}`;
+        if (push) {
+            history.pushState({ view: 'wo-single', wo: wo.wo_number || identStr }, '', canonicalUrl);
+        } else if (wo.wo_number && window.location.pathname !== canonicalUrl) {
+            // Landed via a legacy /workorders/<int> URL — rewrite in place
+            history.replaceState({ view: 'wo-single', wo: wo.wo_number }, '', canonicalUrl);
+        }
+        const titleEl = document.getElementById('woSingleTitleNum');
+        if (titleEl) titleEl.textContent = wo.wo_number ? `#${wo.wo_number}` : '';
+        listEl.innerHTML = renderWorkOrderCard(wo);
+        // Expand the single card by default — users came here to see it, not
+        // to click twice. Use the same toggle path so state matches the list.
+        const card = listEl.querySelector(`.wo-card[data-wo-id="${wo.id}"]`);
+        if (card && card.classList.contains('wo-collapsed')) {
+            card.classList.remove('wo-collapsed');
+        }
+    } catch (e) {
+        if (push) history.pushState({ view: 'wo-single', wo: identStr }, '', `/workorders/${encodeURIComponent(identStr)}`);
+        listEl.innerHTML = `<div class="empty-state" style="padding:2rem;text-align:center;color:var(--text-muted);">Failed to load work order.</div>`;
+    }
+}
+
 // ══════════════════════════════════════════
 //  DASHBOARD
 // ══════════════════════════════════════════
@@ -5326,10 +5421,16 @@ function renderRecentWos(orders) {
 // ══════════════════════════════════════════
 function initViewFromUrl() {
     const path = window.location.pathname;
+    // Anything under /workorders/<something> that isn't the archive view is a
+    // single-WO deep-link. Accepts both the canonical wo_number form
+    // (WO-00042) and legacy integer ids (showSingleWorkOrder normalizes).
     if (path === '/workorders') {
         showWorkOrdersView('active', false);
     } else if (path === '/workorders/archive') {
         showWorkOrdersView('archive', false);
+    } else if (path.startsWith('/workorders/')) {
+        const ident = decodeURIComponent(path.slice('/workorders/'.length).split('/')[0]);
+        showSingleWorkOrder(ident, false);
     } else if (path === '/parts') {
         setCategoryBySlug('', false);
     } else if (path.startsWith('/parts/')) {
@@ -5832,7 +5933,15 @@ function renderWorkOrderCard(wo) {
     const auditBtn = canViewAudit
         ? `<button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>`
         : '';
-    const moreButtons = [reopenBtn, emailUpdateBtn, downloadPdfBtn, duplicateBtn, auditBtn].filter(Boolean).join('');
+    // Shareable single-WO page link. Hide it when we're already on the
+    // /workorders/<wo_number> page so the menu doesn't offer to "view the
+    // page you're already viewing".
+    const onSingleView = window.location.pathname.startsWith('/workorders/')
+        && window.location.pathname !== '/workorders/archive';
+    const viewSingleBtn = onSingleView
+        ? ''
+        : `<button class="table-btn" title="Open this work order on its own page (shareable URL)" onclick="showSingleWorkOrder('${esc(wo.wo_number || wo.id)}')">View Work Order</button>`;
+    const moreButtons = [viewSingleBtn, reopenBtn, emailUpdateBtn, downloadPdfBtn, duplicateBtn, auditBtn].filter(Boolean).join('');
     const morePill = moreButtons
         ? `<span class="wo-actions-more">
             <button type="button" class="wo-actions-more-trigger" onclick="toggleWoActionsMore(this); event.stopPropagation();" title="More actions" aria-expanded="false">
@@ -5873,9 +5982,11 @@ function renderWorkOrderCard(wo) {
            </button>`;
     return `
     <div class="${cardCls} priority-${prioClass}" data-wo-id="${wo.id}" ${cardStyle}>
-        <div class="wo-card-main">
+        <div class="wo-card-main" onclick="onWoCardMainClick(${wo.id}, event)">
             <div class="wo-card-top">
-                <span class="wo-number clickable" data-wo="${esc(wo.wo_number)}" onclick="copyWoNumFromEl(this, event)" title="Click to copy WO #">${esc(wo.wo_number)}</span>
+                ${onSingleView
+                    ? `<span class="wo-number">${esc(wo.wo_number)}</span>`
+                    : `<a class="wo-number clickable" href="/workorders/${encodeURIComponent(wo.wo_number)}" onclick="event.preventDefault(); event.stopPropagation(); showSingleWorkOrder('${esc(wo.wo_number)}')" title="Open this work order on its own page">${esc(wo.wo_number)}</a>`}
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
                 ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy invoice #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">#${esc(wo.quote_invoice)}</span>` : ''}
                 <span class="wo-card-top-right">
@@ -5955,6 +6066,32 @@ function toggleWoCardCollapse(wid, event) {
     const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
     if (!card) return;
     card.classList.toggle('wo-collapsed');
+}
+
+// Click-to-toggle on a WO card's always-visible top area:
+//   • Collapsed + click anywhere in the main region → expand.
+//   • Expanded  + click the title bar white space   → collapse.
+//   • Expanded  + click the body (parts, notes, etc.) → do nothing
+//     (the body has its own click behavior and shouldn't auto-close).
+// The chevron button still toggles regardless — it stops propagation itself.
+// Interactive children (wo# / invoice copy chips, buttons, links, inputs,
+// ongoing text selections) are filtered out so their click behavior wins.
+function onWoCardMainClick(wid, event) {
+    const card = document.querySelector(`.wo-card[data-wo-id="${wid}"]`);
+    if (!card) return;
+    const t = event.target;
+    const sel = window.getSelection && window.getSelection();
+    if (sel && sel.toString && sel.toString().length > 0) return;
+    if (t.closest('button, a, input, textarea, select, label, .wo-number.clickable, .wo-invoice.clickable, .wo-card-actions, .wo-card-parts, .wo-notes-thread, .wo-attachments')) {
+        return;
+    }
+    const isCollapsed = card.classList.contains('wo-collapsed');
+    if (isCollapsed) {
+        card.classList.remove('wo-collapsed');
+    } else if (t.closest('.wo-card-top')) {
+        // Only collapse via a title-bar click (not a body click)
+        card.classList.add('wo-collapsed');
+    }
 }
 
 // Central timestamp formatter. The server sends everything as a SQLite
@@ -7247,13 +7384,6 @@ function copyInvoiceFromEl(el, event) {
     _copyTextToClipboard(txt, `Copied ${txt}`);
 }
 
-function copyWoNumFromEl(el, event) {
-    if (event) { event.stopPropagation(); event.preventDefault(); }
-    const raw = el && el.dataset ? (el.dataset.wo || '') : '';
-    const txt = raw.trim();
-    _copyTextToClipboard(txt, `Copied ${txt}`);
-}
-
 async function duplicateWorkOrder(wid) {
     if (!confirm('Duplicate this work order? A new work order will be created with the same details and parts. Status, notes, and audit trail will be reset.')) return;
     try {
@@ -7499,6 +7629,7 @@ async function openSmtpModal() {
         document.getElementById('smtpPassword').placeholder = cfg.password === '********' ? 'leave blank to keep current' : 'SMTP password';
         document.getElementById('smtpFromEmail').value = cfg.from_email || '';
         document.getElementById('smtpFromName').value = cfg.from_name || 'Warehouse Manager';
+        document.getElementById('smtpPublicUrl').value = cfg.public_url || '';
         const tls = cfg.use_tls !== false;
         document.getElementById('smtpUseTls').checked = tls;
         document.getElementById('smtpTlsText').textContent = tls ? 'Enabled' : 'Disabled';
@@ -7515,6 +7646,7 @@ async function saveSmtp() {
         from_email: document.getElementById('smtpFromEmail').value.trim(),
         from_name: document.getElementById('smtpFromName').value.trim() || 'Warehouse Manager',
         use_tls: document.getElementById('smtpUseTls').checked,
+        public_url: document.getElementById('smtpPublicUrl').value.trim(),
     };
     const pw = document.getElementById('smtpPassword').value;
     if (pw) body.password = pw;
@@ -7543,6 +7675,7 @@ async function sendSmtpTest() {
         from_email: document.getElementById('smtpFromEmail').value.trim(),
         from_name: document.getElementById('smtpFromName').value.trim() || 'Warehouse Manager',
         use_tls: document.getElementById('smtpUseTls').checked,
+        public_url: document.getElementById('smtpPublicUrl').value.trim(),
     };
     const pw = document.getElementById('smtpPassword').value;
     if (pw) body.password = pw;

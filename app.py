@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.2'
+APP_VERSION = '1.6.3'
 
 app = Flask(__name__)
 
@@ -1716,10 +1716,12 @@ def unlock_user(uid):
 @app.route('/dashboard')
 @app.route('/workorders')
 @app.route('/workorders/archive')
+@app.route('/workorders/<int:wid>')
+@app.route('/workorders/<wo_number>')
 @app.route('/parts')
 @app.route('/parts/<slug>')
 @login_required
-def index(slug=None):
+def index(slug=None, wid=None, wo_number=None):
     return render_template('index.html')
 
 
@@ -2877,7 +2879,7 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url'}
 
 
 def _get_setting(conn, key, default):
@@ -3000,11 +3002,13 @@ def update_wo_settings():
 def get_smtp_settings():
     conn = get_db()
     cfg = _get_setting(conn, 'smtp_config', {})
+    public_url = _get_setting(conn, 'public_url', '')
     conn.close()
     # Mask password in response
     masked = dict(cfg)
     if masked.get('password'):
         masked['password'] = '********'
+    masked['public_url'] = public_url or ''
     return jsonify(masked)
 
 
@@ -3029,6 +3033,16 @@ def update_smtp_settings():
     else:
         cfg['password'] = str(pw)
     _set_setting(conn, 'smtp_config', cfg)
+    # Public URL lives alongside SMTP config (governs email deep-links).
+    # Only touched when the client sends the key — GET always returns it, so
+    # the frontend can include it in its PUT payload to round-trip the value.
+    if 'public_url' in data:
+        raw = str(data.get('public_url') or '').strip()
+        raw = raw.replace('\r', '').replace('\n', '').rstrip('/')
+        if raw and not re.match(r'^https?://', raw, re.IGNORECASE):
+            conn.close()
+            return jsonify({'error': 'Public URL must start with http:// or https://'}), 400
+        _set_setting(conn, 'public_url', raw)
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -3417,6 +3431,70 @@ def update_my_notifications():
 # ══════════════════════════════════════════
 #  EMAIL (SMTP)
 # ══════════════════════════════════════════
+
+def _public_base_url():
+    """Return the configured public base URL (no trailing slash), falling back
+    to the current request's url_root if available. Used to build deep-links
+    that land directly in the app from notification emails."""
+    from flask import has_request_context
+    conn = get_db()
+    raw = _get_setting(conn, 'public_url', '') or ''
+    conn.close()
+    raw = str(raw).strip().rstrip('/')
+    if raw:
+        return raw
+    if has_request_context():
+        return (request.url_root or '').rstrip('/')
+    return ''
+
+
+def _wo_link(wo_number):
+    """Deep-link URL for a single work order, using the human-readable WO
+    number (e.g. WO-00042). Empty string if no base URL can be resolved or
+    wo_number is blank (caller should just skip the link line in that case)."""
+    wn = str(wo_number or '').strip()
+    if not wn:
+        return ''
+    base = _public_base_url()
+    if not base:
+        return ''
+    from urllib.parse import quote
+    return f"{base}/workorders/{quote(wn, safe='')}"
+
+
+def _email_footer(wo_number):
+    """Trailing block appended to every work-order notification email.
+    Includes a do-not-reply notice and (when a base URL is configured) a
+    direct deep-link to the work order using its WO number."""
+    link = _wo_link(wo_number)
+    lines = [
+        '',
+        '— Do not reply to this email. Log in to Warehouse Manager to respond.',
+    ]
+    if link:
+        lines.append(f"View this Work Order: {link}")
+    return '\n'.join(lines) + '\n'
+
+
+def _wo_header_block(wo_row_or_dict):
+    """Uniform top-of-email header — WO #, Quote/Invoice, Customer — used on
+    every work-order notification. Accepts either a sqlite Row or a dict."""
+    def _get(k):
+        try:
+            v = wo_row_or_dict[k]
+        except (KeyError, IndexError, TypeError):
+            v = ''
+        return (v or '').strip() if isinstance(v, str) else (v or '')
+    wo_num = _get('wo_number')
+    invoice = _get('quote_invoice')
+    customer = _get('customer_name')
+    lines = [
+        f"Work Order: {wo_num or '—'}",
+        f"Quote/Invoice #: {invoice or '—'}",
+        f"Customer: {customer or '—'}",
+    ]
+    return '\n'.join(lines)
+
 
 def _send_email(to_email, subject, body, attachments=None):
     """Send an email via configured SMTP. Returns (success, error_msg).
@@ -3916,6 +3994,27 @@ def get_work_order(wid):
     return jsonify(wo)
 
 
+@app.route('/api/work-orders/by-number/<wo_number>', methods=['GET'])
+@login_required
+def get_work_order_by_number(wo_number):
+    """Looks up a work order by its WO number (case-insensitive). Used by the
+    single-WO view (/workorders/<wo_number>) so deep-links are human-readable."""
+    wn = str(wo_number or '').strip()
+    if not wn:
+        return jsonify({'error': 'Missing wo_number'}), 400
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM work_orders WHERE LOWER(wo_number) = LOWER(?)",
+        (wn,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    wo = _work_order_to_dict(conn, row)
+    conn.close()
+    return jsonify(wo)
+
+
 @app.route('/api/work-orders', methods=['POST'])
 @editor_required
 def create_work_order():
@@ -4251,11 +4350,11 @@ def mark_work_order_not_deliverable(wid):
     if sp_email:
         subject = f"[Not Deliverable] Work Order {row['wo_number']}"
         body = (
-            f"Work Order: {row['wo_number']}\n"
-            f"Customer: {row['customer_name'] or '—'}\n"
+            f"{_wo_header_block(row)}\n"
             f"Vehicle: {row['vehicle'] or '—'}\n"
             f"Status: NOT DELIVERABLE (archived)\n\n"
             f"Marked not deliverable by {author}:\n{reason}\n"
+            f"{_email_footer(row['wo_number'])}"
         )
         email_sent, email_error = _send_email(sp_email, subject, body)
 
@@ -4499,15 +4598,14 @@ def set_work_order_status(wid):
         sp_email = _lookup_salesperson_email(conn, row['sales_person'])
         if sp_email:
             wo_num = row['wo_number']
-            customer = row['customer_name']
             parts_block = _format_parts_for_email(row['parts_json'] if 'parts_json' in row.keys() else '[]')
             subject = f"[Delivered] Work Order {wo_num}"
             body = (
-                f"Work Order: {wo_num}\n"
-                f"Customer: {customer}\n"
+                f"{_wo_header_block(row)}\n"
                 f"Vehicle: {row['vehicle']}\n"
                 f"Status: DELIVERED / COMPLETE\n"
                 f"{parts_block}"
+                f"{_email_footer(wo_num)}"
             )
             email_sent, email_error = _send_email(sp_email, subject, body)
 
@@ -4549,11 +4647,11 @@ def add_work_order_note(wid):
         if sp_email:
             subject = f"[Flagged — Update] Work Order {row['wo_number']}"
             body = (
-                f"Work Order: {row['wo_number']}\n"
-                f"Customer: {row['customer_name']}\n"
+                f"{_wo_header_block(row)}\n"
                 f"Vehicle: {row['vehicle']}\n"
                 f"Status: FLAGGED (new update)\n\n"
                 f"New note from {author}:\n{note}\n"
+                f"{_email_footer(row['wo_number'])}"
             )
             email_sent, email_error = _send_email(sp_email, subject, body)
 
@@ -4606,17 +4704,14 @@ def _send_note_email(wo_row, author_name, note_text, parent_id, recipients, is_r
     label = 'Reply' if is_reply else 'Note'
     subject = f"[{label}] Work Order {wo_num}"
     lines = [
-        f"Work Order: {wo_num}",
-        f"Customer: {wo_row['customer_name'] or '—'}",
+        _wo_header_block(wo_row),
         f"Vehicle: {wo_row['vehicle'] or '—'}",
         '',
         f"{author_name} added a {'reply' if is_reply else 'note'}:",
         '',
         note_text,
-        '',
-        'Log in to Warehouse Manager to reply.',
     ]
-    body = '\n'.join(lines) + '\n'
+    body = '\n'.join(lines) + '\n' + _email_footer(wo_row['wo_number'])
     last_ok, last_err = False, None
     for to in recipients:
         ok, err = _send_email(to, subject, body)
@@ -5051,10 +5146,10 @@ def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_
         sp_email = _lookup_salesperson_email(conn, row['sales_person'])
         if sp_email:
             body = (
-                f"Work Order: {row['wo_number']}\n"
-                f"Customer: {row['customer_name']}\n"
+                f"{_wo_header_block(row)}\n"
                 f"Vehicle: {row['vehicle']}\n"
                 f"{email_body_extra or ''}"
+                f"{_email_footer(row['wo_number'])}"
             )
             email_sent, email_error = _send_email(sp_email, email_subject, body)
 
@@ -5312,8 +5407,7 @@ def upload_work_order_part_photo(wid, part_key):
             count = len(attachments)
             subject = f"[Photo{'s' if count > 1 else ''}] Work Order {wo_row['wo_number']}"
             body_lines = [
-                f"Work Order: {wo_row['wo_number']}",
-                f"Customer: {wo_row['customer_name'] or '—'}",
+                _wo_header_block(wo_row),
                 f"Vehicle: {wo_row['vehicle'] or '—'}",
                 f"Part: {part_desc}",
                 f"Uploaded by: {author}",
@@ -5321,7 +5415,7 @@ def upload_work_order_part_photo(wid, part_key):
             ]
             if comment:
                 body_lines += ['', 'Comment:', comment]
-            body = '\n'.join(body_lines) + '\n'
+            body = '\n'.join(body_lines) + '\n' + _email_footer(wo_row['wo_number'])
             email_sent, email_error = _send_email(sp_email, subject, body, attachments=attachments)
             desc = (f"Photo email sent to {sp_email}" if email_sent
                     else f"Photo email FAILED to {sp_email}: {email_error or 'unknown error'}")
@@ -5394,18 +5488,16 @@ def _build_update_email_body(wo):
     comp_date = (wo.get('completed_at') or '').split('.')[0].replace('T', ' ') if wo.get('completed_at') else ''
 
     lines = []
-    lines.append(f"Work Order: {wo.get('wo_number', '')}")
+    # Uniform header (WO #, Quote/Invoice, Customer) — matches every other notification
+    lines.append(_wo_header_block(wo))
     lines.append(f"Status: {status_label}")
     if wo.get('priority'):
         lines.append(f"Priority: {wo.get('priority')}")
     lines.append('')
-    lines.append(f"Customer: {wo.get('customer_name') or '—'}")
     lines.append(f"Sales Person: {wo.get('sales_person') or '—'}")
     lines.append(f"Warehouse: {wo.get('warehouse_location') or '—'}")
     lines.append(f"Vehicle: {wo.get('vehicle') or '—'}")
     lines.append(f"VIN: {wo.get('vin') or '—'}")
-    if wo.get('quote_invoice'):
-        lines.append(f"Quote/Invoice #: {wo.get('quote_invoice')}")
     lines.append(f"Requested: {req_date}")
     if comp_date:
         lines.append(f"Completed: {comp_date}")
@@ -5444,7 +5536,7 @@ def _build_update_email_body(wo):
             tag = '[FLAG] ' if n.get('note_type') == 'flag' else ''
             lines.append(f"  {when} — {n.get('author', '')}: {tag}{n.get('note', '')}")
 
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines) + '\n' + _email_footer(wo.get('wo_number'))
 
 
 @app.route('/api/work-orders/<int:wid>/send-update', methods=['POST'])
