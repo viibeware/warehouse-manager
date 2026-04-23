@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.10'
+APP_VERSION = '1.6.11'
 
 app = Flask(__name__)
 
@@ -4499,13 +4499,17 @@ def list_work_orders():
         where = (where + " AND " if where else "WHERE ") + "(" + " OR ".join(f"{c} LIKE ?" for c in search_cols) + ")"
         params.extend([term] * len(search_cols))
 
-    SORT_ALLOWED = {'request_date', 'customer_name', 'priority', 'wo_number', 'status'}
+    SORT_ALLOWED = {'request_date', 'customer_name', 'priority', 'wo_number', 'status', 'delivery_status'}
+    # delivery_status is a friendly alias for the was_delivered integer column
+    # (archive users want to group delivered vs not-deliverable records).
+    SORT_COLUMN_MAP = {'delivery_status': 'was_delivered'}
     sort_by = request.args.get('sort_by', 'request_date')
     sort_dir = request.args.get('sort_dir', 'desc').lower()
     if sort_by not in SORT_ALLOWED:
         sort_by = 'request_date'
     if sort_dir not in ('asc', 'desc'):
         sort_dir = 'desc'
+    sort_col = SORT_COLUMN_MAP.get(sort_by, sort_by)
 
     # Pagination — optional. When limit is not supplied the endpoint returns
     # the full filtered list (backward-compatible for any caller that
@@ -4538,7 +4542,12 @@ def list_work_orders():
             "AND (status = 'delivered' OR was_not_deliverable = 1) "
             "THEN 1 ELSE 0 END ASC"
         )
-    order_parts.append(f"{sort_by} COLLATE NOCASE {sort_dir.upper()}")
+    # Integer columns (was_delivered) don't benefit from COLLATE NOCASE and
+    # SQLite ignores it for INT storage anyway, but skip it for clarity.
+    if sort_col in ('was_delivered',):
+        order_parts.append(f"{sort_col} {sort_dir.upper()}")
+    else:
+        order_parts.append(f"{sort_col} COLLATE NOCASE {sort_dir.upper()}")
     order_parts.append(f"id {sort_dir.upper()}")
     base_sql = (
         f"SELECT * FROM work_orders {where} "

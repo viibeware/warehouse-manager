@@ -5522,6 +5522,12 @@ async function showWorkOrdersView(view, push=true) {
     exitDashboard();
     currentWoView = view;
     currentWoStatusFilter = 'all';
+    // Archive-only sort options get reset when leaving the archive so the
+    // sort dropdown doesn't end up with no visible selection in the active
+    // view (where the option isn't rendered).
+    if (view !== 'archive' && currentWoSortBy === 'delivery_status') {
+        currentWoSortBy = 'request_date';
+    }
     // Hide parts UI, show WO UI
     document.getElementById('partsToolbar').style.display = 'none';
     document.getElementById('partsGrid').style.display = 'none';
@@ -5886,6 +5892,7 @@ async function renderWorkOrdersView() {
                 <option value="priority" ${currentWoSortBy==='priority'?'selected':''}>Priority</option>
                 <option value="wo_number" ${currentWoSortBy==='wo_number'?'selected':''}>WO #</option>
                 <option value="status" ${currentWoSortBy==='status'?'selected':''}>Status</option>
+                ${isArchive ? `<option value="delivery_status" ${currentWoSortBy==='delivery_status'?'selected':''}>Deliverable Status</option>` : ''}
             </select>
             <button class="wo-sort-dir-btn ${currentWoSortDir==='desc'?'desc':''}" onclick="toggleWoSortDir()" title="Toggle sort direction">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
@@ -6408,7 +6415,7 @@ function renderWorkOrderCard(wo) {
                     <span class="wo-status-badge ${wo.status}">${wo.status}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
                     ${(isArchived && !wo.was_delivered) || isNotDeliverablePendingCard
-                        ? `<span class="wo-not-delivered-badge" title="${isNotDeliverablePendingCard ? 'Marked not deliverable — archives tonight at 23:00' : 'Archived without being marked delivered'}">Not Delivered</span>`
+                        ? `<span class="wo-not-delivered-badge" title="${isNotDeliverablePendingCard ? 'Marked not deliverable — archives tonight at 23:00' : 'Archived without being marked delivered'}">Not Deliverable</span>`
                         : ''}
                     ${collapseToggle}
                 </span>

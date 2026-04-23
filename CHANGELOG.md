@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.11
+- <strong>"Not Delivered" badge renamed to "Not Deliverable"</strong> — Consistent with the "Mark Not Deliverable" action that created it. Applies to both the pending-archive (pale-red) state and the archived-without-delivery state.
+- <strong>Sort by Deliverable Status in the archive</strong> — New sort option (backend: <code>delivery_status</code>, aliased to the <code>was_delivered</code> column) that groups delivered vs not-deliverable records together. Option only appears in the archive-view sort dropdown since active records can't be "done" in that sense yet. Switching back to the active view resets the sort to Requested Date so the dropdown doesn't end up showing a blank selection.
+
 ## v1.6.10
 - <strong>Fix: archive view 500</strong> — v1.6.6's "pending WOs sort to the bottom" change used a literal <code>ORDER BY 0</code> in the archive branch as a no-op sort term, but SQLite interprets a bare integer in ORDER BY as a 1-indexed column position (so <code>0</code> is out-of-range and the query blew up with a 500). Now the pending-rank clause is only added to the ORDER BY when it's actually needed (active list); archive queries get <code>ORDER BY request_date COLLATE NOCASE …, id …</code> as they always did pre-1.6.6. Fixes the "Failed to load work orders" toast on clicking Archive and the side-effect where the active list also stopped populating until a full page refresh.
 
