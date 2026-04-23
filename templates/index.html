@@ -2301,6 +2301,104 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .toast.error { border-left: 3px solid var(--danger); }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } }
 
+/* ── WO NOTIFICATIONS (top-right cascade) ──
+   Live notifications for assigned salesperson + originator. Separate from
+   toast-container so transient confirmation toasts (bottom-right) don't
+   collide with longer-lived notification cards (top-right). */
+.wm-notif-container {
+    position: fixed; top: 1rem; right: 1rem; z-index: 310;
+    display: flex; flex-direction: column; gap: 0.55rem;
+    max-width: 360px; width: min(360px, calc(100vw - 2rem));
+    pointer-events: none; /* child cards opt in */
+}
+.wm-notif {
+    pointer-events: auto;
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-lg);
+    padding: 0.7rem 0.85rem 0.7rem 0.8rem;
+    box-shadow: 0 14px 32px -14px rgba(0,0,0,0.35), 0 4px 12px -6px rgba(0,0,0,0.15);
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    grid-template-areas:
+        "icon head close"
+        "icon body body"
+        "icon foot foot";
+    column-gap: 0.65rem;
+    row-gap: 2px;
+    cursor: pointer;
+    transform: translateX(calc(100% + 2rem));
+    opacity: 0;
+    transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 260ms ease;
+}
+.wm-notif.enter { transform: none; opacity: 1; }
+.wm-notif.leave { transform: translateX(calc(100% + 2rem)); opacity: 0; }
+.wm-notif:hover { border-color: var(--accent); }
+
+.wm-notif .wm-notif-icon {
+    grid-area: icon;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent-dim); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.92rem; font-weight: 600;
+    flex-shrink: 0;
+}
+.wm-notif .wm-notif-title {
+    grid-area: head;
+    font-weight: 600; font-size: 0.85rem; color: var(--text-primary);
+    line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.wm-notif .wm-notif-body {
+    grid-area: body;
+    font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 1px;
+}
+.wm-notif .wm-notif-foot {
+    grid-area: foot;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 3px;
+    display: flex; gap: 6px; align-items: center;
+}
+.wm-notif .wm-notif-close {
+    grid-area: close;
+    background: transparent; border: 0;
+    color: var(--text-muted);
+    width: 22px; height: 22px; border-radius: 4px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; line-height: 1;
+    transition: color 120ms ease, background 120ms ease;
+}
+.wm-notif .wm-notif-close:hover { color: var(--text-primary); background: var(--bg-input); }
+
+/* Kind-specific accent colors (left border + icon) */
+.wm-notif[data-kind="delivered"]       { border-left-color: var(--yes); }
+.wm-notif[data-kind="delivered"] .wm-notif-icon { background: rgba(16,185,129,0.18); color: var(--yes); }
+.wm-notif[data-kind="flag_note"],
+.wm-notif[data-kind="part_flag"],
+.wm-notif[data-kind="not_deliverable"] { border-left-color: var(--danger); }
+.wm-notif[data-kind="flag_note"] .wm-notif-icon,
+.wm-notif[data-kind="part_flag"] .wm-notif-icon,
+.wm-notif[data-kind="not_deliverable"] .wm-notif-icon {
+    background: rgba(239,68,68,0.15); color: var(--danger);
+}
+.wm-notif[data-kind="reopened"]        { border-left-color: var(--warn, #f59e0b); }
+.wm-notif[data-kind="reopened"] .wm-notif-icon { background: rgba(245,158,11,0.18); color: var(--warn, #f59e0b); }
+.wm-notif[data-kind="photo"]           { border-left-color: var(--accent); }
+
+@media (max-width: 520px) {
+    .wm-notif-container { top: 0.6rem; right: 0.6rem; left: 0.6rem; width: auto; max-width: none; }
+}
+
 /* ── MOBILE ── */
 .sidebar-toggle { display: none; }
 .hamburger-icon {
@@ -2432,6 +2530,7 @@ body:has(.sidebar.open) .hamburger-icon {
         <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             Work Orders <span class="nav-count" id="countWoActive"></span>
+            <span class="nav-flag-badge" id="navWoNotifBadge" style="display:none;" title="Unread work-order notifications"></span>
         </button>
         <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -3433,6 +3532,9 @@ body:has(.sidebar.open) .hamburger-icon {
 
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- Live WO notification cascade (top-right). Populated by startNotificationPoller() -->
+<div class="wm-notif-container" id="wmNotifContainer"></div>
+
 <script>
 // ══════════════════════════════════════════
 //  FIELD DEFINITIONS
@@ -3774,7 +3876,205 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadWoCounts();
     loadGlobalNotificationsState();
     initViewFromUrl();
+    startNotificationPoller();
 });
+
+// ══════════════════════════════════════════
+//  LIVE WO NOTIFICATIONS (toast cascade)
+// ══════════════════════════════════════════
+// Polls /api/notifications/unread every ~20 s and cascades new notifications
+// down the right side of the window. Clicking a card jumps straight to the
+// referenced work order; the ✕ or a 15 s timer dismisses it (both also
+// POST /read so the notification doesn't pop again on the next poll).
+// 5 s matches the WO live-pulse cadence — fast enough to feel like updates
+// arrive in near-real-time without hammering the server.
+const NOTIF_POLL_MS = 5000;
+const NOTIF_INITIAL_CAP = 5;        // on first load, show at most N backlog items
+const NOTIF_AUTODISMISS_MS = 15000; // auto-fade after this long
+
+let _notifSinceId = 0;
+let _notifTimer = null;
+let _notifFirstPoll = true;
+let _notifUnreadTotal = 0;          // mirrors server-side unread count for the badge
+
+const NOTIF_KIND_META = {
+    note:            { icon: '✎', label: 'note' },
+    reply:           { icon: '↩', label: 'reply' },
+    flag_note:       { icon: '⚑', label: 'flag note' },
+    photo:           { icon: '📷', label: 'photo' },
+    delivered:       { icon: '✓', label: 'delivered' },
+    not_deliverable: { icon: '✕', label: 'not deliverable' },
+    reopened:        { icon: '↺', label: 'reopened' },
+    part_flag:       { icon: '⚑', label: 'part' },
+    edited:          { icon: '✎', label: 'edited' },
+};
+
+function _relativeTime(iso) {
+    if (!iso) return '';
+    // SQLite timestamps come back as "YYYY-MM-DD HH:MM:SS" in UTC — attach Z.
+    const t = String(iso).includes('T') ? iso : iso.replace(' ', 'T');
+    const d = new Date(t.endsWith('Z') ? t : t + 'Z');
+    if (isNaN(d.getTime())) return '';
+    const sec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+    if (sec < 45) return 'just now';
+    if (sec < 90) return '1 min ago';
+    if (sec < 3600) return `${Math.round(sec / 60)} min ago`;
+    if (sec < 5400) return '1 hr ago';
+    if (sec < 86400) return `${Math.round(sec / 3600)} hr ago`;
+    return `${Math.round(sec / 86400)} d ago`;
+}
+
+async function _markNotifRead(nid) {
+    try { await fetch(`/api/notifications/${nid}/read`, { method: 'POST' }); } catch {}
+}
+
+// Render the red pill next to "Work Orders" in the sidebar. Hidden when 0.
+// Writes the count into the DOM so the next poll response can verify it.
+function _renderNotifBadge() {
+    const el = document.getElementById('navWoNotifBadge');
+    if (!el) return;
+    const n = Math.max(0, _notifUnreadTotal | 0);
+    if (n > 0) {
+        el.textContent = n > 99 ? '99+' : String(n);
+        el.style.display = '';
+    } else {
+        el.style.display = 'none';
+        el.textContent = '';
+    }
+}
+
+function _dismissNotif(el, nid, markRead=true) {
+    if (!el || el._dismissed) return;
+    el._dismissed = true;
+    if (el._timer) clearTimeout(el._timer);
+    el.classList.add('leave');
+    el.classList.remove('enter');
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 280);
+    if (markRead && nid) {
+        _markNotifRead(nid);
+        // Snappy UX: decrement the sidebar badge immediately rather than
+        // waiting for the next poll to reflect server state.
+        if (_notifUnreadTotal > 0) {
+            _notifUnreadTotal -= 1;
+            _renderNotifBadge();
+        }
+    }
+}
+
+function _openNotif(item, el) {
+    if (el) _dismissNotif(el, item.id, true);
+    if (item.wo_number) {
+        if (typeof showSingleWorkOrder === 'function') {
+            showSingleWorkOrder(item.wo_number);
+        } else {
+            window.location.href = `/workorders/${encodeURIComponent(item.wo_number)}`;
+        }
+    }
+}
+
+function _renderNotif(item) {
+    const container = document.getElementById('wmNotifContainer');
+    if (!container) return;
+    // Dedup: if a card for this id is already rendered (e.g. tab refresh
+    // while the same toast was still on-screen), skip.
+    if (container.querySelector(`[data-notif-id="${item.id}"]`)) return;
+
+    const meta = NOTIF_KIND_META[item.kind] || { icon: '•', label: item.kind || 'update' };
+    const card = document.createElement('div');
+    card.className = 'wm-notif';
+    card.dataset.kind = item.kind || '';
+    card.dataset.notifId = item.id;
+    card.setAttribute('role', 'alert');
+    card.innerHTML = `
+        <div class="wm-notif-icon" aria-hidden="true">${meta.icon}</div>
+        <div class="wm-notif-title"></div>
+        <button type="button" class="wm-notif-close" aria-label="Dismiss">×</button>
+        <div class="wm-notif-body"></div>
+        <div class="wm-notif-foot">
+            <span class="wm-notif-actor"></span>
+            <span>•</span>
+            <span class="wm-notif-time"></span>
+        </div>
+    `;
+    card.querySelector('.wm-notif-title').textContent = item.title || '(update)';
+    card.querySelector('.wm-notif-body').textContent  = item.body || '';
+    card.querySelector('.wm-notif-actor').textContent = item.actor || '';
+    card.querySelector('.wm-notif-time').textContent  = _relativeTime(item.created_at);
+
+    // Newest on top
+    container.insertBefore(card, container.firstChild);
+    // Trigger slide-in on next frame so the initial translateX takes effect
+    requestAnimationFrame(() => { card.classList.add('enter'); });
+
+    // Click body → navigate; ✕ → dismiss only
+    card.addEventListener('click', (e) => {
+        if (e.target.closest('.wm-notif-close')) return;
+        _openNotif(item, card);
+    });
+    card.querySelector('.wm-notif-close').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _dismissNotif(card, item.id, true);
+    });
+    card._timer = setTimeout(() => _dismissNotif(card, item.id, true), NOTIF_AUTODISMISS_MS);
+}
+
+async function _pollNotifications() {
+    try {
+        const res = await fetch(`/api/notifications/unread?since=${_notifSinceId}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        let items = Array.isArray(data.items) ? data.items : [];
+        // Server returns DESC (newest first). Reverse so we render oldest
+        // first and the newest ends up on top after we insertBefore.
+        items = items.slice().reverse();
+        if (_notifFirstPoll) {
+            // Cap the initial batch so a user logging in after a busy day
+            // doesn't get buried. The oldest items past the cap are silently
+            // advanced past — they remain unread on the server (so a future
+            // bell / inbox can still surface them).
+            if (items.length > NOTIF_INITIAL_CAP) {
+                items = items.slice(-NOTIF_INITIAL_CAP);
+            }
+            _notifFirstPoll = false;
+        }
+        items.forEach((it, i) => {
+            // Stagger so they cascade instead of stacking instantly
+            setTimeout(() => _renderNotif(it), i * 180);
+        });
+        if (typeof data.max_id === 'number' && data.max_id > _notifSinceId) {
+            _notifSinceId = data.max_id;
+        }
+        // Server is the source of truth for the unread total — overwrite
+        // whatever our local optimistic decrement had, so refreshes /
+        // tab-switches don't leave the badge stuck.
+        if (typeof data.unread_total === 'number') {
+            _notifUnreadTotal = data.unread_total;
+            _renderNotifBadge();
+        }
+    } catch {
+        /* network hiccup — next poll will retry */
+    }
+}
+
+// Mark-all-read button hook (exposed for a future inbox). Resets the badge.
+async function readAllNotifications() {
+    try {
+        await fetch('/api/notifications/read-all', { method: 'POST' });
+        _notifUnreadTotal = 0;
+        _renderNotifBadge();
+    } catch {}
+}
+
+function startNotificationPoller() {
+    if (_notifTimer) clearInterval(_notifTimer);
+    // Kick off immediately, then every NOTIF_POLL_MS
+    _pollNotifications();
+    _notifTimer = setInterval(_pollNotifications, NOTIF_POLL_MS);
+}
+
+function stopNotificationPoller() {
+    if (_notifTimer) { clearInterval(_notifTimer); _notifTimer = null; }
+}
 
 // Light-weight check that just pulls the global flag so the WO page banner
 // can reflect the current state without requiring the settings modal to open.

@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.4'
+APP_VERSION = '1.6.5'
 
 app = Flask(__name__)
 
@@ -956,6 +956,32 @@ def migrate_v31(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_woa_note ON work_order_attachments(note_id)")
 
 
+def migrate_v33(conn):
+    """In-app notifications table. Rows are created per-recipient-per-event:
+    the assigned salesperson and the originator each get their own row for
+    every note, photo, state change, or edit on a work order they're watching
+    (the actor is excluded). Frontend polls /api/notifications/unread and
+    cascades them down the right side of the window as toasts. read_at is
+    NULL until the user clicks, dismisses, or the auto-dismiss timer fires."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            work_order_id INTEGER,
+            wo_number TEXT,
+            kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT DEFAULT '',
+            actor TEXT DEFAULT '',
+            read_at TIMESTAMP DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read_at, id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_created ON notifications(created_at)")
+
+
 def migrate_v32(conn):
     """Introduce the `setup_complete` app setting that gates the first-run
     setup wizard. Fresh installs — where the seeded admin still has the
@@ -1021,6 +1047,7 @@ MIGRATIONS = [
     (30, migrate_v30),
     (31, migrate_v31),
     (32, migrate_v32),
+    (33, migrate_v33),
 ]
 
 
@@ -1978,6 +2005,81 @@ def setup_complete():
         return jsonify({'error': 'The default admin password is still in use — complete step 1 first.'}), 400
     conn = get_db()
     _set_setting(conn, 'setup_complete', True)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════
+#  NOTIFICATIONS API (in-app toasts)
+# ══════════════════════════════════════════
+
+@app.route('/api/notifications/unread', methods=['GET'])
+@login_required
+def list_unread_notifications():
+    """Poll endpoint driving the right-side toast cascade. Returns up to 20
+    unread notifications for the current user, newest first. The optional
+    `since` query param lets the frontend fetch only rows with id > since
+    so the poller doesn't keep re-receiving the same items every 20 s."""
+    try:
+        since = int(request.args.get('since', 0) or 0)
+    except ValueError:
+        since = 0
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, work_order_id, wo_number, kind, title, body, actor, created_at "
+        "FROM notifications "
+        "WHERE user_id = ? AND read_at IS NULL AND id > ? "
+        "ORDER BY id DESC LIMIT 20",
+        (current_user.id, since)
+    ).fetchall()
+    # max_id is the highest id the server has for this user (regardless of
+    # read state) — the client uses it as the next `since` baseline so
+    # already-seen toasts don't keep re-popping up on subsequent polls.
+    max_row = conn.execute(
+        "SELECT MAX(id) AS max_id FROM notifications WHERE user_id = ?",
+        (current_user.id,)
+    ).fetchone()
+    # Total unread drives the sidebar badge. We want it to reflect ALL unread
+    # for this user (not just the delta > since) so the badge count stays
+    # accurate across polls even when no new items arrived.
+    total_row = conn.execute(
+        "SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND read_at IS NULL",
+        (current_user.id,)
+    ).fetchone()
+    conn.close()
+    max_id = (max_row and max_row['max_id']) or 0
+    unread_total = (total_row and total_row['c']) or 0
+    return jsonify({
+        'items': [dict(r) for r in rows],
+        'max_id': max_id,
+        'unread_total': unread_total,
+    })
+
+
+@app.route('/api/notifications/<int:nid>/read', methods=['POST'])
+@login_required
+def mark_notification_read(nid):
+    conn = get_db()
+    conn.execute(
+        "UPDATE notifications SET read_at = CURRENT_TIMESTAMP "
+        "WHERE id = ? AND user_id = ? AND read_at IS NULL",
+        (nid, current_user.id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    conn = get_db()
+    conn.execute(
+        "UPDATE notifications SET read_at = CURRENT_TIMESTAMP "
+        "WHERE user_id = ? AND read_at IS NULL",
+        (current_user.id,)
+    )
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -3959,6 +4061,112 @@ def _is_wo_sales_person(user, wo_row):
     return sp == dn or sp == un
 
 
+def _resolve_wo_watcher_ids(conn, wo_row, exclude_user_id=None, include_thread_authors=True):
+    """Return a list of user ids that should be notified about changes to
+    this work order. Watchers are:
+      • the originator (created_by_user_id),
+      • the assigned salesperson (resolved from the free-text sales_person
+        column by display_name or username),
+      • and every user who has authored a note or reply on this work order's
+        thread — anyone who engaged stays in the loop for later updates.
+    Deduped; the current actor's id (when passed) is removed so users never
+    toast themselves."""
+    ids = []
+    seen = set()
+
+    def _add(uid):
+        if uid is None:
+            return
+        try:
+            uid = int(uid)
+        except (TypeError, ValueError):
+            return
+        if exclude_user_id is not None and uid == exclude_user_id:
+            return
+        if uid in seen:
+            return
+        seen.add(uid)
+        ids.append(uid)
+
+    # Originator
+    try:
+        _add(wo_row['created_by_user_id'])
+    except (KeyError, IndexError, TypeError):
+        pass
+    # Salesperson — resolve via display_name / username, preferring users
+    # flagged is_sales_person=1.
+    try:
+        sp_name = (wo_row['sales_person'] or '').strip()
+    except (KeyError, IndexError, TypeError):
+        sp_name = ''
+    if sp_name:
+        row = conn.execute(
+            "SELECT id FROM users WHERE active = 1 AND is_sales_person = 1 "
+            "AND (LOWER(display_name) = LOWER(?) OR LOWER(username) = LOWER(?)) LIMIT 1",
+            (sp_name, sp_name)
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                "SELECT id FROM users WHERE active = 1 "
+                "AND (LOWER(display_name) = LOWER(?) OR LOWER(username) = LOWER(?)) LIMIT 1",
+                (sp_name, sp_name)
+            ).fetchone()
+        if row:
+            _add(row['id'])
+
+    # Thread participants — anyone who has ever authored a note on this WO.
+    # This keeps teammates who joined a conversation in the loop for future
+    # updates even if they aren't the originator or salesperson.
+    if include_thread_authors:
+        try:
+            wo_id = wo_row['id']
+        except (KeyError, IndexError, TypeError):
+            wo_id = None
+        if wo_id is not None:
+            rows = conn.execute(
+                "SELECT DISTINCT author_user_id FROM work_order_notes "
+                "WHERE work_order_id = ? AND author_user_id IS NOT NULL",
+                (wo_id,)
+            ).fetchall()
+            for r in rows:
+                _add(r['author_user_id'])
+    return ids
+
+
+def _notify_wo_event(conn, wo_row, actor_user_id, kind, title, body='', actor_name=None):
+    """Insert one notification row per recipient for a work-order event.
+    Best-effort — any exception is swallowed and logged so a DB hiccup here
+    never breaks the underlying action (adding the note, changing status,
+    etc.). The commit is left to the caller alongside its own writes."""
+    try:
+        recipients = _resolve_wo_watcher_ids(conn, wo_row, exclude_user_id=actor_user_id)
+        if not recipients:
+            return 0
+        wo_id = None
+        wo_num = ''
+        try:
+            wo_id = wo_row['id']
+            wo_num = wo_row['wo_number'] or ''
+        except (KeyError, IndexError, TypeError):
+            pass
+        if actor_name is None:
+            actor_name = getattr(current_user, 'display_name', None) or getattr(current_user, 'username', None) or ''
+        # Truncate body so a 2KB note doesn't blow up the toast layout
+        short_body = (body or '').strip()
+        if len(short_body) > 300:
+            short_body = short_body[:297].rstrip() + '…'
+        for uid in recipients:
+            conn.execute(
+                "INSERT INTO notifications (user_id, work_order_id, wo_number, kind, title, body, actor) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (uid, wo_id, wo_num, kind, title, short_body, actor_name)
+            )
+        return len(recipients)
+    except Exception as e:
+        app.logger.warning(f"notification insert failed for wo kind={kind}: {e}")
+        return 0
+
+
 # ══════════════════════════════════════════
 #  WORK ORDERS API
 # ══════════════════════════════════════════
@@ -4644,7 +4852,7 @@ def mark_work_order_not_deliverable(wid):
 
     conn = get_db()
     row = conn.execute(
-        "SELECT id, wo_number, status, archived_at, customer_name, vehicle, sales_person "
+        "SELECT id, wo_number, status, archived_at, customer_name, vehicle, sales_person, created_by_user_id "
         "FROM work_orders WHERE id = ?", (wid,)
     ).fetchone()
     if not row:
@@ -4666,6 +4874,9 @@ def mark_work_order_not_deliverable(wid):
         "VALUES (?, ?, ?, 'general')",
         (wid, f"Not deliverable — {reason}", author)
     )
+    _notify_wo_event(conn, row, current_user.id, 'not_deliverable',
+                     f"Work order {row['wo_number']} marked not deliverable",
+                     reason, actor_name=author)
     conn.commit()
 
     email_sent = False
@@ -4844,6 +5055,9 @@ def update_work_order(wid):
                     conn.execute("DELETE FROM work_order_part_photos WHERE id = ?", (orp['id'],))
         if change_parts:
             _log_wo_audit(conn, wid, 'edited', '; '.join(change_parts))
+        _notify_wo_event(conn, existing, current_user.id, 'edited',
+                         f"Work order {existing['wo_number']} was updated",
+                         '; '.join(change_parts) if change_parts else '')
         conn.commit()
     row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, row)
@@ -4914,6 +5128,14 @@ def set_work_order_status(wid):
                 (wid, reason, actor)
             )
         _log_wo_audit(conn, wid, 'status_changed', audit_desc)
+        if new_status == 'delivered':
+            _notify_wo_event(conn, row, current_user.id, 'delivered',
+                             f"Work order {row['wo_number']} was marked delivered",
+                             '')
+        else:
+            _notify_wo_event(conn, row, current_user.id, 'reopened',
+                             f"Work order {row['wo_number']} was reopened",
+                             f"Now {new_status}")
 
     conn.commit()
 
@@ -4963,6 +5185,9 @@ def add_work_order_note(wid):
     # Keep flag_note mirrored with the latest note
     conn.execute("UPDATE work_orders SET flag_note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (note, wid))
     _log_wo_audit(conn, wid, 'note_added', f"Flag note added: {note}")
+    _notify_wo_event(conn, row, current_user.id, 'flag_note',
+                     f"New flag note on {row['wo_number']}",
+                     note, actor_name=author)
     conn.commit()
 
     # If work order is flagged, send an email update on every new note
@@ -5132,6 +5357,12 @@ def add_general_note(wid):
     new_note_id = cur.lastrowid
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
     _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else 'Note'}: {display_note}")
+    _notify_wo_event(
+        conn, row, current_user.id,
+        'reply' if parent_id else 'note',
+        f"{'Reply' if parent_id else 'New note'} on {row['wo_number']}",
+        display_note, actor_name=author,
+    )
     conn.commit()
 
     current_email = current_user.username
@@ -5465,6 +5696,14 @@ def _update_part_field(wid, idx, updates, audit_desc, email_subject=None, email_
             (wid, history_note, _actor(), author_user_id, history_note_type)
         )
     _log_wo_audit(conn, wid, 'edited', audit_desc)
+    # Notification is gated on email_subject — same condition that triggers
+    # an outbound email. Flag/unflag events trigger; routine "pulled" events
+    # (which pass email_subject=None) stay silent.
+    if email_subject:
+        actor_uid = current_user.id if current_user.is_authenticated else None
+        _notify_wo_event(conn, row, actor_uid, 'part_flag',
+                         f"Part updated on {row['wo_number']}",
+                         audit_desc)
     conn.commit()
 
     email_sent, email_error = False, None
@@ -5710,6 +5949,10 @@ def upload_work_order_part_photo(wid, part_key):
          author)
     )
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
+    _notify_wo_event(conn, wo_row, current_user.id, 'photo',
+                     f"Photo{'s' if len(saved_ids) > 1 else ''} added to {wo_row['wo_number']}",
+                     f"Part: {part_desc}" + (f" — {comment}" if comment else ''),
+                     actor_name=author)
     conn.commit()
 
     # Email the salesperson with the photo(s) attached
