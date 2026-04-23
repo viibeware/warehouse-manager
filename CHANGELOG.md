@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.2
+- <strong>Modals and overlays no longer stutter on integrated graphics</strong> — Removed <code>backdrop-filter: blur()</code> from the modal overlay, the per-modal "busy" spinner overlay, and the bulk-progress overlay. Full-viewport backdrop blur forces the compositor to read back and re-blur the framebuffer every frame, which Intel/iGPU shared-memory setups handle badly (Safari on Apple Silicon and discrete GPUs have a fast path, so the issue didn't show up there). Overlays are now solid translucent fills (<code>rgba(0,0,0,0.72)</code> for modals, <code>92%</code> card-colour for the in-modal busy layer) — visually very similar, but modals open smoothly on shop-floor hardware.
+
 ## v1.6.1
 - <strong>Quieter tooltip scrollbar</strong> — The Work Orders <code>?</code> tooltip hides its scrollbar track (Firefox <code>scrollbar-width: none</code> + WebKit <code>::-webkit-scrollbar { display: none }</code>) so the floating panel reads as clean even when the content runs long. Wheel, touch, and keyboard scrolling still work; the 70 vh height cap is unchanged.
 
