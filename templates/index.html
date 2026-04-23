@@ -7484,11 +7484,17 @@ async function submitGeneralNote() {
         _setNoteModalBusy(false);
         closeModal('woGeneralNoteModal');
         // Email + in-app notifications are deferred 15 s so the author has
-        // an undo window. The actual send happens on a server-side Timer;
-        // we just tell the user what to expect.
+        // an undo window. The "15s to delete" hint is only useful for
+        // drive-by editors who don't own the WO — originator, salesperson,
+        // admin, and supervisor already know the drill (and retain unlimited
+        // delete authority anyway), so we drop the hint for them. The server
+        // computes the privileged flag since it's the one that knows the
+        // salesperson/originator relationships.
         const delay = data.delivery_delay_seconds || 15;
         let msg = parentId ? 'Reply posted' : 'Note posted';
-        msg += ` — ${delay}s to delete before notifications send`;
+        if (!data.privileged_author) {
+            msg += ` — ${delay}s to delete before notifications send`;
+        }
         if (attachError) msg += ` — ${attachError}`;
         showToast(msg, attachError ? 'error' : 'success');
         if (currentWoView) await loadWorkOrders();

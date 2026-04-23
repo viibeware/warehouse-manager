@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.6'
+APP_VERSION = '1.6.7'
 
 app = Flask(__name__)
 
@@ -4091,6 +4091,34 @@ def _is_wo_sales_person(user, wo_row):
     return sp == dn or sp == un
 
 
+def _is_privileged_on_wo(user, wo_row):
+    """True when the user is "close to" this work order — admin, supervisor,
+    the originator, or the assigned salesperson. Drives whichever UI affordances
+    only need to render for non-privileged users (e.g. the 15-second retraction
+    toast, which is primarily a safety valve for drive-by editors who don't
+    own the WO). Admins/supervisors already have full delete authority past
+    the window anyway; originator/salesperson are the expected voices on the
+    thread so extra hand-holding would be noise for them."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_admin', False):
+        return True
+    if getattr(user, 'role', '') == 'supervisor':
+        return True
+    if wo_row is None:
+        return False
+    try:
+        originator_id = wo_row['created_by_user_id']
+    except (KeyError, IndexError, TypeError):
+        originator_id = None
+    try:
+        if originator_id is not None and int(originator_id) == int(getattr(user, 'id', -1)):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return _is_wo_sales_person(user, wo_row)
+
+
 def _resolve_wo_watcher_ids(conn, wo_row, exclude_user_id=None, include_thread_authors=True):
     """Return a list of user ids that should be notified about changes to
     this work order. Watchers are:
@@ -5260,6 +5288,7 @@ def add_work_order_note(wid):
         'note_id': new_note_id,
         'email_after': email_after,
         'delivery_delay_seconds': NOTE_DELIVERY_DELAY_SECONDS,
+        'privileged_author': _is_privileged_on_wo(current_user, row),
     })
 
 
@@ -5523,6 +5552,7 @@ def add_general_note(wid):
         'note_id': new_note_id,
         'email_after': email_after,
         'delivery_delay_seconds': NOTE_DELIVERY_DELAY_SECONDS,
+        'privileged_author': _is_privileged_on_wo(current_user, row),
     })
 
 

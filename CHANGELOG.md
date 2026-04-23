@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.7
+- <strong>Quieter "15 s to delete" hint for privileged users</strong> — The post-note toast suffix "— 15s to delete before notifications send" now only appears for drive-by editors. Admins, supervisors, the WO originator, and the assigned salesperson just see "Note posted" / "Reply posted" without the timing coaching — they already know the drill and (in the case of admins + supervisors) keep unlimited delete authority past the window anyway. Server returns a <code>privileged_author</code> flag from <code>POST /api/work-orders/&lt;id&gt;/general-notes</code> so the frontend doesn't have to re-derive the role relationships.
+
 ## v1.6.6
 - <strong>Not-deliverable is now a pending state, not an instant archive</strong> — Marking a WO not deliverable no longer files it away immediately. It keeps the WO in the active list with a pale-red tint, a "Not Delivered" badge, and starts collapsed; the existing 23:00 auto-archive sweep rolls it into the archive along with the day's delivered WOs. New column <code>was_not_deliverable</code> (migration v34) latches when the flag is set so the badge + tint survive into the archive view.
 - <strong>Pending WOs sort to the bottom of the active list</strong> — Both delivered-pending and not-deliverable-pending cards sort below everything else regardless of the user's chosen sort, so the top of the list is always live work.
