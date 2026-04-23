@@ -1105,6 +1105,15 @@ body {
 .wo-card.delivered-pending:hover {
     background: color-mix(in srgb, var(--bg-card-hover) 75%, #86efac 25%);
 }
+/* Not-deliverable-but-still-in-active tint: pale red. Same "pending archival
+   at 23:00" shape as delivered-pending; distinct colour so editors can see
+   at a glance which pending state a card is in. */
+.wo-card.not-deliverable-pending {
+    background: color-mix(in srgb, var(--bg-card) 78%, #fca5a5 22%);
+}
+.wo-card.not-deliverable-pending:hover {
+    background: color-mix(in srgb, var(--bg-card-hover) 78%, #fca5a5 22%);
+}
 /* Mark-Delivered pulse: stronger green flash that settles into the delivered-pending green */
 .wo-card.flash-delivered {
     animation: flashDeliveredPulse 1200ms ease-out forwards;
@@ -3723,7 +3732,28 @@ async function saveGlobalNotifications(enabled) {
 function updateNotificationsBanner(globalEnabled) {
     const banner = document.getElementById('woNotifsBanner');
     if (!banner) return;
-    banner.style.display = globalEnabled ? 'none' : '';
+    // Track the current state so the "email not sent" toasts elsewhere can
+    // skip themselves when globally off (editors shouldn't be scolded about
+    // undelivered emails when an admin is the one who turned it off).
+    window._globalNotifsEnabled = !!globalEnabled;
+    // Only admins see the "globally disabled" banner — editors/viewers don't
+    // need the noise since they can't do anything about it anyway.
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    banner.style.display = (!globalEnabled && isAdmin) ? '' : 'none';
+}
+
+// "email not sent" suffix for success toasts. Returns an empty string when
+// the global notifications setting is known to be OFF — scolding editors
+// about an email that was intentionally suppressed at the admin level is
+// confusing. Fail-loud: if we haven't loaded the state yet we still show
+// the suffix.
+function _emailNotSentSuffix(email_error) {
+    if (!email_error) return '';
+    if (window._globalNotifsEnabled === false) return '';
+    // 'notifications_disabled' is the server-side signal for the same
+    // condition — filter it explicitly too for older responses.
+    if (email_error === 'notifications_disabled') return '';
+    return ` — email not sent (${email_error})`;
 }
 
 function switchSettingsTab(tab, btn) {
@@ -4075,6 +4105,23 @@ function startNotificationPoller() {
 function stopNotificationPoller() {
     if (_notifTimer) { clearInterval(_notifTimer); _notifTimer = null; }
 }
+
+// Tick-sweep the DOM once a second and disable any note-delete buttons whose
+// 15-second retraction window has closed. Attribute-driven so it works for
+// cards inserted by any render path (list load, live-pulse refresh, single-WO
+// view, new-note append). Once disabled we strip the attribute so the button
+// stops being re-examined — O(N) per tick, where N is typically 0-1.
+setInterval(() => {
+    const now = Date.now();
+    document.querySelectorAll('.wo-note-delete-btn[data-expires-at]').forEach(btn => {
+        const t = parseInt(btn.dataset.expiresAt, 10);
+        if (!t || now >= t) {
+            btn.disabled = true;
+            btn.removeAttribute('data-expires-at');
+            btn.title = 'The 15-second retraction window has passed — only an admin can delete this note now.';
+        }
+    });
+}, 1000);
 
 // Light-weight check that just pulls the global flag so the WO page banner
 // can reflect the current state without requiring the settings modal to open.
@@ -6162,7 +6209,11 @@ function renderWorkOrderCard(wo) {
         : '';
     const isArchived = !!wo.archived_at;
     const isDeliveredPending = wo.status === 'delivered' && !isArchived;
-    const readOnly = isArchived || isDeliveredPending;
+    // Not-deliverable-pending: marked not deliverable earlier today, awaiting
+    // the 23:00 archive sweep. Treated the same as delivered-pending for
+    // read-only behaviour — the WO is effectively done, just not filed yet.
+    const isNotDeliverablePending = !!wo.was_not_deliverable && !isArchived;
+    const readOnly = isArchived || isDeliveredPending || isNotDeliverablePending;
     const notesThreadBlock = renderWorkOrderNotesThread(wo, !readOnly);
 
     // ── Delete button gating ────────────────────────────────────────
@@ -6270,17 +6321,23 @@ function renderWorkOrderCard(wo) {
                 <button class="table-btn" title="View the change history for this work order" onclick="openAuditModal(${wo.id})">Audit Trail</button>
                </div>`
             : '');
-    // Only tint the card in the active list; archive stays neutral
-    // Tint: priority color for active (not archive); delivered-pending overrides to pale green
+    // Only tint the card in the active list; archive stays neutral.
+    // Tint precedence: delivered-pending (green) > not-deliverable-pending (red)
+    //   > priority tint. Pending states override the priority colour so the
+    //   "done but not filed" signal is unmissable.
     const isDeliveredPendingCard = wo.status === 'delivered' && !wo.archived_at;
-    const prioColor = (currentWoView === 'archive' || isDeliveredPendingCard) ? '' : _priorityColor(wo.priority);
+    const isNotDeliverablePendingCard = !!wo.was_not_deliverable && !wo.archived_at;
+    const prioColor = (currentWoView === 'archive' || isDeliveredPendingCard || isNotDeliverablePendingCard) ? '' : _priorityColor(wo.priority);
     let cardCls = 'wo-card';
     if (prioColor) cardCls += ' has-priority-color';
     if (isDeliveredPendingCard) cardCls += ' delivered-pending';
-    // Delivered cards start collapsed. Archive view always starts every card
-    // collapsed regardless of status — the archive is for browsing, not
-    // working, so we open them only on demand.
-    const startCollapsed = wo.status === 'delivered' || currentWoView === 'archive';
+    if (isNotDeliverablePendingCard) cardCls += ' not-deliverable-pending';
+    // Delivered + not-deliverable pending cards start collapsed (users came
+    // here to work the active queue; these are done). Archive view always
+    // starts every card collapsed regardless of status.
+    const startCollapsed = wo.status === 'delivered'
+        || isNotDeliverablePendingCard
+        || currentWoView === 'archive';
     if (startCollapsed) cardCls += ' wo-collapsed';
     const cardStyle = prioColor ? `style="--prio-color:${prioColor};"` : '';
     const collapseToggle = `<button class="wo-collapse-btn" title="Expand / collapse"
@@ -6299,7 +6356,9 @@ function renderWorkOrderCard(wo) {
                 <span class="wo-card-top-right">
                     <span class="wo-status-badge ${wo.status}">${wo.status}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
-                    ${(isArchived && !wo.was_delivered) ? `<span class="wo-not-delivered-badge" title="Archived without being marked delivered">Not Delivered</span>` : ''}
+                    ${(isArchived && !wo.was_delivered) || isNotDeliverablePendingCard
+                        ? `<span class="wo-not-delivered-badge" title="${isNotDeliverablePendingCard ? 'Marked not deliverable — archives tonight at 23:00' : 'Archived without being marked delivered'}">Not Delivered</span>`
+                        : ''}
                     ${collapseToggle}
                 </span>
             </div>
@@ -6588,9 +6647,9 @@ async function submitNotDeliverable() {
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Failed', 'error'); return; }
         closeModal('woNotDeliverableModal');
-        let msg = 'Marked not deliverable — archived';
+        let msg = 'Marked not deliverable — archives tonight';
         if (data.email_sent) msg += ' — salesperson emailed';
-        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        else msg += _emailNotSentSuffix(data.email_error);
         showToast(msg, 'success');
         if (currentWoView) await loadWorkOrders();
         loadWoCounts();
@@ -6621,6 +6680,10 @@ function renderWorkOrderNotesThread(wo, canReply) {
     roots.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
     const currentUid = currentUserData && currentUserData.id;
+    // Retraction window: authors can delete their own notes for 15 s after
+    // posting (matches the backend NOTE_DELIVERY_DELAY_SECONDS). After the
+    // window closes the button greys out; admins keep their unlimited delete.
+    const NOTE_RETRACTION_MS = 15000;
     const noteHtml = n => {
         // JSON-encode the preview for the onclick attribute so quotes are safe.
         const preview = `${n.author || ''} • ${_fmtNoteTime(n.created_at)}\n${n.note || ''}`;
@@ -6633,7 +6696,17 @@ function renderWorkOrderNotesThread(wo, canReply) {
         const hasForeignReply = !isReply && (childMap.get(n.id) || [])
             .some(r => r.author_user_id !== currentUid);
         const canEdit = isAdmin || isAuthor;
-        const canDelete = isAdmin || (isAuthor && !hasForeignReply);
+        // Parse created_at as UTC so age comparisons match backend semantics.
+        const createdIso = (n.created_at || '').includes('T')
+            ? n.created_at
+            : (n.created_at || '').replace(' ', 'T');
+        const createdMs = createdIso ? new Date(createdIso + (createdIso.endsWith('Z') ? '' : 'Z')).getTime() : 0;
+        const withinRetraction = createdMs && (Date.now() - createdMs) < NOTE_RETRACTION_MS;
+        const canAuthorDelete = isAuthor && !hasForeignReply && withinRetraction;
+        const canDelete = isAdmin || canAuthorDelete;
+        // Show the disabled state for authors whose window has passed so they
+        // see why the button is there but inert (rather than it disappearing).
+        const showDisabledDelete = !canDelete && isAuthor && !hasForeignReply;
         const replyTarget = n.parent_id || n.id;
 
         const replyBtn = canReply
@@ -6642,9 +6715,17 @@ function renderWorkOrderNotesThread(wo, canReply) {
         const editBtn = canEdit
             ? `<button type="button" class="wo-note-edit-btn" onclick="openEditNoteModal(${wo.id}, ${n.id}, ${textAttr}); event.stopPropagation();" title="Edit this note">Edit</button>`
             : '';
-        const deleteBtn = canDelete
-            ? `<button type="button" class="wo-note-delete-btn" onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note${!isReply && isAdmin ? ' (also removes replies)' : ''}">Delete</button>`
-            : '';
+        let deleteBtn = '';
+        if (canDelete) {
+            // data-expires-at lets a timer flip the button to disabled when
+            // the retraction window closes without re-rendering the card.
+            const expiresAttr = (!isAdmin && withinRetraction)
+                ? ` data-expires-at="${createdMs + NOTE_RETRACTION_MS}"`
+                : '';
+            deleteBtn = `<button type="button" class="wo-note-delete-btn"${expiresAttr} onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note${!isReply && isAdmin ? ' (also removes replies)' : (!isAdmin && withinRetraction ? ' — available for 15 s after posting' : '')}">Delete</button>`;
+        } else if (showDisabledDelete) {
+            deleteBtn = `<button type="button" class="wo-note-delete-btn" disabled title="The 15-second retraction window has passed — only an admin can delete this note now.">Delete</button>`;
+        }
         const cls = ['wo-note'];
         if (isReply) cls.push('wo-note-reply');
         const actions = [replyBtn, editBtn, deleteBtn].filter(Boolean).join('');
@@ -6826,7 +6907,7 @@ async function submitWorkOrderPartPhoto() {
         closeModal('woPartPhotoModal');
         let msg = 'Photo uploaded';
         if (data.email_sent) msg += ' — email sent';
-        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        else msg += _emailNotSentSuffix(data.email_error);
         showToast(msg, 'success');
         const wo = data.work_order || data;
         if (false) {  // detail modal removed; kept branch harmless
@@ -7402,13 +7483,12 @@ async function submitGeneralNote() {
 
         _setNoteModalBusy(false);
         closeModal('woGeneralNoteModal');
-        let msg = parentId ? 'Reply sent' : 'Note added';
-        if (data.email_sent) {
-            const n = (data.email_recipients || []).length;
-            msg += ` — email sent${n ? ` to ${n} recipient${n === 1 ? '' : 's'}` : ''}`;
-        } else if (data.email_error && data.email_error !== 'no_recipients') {
-            msg += ` — email not sent (${data.email_error})`;
-        }
+        // Email + in-app notifications are deferred 15 s so the author has
+        // an undo window. The actual send happens on a server-side Timer;
+        // we just tell the user what to expect.
+        const delay = data.delivery_delay_seconds || 15;
+        let msg = parentId ? 'Reply posted' : 'Note posted';
+        msg += ` — ${delay}s to delete before notifications send`;
         if (attachError) msg += ` — ${attachError}`;
         showToast(msg, attachError ? 'error' : 'success');
         if (currentWoView) await loadWorkOrders();
@@ -7453,9 +7533,9 @@ async function deleteWorkOrderNote(wid, noteId, isRoot) {
     const isAdmin = currentUserData && currentUserData.role === 'admin';
     const body = isRoot
         ? (isAdmin
-            ? 'Delete this note? Any replies to it will be deleted too, and the matching entries will be removed from the audit log.'
-            : 'Delete this note? The matching entry in the audit log will be removed too.')
-        : 'Delete this reply? The matching entry in the audit log will be removed too.';
+            ? 'Delete this note? Any replies to it will be deleted too.'
+            : 'Delete this note?')
+        : 'Delete this reply?';
     const ok = await openWoConfirm({
         title: 'Delete Note',
         body,
@@ -7528,7 +7608,7 @@ async function markDelivered(wid) {
         }
         let msg = 'Marked delivered';
         if (data.email_sent) msg += ' — email sent';
-        else if (data.email_error) msg += ` — email not sent (${data.email_error})`;
+        else msg += _emailNotSentSuffix(data.email_error);
         showToast(msg, 'success');
         if (false) {  // detail modal removed; kept branch harmless
             renderWorkOrderDetail(data.work_order);

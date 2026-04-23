@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.5'
+APP_VERSION = '1.6.6'
 
 app = Flask(__name__)
 
@@ -956,6 +956,35 @@ def migrate_v31(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_woa_note ON work_order_attachments(note_id)")
 
 
+def migrate_v34(conn):
+    """Two unrelated additions bundled so they share a single migration:
+
+    (a) work_orders.was_not_deliverable — latches ON when a WO is marked
+        not-deliverable. Previously the endpoint archived the WO immediately
+        (so was_archived+was_delivered=0 was the implicit signal). Now the
+        archival is deferred to 23:00 (same as delivered), so we need an
+        explicit latch that survives through to archival — it drives the
+        "not-deliverable pending" tint + card sort bottom-anchoring.
+
+    (b) work_order_notes.email_after / deleted_at — supports the 15-second
+        delete window and delayed email. A Timer scheduled in the worker
+        that posted the note re-reads the row at email_after time; if
+        deleted_at is set (or the row is gone), it skips the email and the
+        notification fan-out."""
+    try:
+        conn.execute("ALTER TABLE work_orders ADD COLUMN was_not_deliverable INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE work_order_notes ADD COLUMN email_after TIMESTAMP DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE work_order_notes ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL")
+    except Exception:
+        pass
+
+
 def migrate_v33(conn):
     """In-app notifications table. Rows are created per-recipient-per-event:
     the assigned salesperson and the originator each get their own row for
@@ -1048,6 +1077,7 @@ MIGRATIONS = [
     (31, migrate_v31),
     (32, migrate_v32),
     (33, migrate_v33),
+    (34, migrate_v34),
 ]
 
 
@@ -4180,13 +4210,25 @@ def _compute_archive_after():
 
 
 def _auto_archive_sweep(conn):
-    """Archive delivered work orders whose archive_after threshold has passed.
+    """Archive two kinds of pending work orders whose archive_after threshold
+    has passed: (1) delivered — completed WOs awaiting the 23:00 sweep, and
+    (2) not-deliverable — WOs an editor marked not-deliverable earlier in
+    the day that are ready to move out of the active list.
     Called lazily at the top of list/count queries so no background process is needed."""
     from datetime import datetime
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # Delivered → archive.
     conn.execute(
         "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1 "
         "WHERE status = 'delivered' AND archived_at IS NULL "
+        "AND archive_after IS NOT NULL AND archive_after <= ?",
+        (now_str,)
+    )
+    # Not-deliverable pending → archive. was_not_deliverable latched earlier
+    # so the "Not Delivered" badge keeps showing post-archive.
+    conn.execute(
+        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1 "
+        "WHERE was_not_deliverable = 1 AND archived_at IS NULL "
         "AND archive_after IS NOT NULL AND archive_after <= ?",
         (now_str,)
     )
@@ -4455,7 +4497,18 @@ def list_work_orders():
     except (TypeError, ValueError):
         offset = 0
 
-    base_sql = f"SELECT * FROM work_orders {where} ORDER BY {sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}"
+    # In the active list, pending-archive WOs (delivered or not-deliverable,
+    # both awaiting the 23:00 sweep) always sort to the bottom regardless of
+    # the user's chosen sort. Archive view is untouched — everything in there
+    # is already archived so the pending concept doesn't apply.
+    pending_rank = ("CASE WHEN archived_at IS NULL "
+                    "AND (status = 'delivered' OR was_not_deliverable = 1) "
+                    "THEN 1 ELSE 0 END") if not archived else "0"
+    base_sql = (
+        f"SELECT * FROM work_orders {where} "
+        f"ORDER BY {pending_rank} ASC, "
+        f"{sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}"
+    )
 
     if limit is None:
         rows = conn.execute(base_sql, params).fetchall()
@@ -4841,10 +4894,12 @@ def upload_note_attachments(wid, note_id):
 @app.route('/api/work-orders/<int:wid>/not-deliverable', methods=['POST'])
 @editor_required
 def mark_work_order_not_deliverable(wid):
-    """Mark a work order as not deliverable: requires a reason, archives the
-    WO immediately (was_delivered stays 0 so the 'Not Delivered' badge shows),
-    logs the reason into the audit trail + notes thread, and emails the
-    salesperson so they know why the order is being closed."""
+    """Mark a work order as not deliverable: requires a reason, schedules it
+    for archival at 23:00 local (same auto-sweep as delivered), logs the
+    reason into the audit trail + notes thread, and emails the salesperson
+    so they know the order is being closed. was_not_deliverable latches ON
+    immediately so the card tints pale red and sorts to the bottom of the
+    active list until the sweep archives it."""
     data = request.get_json() or {}
     reason = str(data.get('reason', '') or '').strip()
     if not reason:
@@ -4863,11 +4918,12 @@ def mark_work_order_not_deliverable(wid):
         return jsonify({'error': 'Work order is already archived'}), 400
 
     conn.execute(
-        "UPDATE work_orders SET archived_at = CURRENT_TIMESTAMP, was_archived = 1, "
-        "flag_note = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (wid,)
+        "UPDATE work_orders SET was_not_deliverable = 1, "
+        "archive_after = ?, flag_note = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (_compute_archive_after(), wid)
     )
-    _log_wo_audit(conn, wid, 'not_deliverable', f"Marked not deliverable: {reason}")
+    _log_wo_audit(conn, wid, 'not_deliverable',
+                  f"Marked not deliverable (archives at 23:00): {reason}")
     author = _actor()
     conn.execute(
         "INSERT INTO work_order_notes (work_order_id, note, author, note_type) "
@@ -5178,38 +5234,33 @@ def add_work_order_note(wid):
         return jsonify({'error': 'Not found'}), 404
 
     author = current_user.display_name or current_user.username
-    conn.execute(
-        "INSERT INTO work_order_notes (work_order_id, note, author, note_type) VALUES (?, ?, ?, 'flag')",
-        (wid, note, author)
+    from datetime import datetime, timedelta
+    email_after = (datetime.utcnow() + timedelta(seconds=NOTE_DELIVERY_DELAY_SECONDS)) \
+        .strftime('%Y-%m-%d %H:%M:%S')
+    # Set author_user_id too so the thread-author dedup in _resolve_wo_watcher_ids
+    # picks up flag-note authors. email_after is the 15 s grace window after
+    # which the delivery Timer fan-outs email + notifications.
+    cur = conn.execute(
+        "INSERT INTO work_order_notes (work_order_id, note, author, author_user_id, note_type, email_after) "
+        "VALUES (?, ?, ?, ?, 'flag', ?)",
+        (wid, note, author, current_user.id, email_after)
     )
+    new_note_id = cur.lastrowid
     # Keep flag_note mirrored with the latest note
     conn.execute("UPDATE work_orders SET flag_note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (note, wid))
     _log_wo_audit(conn, wid, 'note_added', f"Flag note added: {note}")
-    _notify_wo_event(conn, row, current_user.id, 'flag_note',
-                     f"New flag note on {row['wo_number']}",
-                     note, actor_name=author)
     conn.commit()
-
-    # If work order is flagged, send an email update on every new note
-    email_sent = False
-    email_error = None
-    if row['status'] == 'flagged':
-        sp_email = _lookup_salesperson_email(conn, row['sales_person'])
-        if sp_email:
-            subject = f"[Flagged — Update] Work Order {row['wo_number']}"
-            body = (
-                f"{_wo_header_block(row)}\n"
-                f"Vehicle: {row['vehicle']}\n"
-                f"Status: FLAGGED (new update)\n\n"
-                f"New note from {author}:\n{note}\n"
-                f"{_email_footer(row['wo_number'])}"
-            )
-            email_sent, email_error = _send_email(sp_email, subject, body)
+    _schedule_note_delivery(new_note_id, wid, is_flag_note=True)
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, new_row)
     conn.close()
-    return jsonify({'work_order': wo, 'email_sent': email_sent, 'email_error': email_error})
+    return jsonify({
+        'work_order': wo,
+        'note_id': new_note_id,
+        'email_after': email_after,
+        'delivery_delay_seconds': NOTE_DELIVERY_DELAY_SECONDS,
+    })
 
 
 def _collect_note_recipients(conn, wo_row, parent_id, current_email):
@@ -5271,6 +5322,100 @@ def _send_note_email(wo_row, author_name, note_text, parent_id, recipients, is_r
         elif err:
             last_err = err
     return last_ok, last_err
+
+
+# 15 s is the author's "oops I need to retract that" window. Emails and
+# in-app notifications for notes / replies / flag notes are held for this
+# long, then a Timer fires and re-reads the row. If the author deleted the
+# note (row gone OR deleted_at set), the delivery silently no-ops.
+NOTE_DELIVERY_DELAY_SECONDS = 15
+
+
+def _deliver_note_if_still_present(note_id, wid, is_flag_note):
+    """Timer callback. Re-reads the note; if it still exists and hasn't
+    been deleted in the grace window, sends the email + fans out in-app
+    notifications. Runs in a background thread with no request context."""
+    try:
+        conn = get_db()
+        try:
+            note = conn.execute(
+                "SELECT id, note, author, author_user_id, parent_id, note_type, created_at, deleted_at "
+                "FROM work_order_notes WHERE id = ? AND work_order_id = ?",
+                (note_id, wid)
+            ).fetchone()
+            if not note or note['deleted_at']:
+                # Author retracted within the grace window — silently drop.
+                return
+            wo_row = conn.execute(
+                "SELECT * FROM work_orders WHERE id = ?", (wid,)
+            ).fetchone()
+            if not wo_row:
+                return
+            author = note['author'] or ''
+            note_text = note['note'] or ''
+            parent_id = note['parent_id']
+            author_uid = note['author_user_id']
+
+            # In-app notifications (fan out to watchers minus the author).
+            if is_flag_note:
+                _notify_wo_event(
+                    conn, wo_row, author_uid, 'flag_note',
+                    f"New flag note on {wo_row['wo_number']}",
+                    note_text, actor_name=author,
+                )
+            else:
+                _notify_wo_event(
+                    conn, wo_row, author_uid,
+                    'reply' if parent_id else 'note',
+                    f"{'Reply' if parent_id else 'New note'} on {wo_row['wo_number']}",
+                    note_text, actor_name=author,
+                )
+            conn.commit()
+
+            # Email delivery — flag note → salesperson only; general note /
+            # reply → salesperson + any prior thread participants.
+            if is_flag_note:
+                if wo_row['status'] == 'flagged':
+                    sp_email = _lookup_salesperson_email(conn, wo_row['sales_person'])
+                    if sp_email:
+                        subject = f"[Flagged — Update] Work Order {wo_row['wo_number']}"
+                        body = (
+                            f"{_wo_header_block(wo_row)}\n"
+                            f"Vehicle: {wo_row['vehicle']}\n"
+                            f"Status: FLAGGED (new update)\n\n"
+                            f"New note from {author}:\n{note_text}\n"
+                            f"{_email_footer(wo_row['wo_number'])}"
+                        )
+                        _send_email(sp_email, subject, body)
+            else:
+                # author's email for the exclude list
+                u_row = conn.execute(
+                    "SELECT username FROM users WHERE id = ?", (author_uid,)
+                ).fetchone() if author_uid else None
+                current_email = (u_row and u_row['username']) or ''
+                recipients = _collect_note_recipients(conn, wo_row, parent_id, current_email)
+                _send_note_email(
+                    wo_row, author, note_text, parent_id, recipients,
+                    is_reply=(parent_id is not None)
+                )
+        finally:
+            conn.close()
+    except Exception as e:
+        app.logger.warning(f"deferred note delivery failed (note_id={note_id}): {e}")
+
+
+def _schedule_note_delivery(note_id, wid, is_flag_note=False):
+    """Spin up a Timer that fires NOTE_DELIVERY_DELAY_SECONDS later and
+    hands off to _deliver_note_if_still_present. Daemon so a Gunicorn
+    worker restart doesn't hang on pending timers."""
+    import threading
+    t = threading.Timer(
+        NOTE_DELIVERY_DELAY_SECONDS,
+        _deliver_note_if_still_present,
+        args=(note_id, wid, is_flag_note),
+    )
+    t.daemon = True
+    t.start()
 
 
 @app.route('/api/work-orders/<int:wid>/general-notes', methods=['POST'])
@@ -5355,21 +5500,20 @@ def add_general_note(wid):
         (wid, display_note, author, author_user_id, note_type, parent_id)
     )
     new_note_id = cur.lastrowid
+    # Defer email + in-app notifications for NOTE_DELIVERY_DELAY_SECONDS so
+    # the author has a grace window to undo. email_after is written for
+    # debuggability / future sweep fallback; the Timer is the actual driver.
+    from datetime import datetime, timedelta
+    email_after = (datetime.utcnow() + timedelta(seconds=NOTE_DELIVERY_DELAY_SECONDS)) \
+        .strftime('%Y-%m-%d %H:%M:%S')
+    conn.execute(
+        "UPDATE work_order_notes SET email_after = ? WHERE id = ?",
+        (email_after, new_note_id)
+    )
     conn.execute("UPDATE work_orders SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (wid,))
     _log_wo_audit(conn, wid, 'note_added', f"{'Reply' if parent_id else 'Note'}: {display_note}")
-    _notify_wo_event(
-        conn, row, current_user.id,
-        'reply' if parent_id else 'note',
-        f"{'Reply' if parent_id else 'New note'} on {row['wo_number']}",
-        display_note, actor_name=author,
-    )
     conn.commit()
-
-    current_email = current_user.username
-    recipients = _collect_note_recipients(conn, row, parent_id, current_email)
-    email_sent, email_error = _send_note_email(
-        row, author, display_note, parent_id, recipients, is_reply=(parent_id is not None)
-    )
+    _schedule_note_delivery(new_note_id, wid, is_flag_note=False)
 
     new_row = conn.execute("SELECT * FROM work_orders WHERE id = ?", (wid,)).fetchone()
     wo = _work_order_to_dict(conn, new_row)
@@ -5377,9 +5521,8 @@ def add_general_note(wid):
     return jsonify({
         'work_order': wo,
         'note_id': new_note_id,
-        'email_sent': email_sent,
-        'email_error': None if email_sent else (email_error or 'no_recipients'),
-        'email_recipients': recipients,
+        'email_after': email_after,
+        'delivery_delay_seconds': NOTE_DELIVERY_DELAY_SECONDS,
     })
 
 
@@ -5434,13 +5577,17 @@ def edit_work_order_note(wid, note_id):
 @app.route('/api/work-orders/<int:wid>/notes/<int:note_id>', methods=['DELETE'])
 @login_required
 def delete_work_order_note(wid, note_id):
-    """Delete a note from a work order and scrub the matching 'note_added'
-    entries from the audit log.
+    """Delete a note from a work order. The original 'note_added' audit row
+    is preserved and a matching 'note_deleted' row is appended so the audit
+    trail reads as a clean history (added → deleted) rather than a phantom
+    delete with no prior add.
       * Admins: can delete any note; if the target is a root with replies,
-        those replies (and their audit entries) are removed too.
-      * Author: can only delete their own note, and only if nobody else has
-        already replied to it (otherwise we'd be deleting someone else's
-        content). Their own replies on their own root are fine.
+        those replies are removed too.
+      * Author: can only delete their own note within the 15-second retraction
+        window (matches NOTE_DELIVERY_DELAY_SECONDS — after that the email and
+        in-app notifications have already gone out, so retraction stops being
+        meaningful) AND only if nobody else has already replied to it. Their
+        own replies on their own root are fine.
       * Everyone else: 403."""
     conn = get_db()
     note = conn.execute(
@@ -5455,11 +5602,28 @@ def delete_work_order_note(wid, note_id):
     is_admin = current_user.is_admin
     is_author = note['author_user_id'] == current_user.id
 
-    # Permission check — authors can only delete if no one else has replied.
+    # Permission check — authors can only delete within the retraction window
+    # and only if no one else has replied.
     if not is_admin:
         if not is_author:
             conn.close()
             return jsonify({'error': 'Only the author or an admin can delete this note.'}), 403
+        # Retraction window. created_at is stored as UTC — we compare to
+        # utcnow() directly. If parsing fails for any reason we fall open to
+        # the legacy behaviour rather than locking the author out of a note
+        # the backend can't date.
+        try:
+            from datetime import datetime
+            raw = (note['created_at'] or '').split('.')[0].replace('T', ' ')
+            created = datetime.strptime(raw, '%Y-%m-%d %H:%M:%S')
+            age_sec = (datetime.utcnow() - created).total_seconds()
+            if age_sec > NOTE_DELIVERY_DELAY_SECONDS:
+                conn.close()
+                return jsonify({
+                    'error': 'The 15-second retraction window has passed — only an admin can delete this note now.'
+                }), 403
+        except Exception:
+            pass
         if note['parent_id'] is None:
             has_foreign_reply = conn.execute(
                 "SELECT 1 FROM work_order_notes "
@@ -5482,21 +5646,18 @@ def delete_work_order_note(wid, note_id):
         ).fetchall()
         targets.extend(dict(r) for r in replies)
 
-    # Audit rows and note rows are inserted in the same transaction, so their
-    # created_at values match — that plus the exact description lets us pick
-    # only the audit entries that originated from the notes being deleted.
+    # Audit each deletion. We keep the original 'note_added' rows in place so
+    # the log reads as a full history: note was added at T0, deleted at T1.
+    # The confirmation dialog in the UI intentionally doesn't mention the
+    # audit log — recording still happens silently.
     for t in targets:
         if t['note_type'] == 'flag':
-            descs = [f"Flag note added: {t['note']}"]
+            desc = f"Flag note deleted: {t['note']}"
+        elif t['parent_id']:
+            desc = f"Reply deleted: {t['note']}"
         else:
-            descs = [f"Note: {t['note']}", f"Reply: {t['note']}"]
-        placeholders = ','.join('?' for _ in descs)
-        conn.execute(
-            f"DELETE FROM work_order_audit WHERE work_order_id = ? "
-            f"AND action = 'note_added' AND description IN ({placeholders}) "
-            f"AND created_at = ?",
-            (wid, *descs, t['created_at'])
-        )
+            desc = f"Note deleted: {t['note']}"
+        _log_wo_audit(conn, wid, 'note_deleted', desc)
 
     # Clean up any files attached to the notes being deleted — remove both the
     # DB rows and the on-disk files so nothing is orphaned.
