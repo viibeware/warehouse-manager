@@ -6663,6 +6663,18 @@ function renderWorkOrderNotesThread(wo, canReply) {
     const all = wo.notes_log || [];
     if (!all.length) return '';
     const isAdmin = currentUserData && currentUserData.role === 'admin';
+    // Unlimited delete: admins, plus the originator and assigned salesperson
+    // for this specific WO. They skip the 15 s retraction window, and when
+    // they delete a root with replies the replies cascade (same as admin).
+    const isOriginator = !!(currentUserData && wo.created_by_user_id
+        && currentUserData.id === wo.created_by_user_id);
+    const _norm = (s) => (s || '').toString().trim().toLowerCase();
+    const _spOnWo = _norm(wo.sales_person);
+    const isAssignedSalesPerson = !!_spOnWo && currentUserData && (
+        _spOnWo === _norm(currentUserData.display_name) ||
+        _spOnWo === _norm(currentUserData.username)
+    );
+    const hasUnlimitedDelete = isAdmin || isOriginator || isAssignedSalesPerson;
     // Group by parent: roots are notes with parent_id=null, children are replies.
     const roots = [];
     const childMap = new Map();
@@ -6703,7 +6715,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
         const createdMs = createdIso ? new Date(createdIso + (createdIso.endsWith('Z') ? '' : 'Z')).getTime() : 0;
         const withinRetraction = createdMs && (Date.now() - createdMs) < NOTE_RETRACTION_MS;
         const canAuthorDelete = isAuthor && !hasForeignReply && withinRetraction;
-        const canDelete = isAdmin || canAuthorDelete;
+        const canDelete = hasUnlimitedDelete || canAuthorDelete;
         // Show the disabled state for authors whose window has passed so they
         // see why the button is there but inert (rather than it disappearing).
         const showDisabledDelete = !canDelete && isAuthor && !hasForeignReply;
@@ -6717,14 +6729,19 @@ function renderWorkOrderNotesThread(wo, canReply) {
             : '';
         let deleteBtn = '';
         if (canDelete) {
-            // data-expires-at lets a timer flip the button to disabled when
-            // the retraction window closes without re-rendering the card.
-            const expiresAttr = (!isAdmin && withinRetraction)
+            // Only attach the retraction-window expiry marker when this user's
+            // right to delete is itself bounded by the window (i.e. plain
+            // author, no other privileges on the WO). Unlimited-delete users
+            // keep the button active forever.
+            const expiresAttr = (!hasUnlimitedDelete && withinRetraction)
                 ? ` data-expires-at="${createdMs + NOTE_RETRACTION_MS}"`
                 : '';
-            deleteBtn = `<button type="button" class="wo-note-delete-btn"${expiresAttr} onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}); event.stopPropagation();" title="Delete this note${!isReply && isAdmin ? ' (also removes replies)' : (!isAdmin && withinRetraction ? ' — available for 15 s after posting' : '')}">Delete</button>`;
+            const title = hasUnlimitedDelete
+                ? (!isReply ? 'Delete this note (also removes replies)' : 'Delete this reply')
+                : `Delete this note${withinRetraction ? ' — available for 15 s after posting' : ''}`;
+            deleteBtn = `<button type="button" class="wo-note-delete-btn"${expiresAttr} onclick="deleteWorkOrderNote(${wo.id}, ${n.id}, ${!isReply}, ${hasUnlimitedDelete}); event.stopPropagation();" title="${title}">Delete</button>`;
         } else if (showDisabledDelete) {
-            deleteBtn = `<button type="button" class="wo-note-delete-btn" disabled title="The 15-second retraction window has passed — only an admin can delete this note now.">Delete</button>`;
+            deleteBtn = `<button type="button" class="wo-note-delete-btn" disabled title="The 15-second retraction window has passed — only the originator, the assigned salesperson, or an admin can delete this note now.">Delete</button>`;
         }
         const cls = ['wo-note'];
         if (isReply) cls.push('wo-note-reply');
@@ -7535,10 +7552,12 @@ async function submitEditNote() {
     } catch { showToast('Connection error', 'error'); }
 }
 
-async function deleteWorkOrderNote(wid, noteId, isRoot) {
-    const isAdmin = currentUserData && currentUserData.role === 'admin';
+async function deleteWorkOrderNote(wid, noteId, isRoot, hasUnlimitedDelete = false) {
+    // Callers that know the user has unlimited-delete rights on this WO pass
+    // hasUnlimitedDelete=true so the dialog warns about cascading replies.
+    // Plain authors with only 15 s rights get the short prompt.
     const body = isRoot
-        ? (isAdmin
+        ? (hasUnlimitedDelete
             ? 'Delete this note? Any replies to it will be deleted too.'
             : 'Delete this note?')
         : 'Delete this reply?';

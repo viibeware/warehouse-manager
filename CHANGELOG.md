@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.8
+- <strong>Originator and assigned salesperson get unlimited note delete</strong> — Previously only admins could delete notes past the 15-second retraction window or cascade-delete a root with replies. The WO's originator and assigned salesperson now have the same authority on that specific work order: no retraction window, and deleting a root cascades its replies (same behaviour as admin). Plain authors with no other role on the WO still get only the 15-second window and only for notes without foreign replies. Both backend gates (<code>DELETE /api/work-orders/&lt;id&gt;/notes/&lt;note_id&gt;</code>) and the frontend button/dialog respect the new rules; the confirmation dialog shows the "replies will be deleted too" warning for any privileged role.
+
 ## v1.6.7
 - <strong>Quieter "15 s to delete" hint for privileged users</strong> — The post-note toast suffix "— 15s to delete before notifications send" now only appears for drive-by editors. Admins, supervisors, the WO originator, and the assigned salesperson just see "Note posted" / "Reply posted" without the timing coaching — they already know the drill and (in the case of admins + supervisors) keep unlimited delete authority past the window anyway. Server returns a <code>privileged_author</code> flag from <code>POST /api/work-orders/&lt;id&gt;/general-notes</code> so the frontend doesn't have to re-derive the role relationships.
 

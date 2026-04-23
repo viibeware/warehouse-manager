@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.7'
+APP_VERSION = '1.6.8'
 
 app = Flask(__name__)
 
@@ -5611,13 +5611,14 @@ def delete_work_order_note(wid, note_id):
     is preserved and a matching 'note_deleted' row is appended so the audit
     trail reads as a clean history (added → deleted) rather than a phantom
     delete with no prior add.
-      * Admins: can delete any note; if the target is a root with replies,
-        those replies are removed too.
-      * Author: can only delete their own note within the 15-second retraction
-        window (matches NOTE_DELIVERY_DELAY_SECONDS — after that the email and
-        in-app notifications have already gone out, so retraction stops being
-        meaningful) AND only if nobody else has already replied to it. Their
-        own replies on their own root are fine.
+      * Admins, the WO originator, and the assigned salesperson: unlimited
+        delete — no retraction window, and deleting a root with replies
+        cascades the replies too.
+      * Author (without any of the above roles on this WO): can only delete
+        their own note within the 15-second retraction window (matches
+        NOTE_DELIVERY_DELAY_SECONDS — after that the email and in-app
+        notifications have already gone out) AND only if nobody else has
+        replied. Their own replies on their own root are fine.
       * Everyone else: 403."""
     conn = get_db()
     note = conn.execute(
@@ -5629,15 +5630,25 @@ def delete_work_order_note(wid, note_id):
         conn.close()
         return jsonify({'error': 'Note not found'}), 404
 
+    # Load the bare-minimum WO row for the originator + salesperson checks.
+    wo_row = conn.execute(
+        "SELECT id, created_by_user_id, sales_person FROM work_orders WHERE id = ?",
+        (wid,)
+    ).fetchone()
+
     is_admin = current_user.is_admin
+    is_originator = bool(wo_row) and wo_row['created_by_user_id'] == current_user.id
+    is_assigned_sales = _is_wo_sales_person(current_user, wo_row)
+    # Unlimited delete (no retraction window, replies cascade).
+    unlimited = is_admin or is_originator or is_assigned_sales
     is_author = note['author_user_id'] == current_user.id
 
-    # Permission check — authors can only delete within the retraction window
-    # and only if no one else has replied.
-    if not is_admin:
+    if not unlimited:
         if not is_author:
             conn.close()
-            return jsonify({'error': 'Only the author or an admin can delete this note.'}), 403
+            return jsonify({
+                'error': 'Only the author, the originator, the assigned salesperson, or an admin can delete this note.'
+            }), 403
         # Retraction window. created_at is stored as UTC — we compare to
         # utcnow() directly. If parsing fails for any reason we fall open to
         # the legacy behaviour rather than locking the author out of a note
@@ -5650,7 +5661,7 @@ def delete_work_order_note(wid, note_id):
             if age_sec > NOTE_DELIVERY_DELAY_SECONDS:
                 conn.close()
                 return jsonify({
-                    'error': 'The 15-second retraction window has passed — only an admin can delete this note now.'
+                    'error': 'The 15-second retraction window has passed — only the originator, the assigned salesperson, or an admin can delete this note now.'
                 }), 403
         except Exception:
             pass
@@ -5664,7 +5675,7 @@ def delete_work_order_note(wid, note_id):
             if has_foreign_reply:
                 conn.close()
                 return jsonify({
-                    'error': 'This note has replies from other people — only an admin can delete it.'
+                    'error': 'This note has replies from other people — only the originator, the assigned salesperson, or an admin can delete it.'
                 }), 403
 
     targets = [dict(note)]
