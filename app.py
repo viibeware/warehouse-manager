@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.9'
+APP_VERSION = '1.6.10'
 
 app = Flask(__name__)
 
@@ -4528,14 +4528,21 @@ def list_work_orders():
     # In the active list, pending-archive WOs (delivered or not-deliverable,
     # both awaiting the 23:00 sweep) always sort to the bottom regardless of
     # the user's chosen sort. Archive view is untouched — everything in there
-    # is already archived so the pending concept doesn't apply.
-    pending_rank = ("CASE WHEN archived_at IS NULL "
-                    "AND (status = 'delivered' OR was_not_deliverable = 1) "
-                    "THEN 1 ELSE 0 END") if not archived else "0"
+    # is already archived so the pending concept doesn't apply, and SQLite
+    # interprets a bare integer in ORDER BY as a column position (which would
+    # fail for a constant like 0), so we build the clause conditionally.
+    order_parts = []
+    if not archived:
+        order_parts.append(
+            "CASE WHEN archived_at IS NULL "
+            "AND (status = 'delivered' OR was_not_deliverable = 1) "
+            "THEN 1 ELSE 0 END ASC"
+        )
+    order_parts.append(f"{sort_by} COLLATE NOCASE {sort_dir.upper()}")
+    order_parts.append(f"id {sort_dir.upper()}")
     base_sql = (
         f"SELECT * FROM work_orders {where} "
-        f"ORDER BY {pending_rank} ASC, "
-        f"{sort_by} COLLATE NOCASE {sort_dir.upper()}, id {sort_dir.upper()}"
+        f"ORDER BY {', '.join(order_parts)}"
     )
 
     if limit is None:

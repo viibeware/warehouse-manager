@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.10
+- <strong>Fix: archive view 500</strong> — v1.6.6's "pending WOs sort to the bottom" change used a literal <code>ORDER BY 0</code> in the archive branch as a no-op sort term, but SQLite interprets a bare integer in ORDER BY as a 1-indexed column position (so <code>0</code> is out-of-range and the query blew up with a 500). Now the pending-rank clause is only added to the ORDER BY when it's actually needed (active list); archive queries get <code>ORDER BY request_date COLLATE NOCASE …, id …</code> as they always did pre-1.6.6. Fixes the "Failed to load work orders" toast on clicking Archive and the side-effect where the active list also stopped populating until a full page refresh.
+
 ## v1.6.9
 - <strong>Browser tab title flashes when a new WO notification arrives off-tab</strong> — If the tab is hidden when a notification poll returns new items, the title starts alternating every ~1.1 seconds between "Warehouse Manager" and "🔔 N new updates — Warehouse Manager" so users on other tabs can see at a glance that something's waiting. The flash stops the moment the tab becomes visible again (also listens for <code>focus</code> as a defensive fallback). Initial-page-load backlog items don't trigger the flash — those land as toasts immediately anyway.
 
