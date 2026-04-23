@@ -5910,15 +5910,22 @@ function renderWorkOrderCard(wo) {
     const trailingGroup = (deleteBtn || archiveBtn || notDeliverableBtn || markDeliveredBtn)
         ? `<span class="wo-actions-trailing">${deleteBtn}${archiveBtn}${notDeliverableBtn}${markDeliveredBtn}</span>`
         : '';
-    // Edit gating: only the originator, admins, and supervisors may edit the
-    // work-order body. Plain editors see a greyed-out button with a tooltip
-    // (they can still add notes / upload photos / flag parts).
-    const canEditBody = !readOnly && (isAdmin || isSupervisor || isOriginator);
+    // Edit gating: only the originator, the assigned salesperson, admins,
+    // and supervisors may edit the work-order body. Plain editors (or a
+    // different salesperson) see a greyed-out button with a tooltip — they
+    // can still add notes / upload photos / flag parts.
+    const _norm = (s) => (s || '').toString().trim().toLowerCase();
+    const _spOnWo = _norm(wo.sales_person);
+    const isAssignedSalesPerson = !!_spOnWo && currentUserData && (
+        _spOnWo === _norm(currentUserData.display_name) ||
+        _spOnWo === _norm(currentUserData.username)
+    );
+    const canEditBody = !readOnly && (isAdmin || isSupervisor || isOriginator || isAssignedSalesPerson);
     const editBtn = readOnly
         ? ''
         : (canEditBody
             ? `<button class="table-btn" title="Edit fields, parts, and details" onclick="openEditWorkOrderModalFromCard(${wo.id})">Edit</button>`
-            : `<button class="table-btn" disabled title="Only the originator, an admin, or a supervisor can edit this work order. You can still add notes and photos.">Edit</button>`);
+            : `<button class="table-btn" disabled title="Only the originator, the assigned salesperson, an admin, or a supervisor can edit this work order. You can still add notes and photos.">Edit</button>`);
     // The "more" buttons hide behind a pill-styled slideout (click the pill to
     // reveal). Edit and Add Note stay visible since they're the two most-used
     // actions on a WO card.

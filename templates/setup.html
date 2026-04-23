@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse Manager — Setup</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+(function(){
+    try {
+        const saved = localStorage.getItem('wm-theme');
+        const DARK = ['dark', 'neobrutal-dark', 'cyberpunk'];
+        document.documentElement.setAttribute('data-theme', saved && DARK.includes(saved) ? 'dark' : 'light');
+    } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+})();
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg-primary: #0f1114;
+    --bg-panel: #181b20;
+    --bg-panel-2: #1f232a;
+    --bg-input: #14171b;
+    --border: #2a2e36;
+    --border-focus: #4a8eff;
+    --text-primary: #e8eaed;
+    --text-secondary: #a0a6b1;
+    --text-muted: #7a8190;
+    --accent: #4a8eff;
+    --accent-hover: #6ba1ff;
+    --accent-dim: rgba(74, 142, 255, 0.14);
+    --danger: #ef4444;
+    --danger-soft: rgba(239, 68, 68, 0.12);
+    --warn: #f59e0b;
+    --yes: #10b981;
+    --yes-soft: rgba(16, 185, 129, 0.14);
+    --radius: 8px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --font: 'DM Sans', -apple-system, sans-serif;
+    /* Labels, tags, and the "monospace-ish" microcopy use Inter instead of a
+       true monospace so the wizard feels more typographically unified. */
+    --mono: 'Inter', -apple-system, sans-serif;
+    --shadow-card: 0 24px 60px -20px rgba(0,0,0,0.55), 0 8px 24px -12px rgba(0,0,0,0.35);
+}
+html[data-theme="light"] {
+    --bg-primary: #f6f7fb;
+    --bg-panel: #ffffff;
+    --bg-panel-2: #f3f4f8;
+    --bg-input: #ffffff;
+    --border: #dfe2ea;
+    --text-primary: #1a1d24;
+    --text-secondary: #4c5260;
+    --text-muted: #7a8190;
+    --accent-dim: rgba(74, 142, 255, 0.10);
+    --shadow-card: 0 22px 58px -24px rgba(17, 28, 60, 0.25), 0 8px 20px -14px rgba(17, 28, 60, 0.12);
+}
+
+html, body { height: 100%; }
+body {
+    font-family: var(--font);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px 20px;
+    /* Subtle radial glow behind the card for a bit of depth */
+    background-image:
+        radial-gradient(900px 520px at 50% -10%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 60%),
+        radial-gradient(600px 380px at 90% 110%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 60%);
+}
+
+.setup-shell { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 14px; }
+
+.setup-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 34px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    box-shadow: var(--shadow-card);
+    animation: setup-card-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes setup-card-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.995); }
+    to   { opacity: 1; transform: none; }
+}
+
+.setup-head { display: flex; flex-direction: column; gap: 14px; }
+.setup-brand {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--font);
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--text-muted);
+}
+.setup-brand-mark {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 38px;
+}
+.setup-brand-mark img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+}
+.setup-brand-tag { margin-left: auto; }
+
+/* Progress rail */
+.setup-progress {
+    display: flex; gap: 6px;
+}
+.setup-dot {
+    flex: 1; height: 4px; border-radius: 2px;
+    background: var(--border);
+    transition: background 260ms ease, transform 260ms ease;
+}
+.setup-dot.done   { background: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.setup-dot.active { background: var(--accent); transform: scaleY(1.4); }
+
+.setup-stepcount {
+    font-family: var(--mono); font-size: 0.68rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.setup-title {
+    font-size: 1rem; font-weight: 700; line-height: 1.2; color: var(--text-primary);
+}
+.setup-desc {
+    font-size: 0.95rem; line-height: 1.55; color: var(--text-secondary); max-width: 52ch;
+}
+
+/* Step body (only the active .setup-step is rendered) */
+.setup-step { display: none; flex-direction: column; gap: 14px; animation: step-in 280ms ease both; }
+.setup-step.active { display: flex; }
+@keyframes step-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* Form controls */
+label.field {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+    letter-spacing: 0.02em;
+}
+.field-label { display: flex; align-items: baseline; gap: 8px; }
+.field-hint {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.field-help { font-size: 0.78rem; font-weight: 400; color: var(--text-muted); line-height: 1.5; }
+
+.setup-input, .setup-select {
+    width: 100%;
+    padding: 11px 13px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: 500 0.95rem/1.2 var(--font);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.setup-input:focus, .setup-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    background: var(--bg-input);
+}
+.setup-input::placeholder { color: var(--text-muted); }
+
+/* Two-column rows (responsive) */
+.field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+/* Password strength meter + rules */
+.pw-strength { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.pw-bar {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+.pw-fill {
+    position: absolute; inset: 0 auto 0 0;
+    width: 0%;
+    background: var(--danger);
+    transition: width 220ms ease, background 220ms ease;
+    border-radius: 3px;
+}
+.pw-label {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.pw-label strong {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-left: 6px;
+}
+.pw-rules {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 14px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+.pw-rules li {
+    position: relative;
+    padding-left: 22px;
+    line-height: 1.35;
+    transition: color 160ms ease;
+}
+.pw-rules li::before {
+    content: "○";
+    position: absolute; left: 0; top: -1px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    transition: color 160ms ease;
+}
+.pw-rules li.ok { color: var(--yes); }
+.pw-rules li.ok::before { content: "✓"; color: var(--yes); font-weight: 700; }
+
+/* Toggle row (for SMTP TLS, 12/24h) */
+.toggle-group {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 13px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+.toggle-group .toggle-label {
+    font-size: 0.88rem; color: var(--text-primary); font-weight: 500;
+}
+.toggle-group .toggle-help {
+    margin-left: auto; font-size: 0.74rem; color: var(--text-muted);
+}
+.toggle-switch {
+    position: relative; width: 40px; height: 22px; flex: 0 0 40px;
+    background: var(--border); border-radius: 22px;
+    cursor: pointer; transition: background 160ms ease;
+}
+.toggle-switch::after {
+    content: '';
+    position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff;
+    transition: transform 160ms ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.toggle-switch.on { background: var(--accent); }
+.toggle-switch.on::after { transform: translateX(18px); }
+
+/* 12h / 24h segmented */
+.segmented {
+    display: inline-flex; padding: 3px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+.segmented button {
+    padding: 7px 14px;
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    font: 600 0.82rem var(--font);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+.segmented button.active { background: var(--bg-panel); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Error / success banners */
+.setup-banner {
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    display: flex; gap: 10px; align-items: flex-start;
+}
+.setup-banner.err { background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
+.setup-banner.ok  { background: var(--yes-soft); color: var(--yes); border: 1px solid color-mix(in srgb, var(--yes) 30%, transparent); }
+.setup-banner.hidden { display: none; }
+
+/* Footer actions */
+.setup-actions {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 18px;
+}
+.btn {
+    padding: 11px 18px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel-2);
+    color: var(--text-primary);
+    border-radius: 10px;
+    font: 600 0.88rem/1 var(--font);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.btn:hover  { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text-primary); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+.btn.ghost:hover { background: var(--bg-panel-2); color: var(--text-primary); border-color: transparent; }
+.btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+.btn-prev-wrap { margin-right: auto; }
+
+.setup-foot-hint {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 10px 0 0;
+}
+
+/* Finish screen */
+.finish-card {
+    background: color-mix(in srgb, var(--yes) 14%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--yes) 30%, transparent);
+    border-radius: 14px;
+    padding: 22px;
+    display: flex; gap: 14px; align-items: flex-start;
+}
+.finish-icon {
+    flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%;
+    background: var(--yes); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; font-weight: 700;
+}
+.finish-card h3 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-primary); }
+.finish-card p  { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* Small-screen */
+@media (max-width: 560px) {
+    body { padding: 16px; }
+    .setup-card { padding: 24px 22px; border-radius: var(--radius-lg); }
+    .field-row { grid-template-columns: 1fr; }
+    .pw-rules { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="setup-shell">
+    <div class="setup-card">
+        <div class="setup-head">
+            <div class="setup-brand">
+                <div class="setup-brand-mark"><img src="/static/logo.svg" alt="Warehouse Manager"></div>
+                <span>Warehouse Manager</span>
+                <span class="setup-brand-tag">First-run setup</span>
+            </div>
+
+            <div class="setup-progress" aria-label="Setup progress" id="setupProgress"></div>
+
+            <div class="setup-stepcount" id="setupStepCount">Step 1 of 5</div>
+            <h1 class="setup-title" id="setupTitle">Set a strong admin password</h1>
+            <p class="setup-desc" id="setupDesc">
+                Replace the default <code style="font-family:var(--mono);background:var(--bg-input);padding:1px 6px;border-radius:4px;">admin</code> password before anyone else gets in. This is the only required step — everything after it can be skipped and configured later.
+            </p>
+        </div>
+
+        <div class="setup-banner err hidden" id="setupError" role="alert"></div>
+        <div class="setup-banner ok hidden"  id="setupOk"    role="status"></div>
+
+        <!-- ─────────── STEP 1: PASSWORD ─────────── -->
+        <div class="setup-step active" data-step="1">
+            <label class="field">
+                <span class="field-label">New password <span class="field-hint">Required</span></span>
+                <input class="setup-input" type="password" id="pw1" autocomplete="new-password" minlength="12" spellcheck="false" autofocus>
+                <div class="pw-strength">
+                    <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
+                    <div class="pw-label">Strength:<strong id="pwStrengthLabel">—</strong></div>
+                </div>
+            </label>
+            <label class="field">
+                <span class="field-label">Confirm password</span>
+                <input class="setup-input" type="password" id="pw2" autocomplete="new-password" minlength="12" spellcheck="false">
+            </label>
+            <ul class="pw-rules" id="pwRules">
+                <li data-rule="length">At least 12 characters</li>
+                <li data-rule="classes">Mix of lower / upper / number / symbol (any 3)</li>
+                <li data-rule="notdefault">Not the word "admin"</li>
+                <li data-rule="match">Both fields match</li>
+            </ul>
+        </div>
+
+        <!-- ─────────── STEP 2: ADMIN PROFILE ─────────── -->
+        <div class="setup-step" data-step="2">
+            <label class="field">
+                <span class="field-label">Display name <span class="field-hint">Optional</span></span>
+                <input class="setup-input" type="text" id="profileName" placeholder="e.g. Jason Martin" autocomplete="name">
+                <span class="field-help">Shown in the sidebar, audit trail, and email notifications.</span>
+            </label>
+            <label class="field">
+                <span class="field-label">Email / login username <span class="field-hint">Optional</span></span>
+                <input class="setup-input" type="email" id="profileEmail" placeholder="you@company.com" autocomplete="email">
+                <span class="field-help">Replaces <code style="font-family:var(--mono);">admin</code> as your sign-in. Also the address email notifications arrive at. You can skip this for now and change it later in Settings.</span>
+            </label>
+        </div>
+
+        <!-- ─────────── STEP 3: PUBLIC URL ─────────── -->
+        <div class="setup-step" data-step="3">
+            <label class="field">
+                <span class="field-label">Public URL <span class="field-hint">Optional</span></span>
+                <input class="setup-input" type="url" id="publicUrl" placeholder="https://warehouse.example.com" autocomplete="off" spellcheck="false">
+                <span class="field-help">Used to build the "View this Work Order" deep-link inside email notifications. Leave blank to fall back to whatever host the request came in on. Must start with <code style="font-family:var(--mono);">http://</code> or <code style="font-family:var(--mono);">https://</code>.</span>
+            </label>
+        </div>
+
+        <!-- ─────────── STEP 4: SMTP ─────────── -->
+        <div class="setup-step" data-step="4">
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">SMTP host</span>
+                    <input class="setup-input" type="text" id="smtpHost" placeholder="smtp.gmail.com" autocomplete="off" spellcheck="false">
+                </label>
+                <label class="field">
+                    <span class="field-label">Port</span>
+                    <input class="setup-input" type="number" id="smtpPort" placeholder="587" min="1" max="65535">
+                </label>
+            </div>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">Username</span>
+                    <input class="setup-input" type="text" id="smtpUser" autocomplete="off" spellcheck="false">
+                </label>
+                <label class="field">
+                    <span class="field-label">Password</span>
+                    <input class="setup-input" type="password" id="smtpPass" autocomplete="new-password" placeholder="leave blank to keep current">
+                </label>
+            </div>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">From email</span>
+                    <input class="setup-input" type="email" id="smtpFromEmail" placeholder="noreply@company.com">
+                </label>
+                <label class="field">
+                    <span class="field-label">From name</span>
+                    <input class="setup-input" type="text" id="smtpFromName" placeholder="Warehouse Manager">
+                </label>
+            </div>
+            <div class="toggle-group" id="tlsToggleRow">
+                <div class="toggle-switch on" id="smtpTlsToggle" role="switch" aria-checked="true" tabindex="0"></div>
+                <div>
+                    <div class="toggle-label">Use STARTTLS</div>
+                    <div class="toggle-help">Standard for port 587. Disable for port 465 (implicit SSL).</div>
+                </div>
+            </div>
+            <p class="field-help" style="margin-top:-2px;">All fields are optional. If you leave the host blank the wizard saves nothing and you can configure SMTP later in <em>Settings → Admin → SMTP / Email</em>.</p>
+        </div>
+
+        <!-- ─────────── STEP 5: DISPLAY ─────────── -->
+        <div class="setup-step" data-step="5">
+            <label class="field">
+                <span class="field-label">Timezone</span>
+                <select class="setup-select" id="dispTz"></select>
+                <span class="field-help">Used to render timestamps (notes, activity, request dates). Auto-detected from your browser — change if your warehouse is in a different zone.</span>
+            </label>
+            <label class="field">
+                <span class="field-label">Time format</span>
+                <div class="segmented" id="timeFormatSegmented">
+                    <button type="button" data-val="12h" class="active">12-hour</button>
+                    <button type="button" data-val="24h">24-hour</button>
+                </div>
+            </label>
+        </div>
+
+        <!-- ─────────── FINISH ─────────── -->
+        <div class="setup-step" data-step="6">
+            <div class="finish-card">
+                <div class="finish-icon">✓</div>
+                <div>
+                    <h3>You're all set.</h3>
+                    <p>The app is ready to use. Anything you skipped — branding, Cloudflare Turnstile, categories, work-order priorities — can still be configured anytime from <strong>Settings → Admin</strong>. Click <em>Finish</em> to land on the dashboard.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="setup-actions">
+            <div class="btn-prev-wrap">
+                <button type="button" class="btn ghost" id="btnPrev" style="display:none;">← Back</button>
+            </div>
+            <button type="button" class="btn ghost" id="btnSkip" style="display:none;">Skip this step</button>
+            <button type="button" class="btn primary" id="btnNext" disabled>Save &amp; continue</button>
+        </div>
+    </div>
+
+    <div class="setup-foot-hint">Warehouse Manager · v{{ app_version }}</div>
+</div>
+
+<script>
+// ═════════════════════════════════════════
+//  SETUP WIZARD — client-driven
+// ═════════════════════════════════════════
+
+const STEPS = [
+    { n: 1, key: 'password',  title: 'Set a strong admin password',
+      desc: 'Replace the default <code style="font-family:var(--mono);background:var(--bg-input);padding:1px 6px;border-radius:4px;">admin</code> password before anyone else gets in. This is the only required step — everything after it can be skipped and configured later.' },
+    { n: 2, key: 'profile',   title: 'Who are you?',
+      desc: 'Give this admin account a display name and a real email. The email doubles as your login username (replacing <code style="font-family:var(--mono);background:var(--bg-input);padding:1px 6px;border-radius:4px;">admin</code>) and is where your notifications arrive.' },
+    { n: 3, key: 'publicUrl', title: 'Where is this install reachable?',
+      desc: 'If you want deep-links inside email notifications to land on this instance, tell us its public URL. Totally optional — emails will still work without it.' },
+    { n: 4, key: 'smtp',      title: 'Outgoing email',
+      desc: 'Configure the SMTP server we should use to send work-order notifications. You can wire this up later if you don\'t have credentials handy.' },
+    { n: 5, key: 'display',   title: 'How should timestamps look?',
+      desc: 'Set the timezone and clock style the app should use to render dates and times. We\'ve pre-filled what we detected from your browser.' },
+    { n: 6, key: 'finish',    title: 'All done',
+      desc: 'One click and the setup wizard closes out for good.' },
+];
+const TOTAL = STEPS.length;
+
+let stepIdx = 0;
+let passwordOk = false;  // latch for step 1 — blocks Continue until satisfied
+
+const $ = (id) => document.getElementById(id);
+
+// ── Render progress dots ─────────────────────────────
+function renderProgress() {
+    const el = $('setupProgress');
+    el.innerHTML = '';
+    for (let i = 0; i < TOTAL; i++) {
+        const d = document.createElement('div');
+        d.className = 'setup-dot' + (i < stepIdx ? ' done' : (i === stepIdx ? ' active' : ''));
+        d.title = `Step ${i + 1}: ${STEPS[i].title}`;
+        el.appendChild(d);
+    }
+}
+
+// ── Switch visible step ──────────────────────────────
+function renderStep() {
+    const step = STEPS[stepIdx];
+    $('setupStepCount').textContent = step.n === TOTAL ? `Step ${step.n} — finish` : `Step ${step.n} of ${TOTAL}`;
+    $('setupTitle').textContent = step.title;
+    $('setupDesc').innerHTML = step.desc;
+    document.querySelectorAll('.setup-step').forEach(el => {
+        el.classList.toggle('active', parseInt(el.dataset.step, 10) === step.n);
+    });
+    // Button visibility rules:
+    //   step 1  → Skip hidden, Prev hidden, Next disabled until password ok
+    //   step N  → Skip shown (unless on finish), Prev shown, Next enabled
+    //   finish  → Skip hidden, button label changes to "Finish"
+    const onPw     = step.key === 'password';
+    const onFinish = step.key === 'finish';
+    $('btnPrev').style.display = stepIdx === 0 || onFinish ? 'none' : '';
+    $('btnSkip').style.display = onPw || onFinish ? 'none' : '';
+    $('btnNext').disabled = onPw && !passwordOk;
+    $('btnNext').textContent = onFinish ? 'Finish → Dashboard' : 'Save & continue';
+    clearBanners();
+    renderProgress();
+    // Auto-focus the first input on each new step
+    const active = document.querySelector('.setup-step.active');
+    if (active) {
+        const first = active.querySelector('input, select');
+        if (first) setTimeout(() => first.focus(), 80);
+    }
+}
+
+function clearBanners() {
+    $('setupError').classList.add('hidden');
+    $('setupOk').classList.add('hidden');
+}
+function err(msg) {
+    $('setupError').textContent = msg;
+    $('setupError').classList.remove('hidden');
+    $('setupOk').classList.add('hidden');
+}
+function ok(msg) {
+    $('setupOk').textContent = msg;
+    $('setupOk').classList.remove('hidden');
+    $('setupError').classList.add('hidden');
+}
+
+// ── Password strength live checker ────────────────────
+function scorePassword(pw) {
+    let classes = 0;
+    if (/[a-z]/.test(pw)) classes++;
+    if (/[A-Z]/.test(pw)) classes++;
+    if (/\d/.test(pw))    classes++;
+    if (/[^A-Za-z0-9]/.test(pw)) classes++;
+    const longEnough = pw.length >= 12;
+    const notDefault = pw.toLowerCase() !== 'admin' && pw.trim().length > 0;
+    const strong = longEnough && classes >= 3 && notDefault;
+    // Level 0 (no pw) → empty bar. 1-4 based on classes + length.
+    let level = 0;
+    if (!pw) level = 0;
+    else if (!longEnough) level = 1;
+    else if (classes <= 2) level = 2;
+    else if (classes === 3) level = 3;
+    else level = 4;
+    return { classes, longEnough, notDefault, strong, level };
+}
+
+function refreshPasswordUi() {
+    const pw1 = $('pw1').value;
+    const pw2 = $('pw2').value;
+    const { classes, longEnough, notDefault, level } = scorePassword(pw1);
+    const match = pw1.length > 0 && pw1 === pw2;
+
+    // Meter
+    const widths = ['0%', '25%', '50%', '80%', '100%'];
+    const colors = ['var(--border)', 'var(--danger)', 'var(--warn)', 'var(--accent)', 'var(--yes)'];
+    const labels = ['—', 'Weak', 'Fair', 'Good', 'Strong'];
+    $('pwFill').style.width = widths[level];
+    $('pwFill').style.background = colors[level];
+    $('pwStrengthLabel').textContent = labels[level];
+    $('pwStrengthLabel').style.color = level >= 3 ? 'var(--yes)' : level === 2 ? 'var(--warn)' : (level === 1 ? 'var(--danger)' : 'var(--text-muted)');
+
+    // Rule list
+    const marks = {
+        length:     longEnough,
+        classes:    classes >= 3,
+        notdefault: notDefault,
+        match:      match,
+    };
+    document.querySelectorAll('#pwRules li').forEach(li => {
+        li.classList.toggle('ok', !!marks[li.dataset.rule]);
+    });
+
+    passwordOk = longEnough && classes >= 3 && notDefault && match;
+    if (STEPS[stepIdx].key === 'password') {
+        $('btnNext').disabled = !passwordOk;
+    }
+}
+
+// ── Bind step-specific UI ─────────────────────────────
+function bindPasswordUi() {
+    ['pw1', 'pw2'].forEach(id => $(id).addEventListener('input', refreshPasswordUi));
+    ['pw1', 'pw2'].forEach(id => $(id).addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && passwordOk) { e.preventDefault(); $('btnNext').click(); }
+    }));
+}
+
+function bindTlsToggle() {
+    const t = $('smtpTlsToggle');
+    const flip = () => {
+        const on = !t.classList.contains('on');
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-checked', on ? 'true' : 'false');
+    };
+    t.addEventListener('click', flip);
+    t.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); }
+    });
+}
+
+function bindTimeFormatSegmented() {
+    document.querySelectorAll('#timeFormatSegmented button').forEach(b => {
+        b.addEventListener('click', () => {
+            document.querySelectorAll('#timeFormatSegmented button').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+        });
+    });
+}
+
+// ── Populate timezone list ────────────────────────────
+function populateTimezones(selected) {
+    const sel = $('dispTz');
+    let zones = [];
+    try { zones = (typeof Intl !== 'undefined' && Intl.supportedValuesOf) ? Intl.supportedValuesOf('timeZone') : []; } catch { zones = []; }
+    if (!zones.length) {
+        // Fallback list — enough to be useful on older browsers
+        zones = ['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Phoenix','America/Anchorage','Pacific/Honolulu','Europe/London','Europe/Paris','Europe/Berlin','Europe/Madrid','Asia/Tokyo','Asia/Singapore','Asia/Hong_Kong','Asia/Kolkata','Australia/Sydney'];
+    }
+    const detected = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+    const target = selected && selected !== 'UTC' ? selected : detected;
+    const frag = document.createDocumentFragment();
+    zones.forEach(z => {
+        const o = document.createElement('option');
+        o.value = z; o.textContent = z;
+        if (z === target) o.selected = true;
+        frag.appendChild(o);
+    });
+    sel.appendChild(frag);
+}
+
+// ── API calls for each step ───────────────────────────
+async function postJson(url, body) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    return { ok: res.ok, status: res.status, data };
+}
+
+async function submitStep() {
+    const step = STEPS[stepIdx];
+    clearBanners();
+    const btn = $('btnNext');
+    btn.disabled = true;
+    const prevLabel = btn.textContent;
+    btn.textContent = 'Saving…';
+    try {
+        if (step.key === 'password') {
+            const r = await postJson('/api/setup/password', {
+                new_password:     $('pw1').value,
+                confirm_password: $('pw2').value,
+            });
+            if (!r.ok) throw new Error(r.data.error || 'Could not save password');
+        } else if (step.key === 'profile') {
+            const r = await postJson('/api/setup/profile', {
+                display_name: $('profileName').value.trim(),
+                username:     $('profileEmail').value.trim(),
+            });
+            if (!r.ok) throw new Error(r.data.error || 'Could not save profile');
+        } else if (step.key === 'publicUrl') {
+            const r = await postJson('/api/setup/public-url', {
+                public_url: $('publicUrl').value.trim(),
+            });
+            if (!r.ok) throw new Error(r.data.error || 'Could not save public URL');
+        } else if (step.key === 'smtp') {
+            // Only save if at least the host is set — otherwise treat the step
+            // as a no-op (match the "blank = skip" vibe).
+            const host = $('smtpHost').value.trim();
+            if (host) {
+                const body = {
+                    host,
+                    port: parseInt($('smtpPort').value || '587', 10),
+                    username: $('smtpUser').value.trim(),
+                    from_email: $('smtpFromEmail').value.trim(),
+                    from_name: $('smtpFromName').value.trim() || 'Warehouse Manager',
+                    use_tls: $('smtpTlsToggle').classList.contains('on'),
+                };
+                const pw = $('smtpPass').value;
+                if (pw) body.password = pw;
+                const r = await postJson('/api/setup/smtp', body);
+                if (!r.ok) throw new Error(r.data.error || 'Could not save SMTP config');
+            }
+        } else if (step.key === 'display') {
+            const fmtBtn = document.querySelector('#timeFormatSegmented button.active');
+            const r = await postJson('/api/setup/display', {
+                timezone: $('dispTz').value,
+                time_format: (fmtBtn && fmtBtn.dataset.val) || '12h',
+            });
+            if (!r.ok) throw new Error(r.data.error || 'Could not save display settings');
+        } else if (step.key === 'finish') {
+            const r = await postJson('/api/setup/complete', {});
+            if (!r.ok) throw new Error(r.data.error || 'Could not complete setup');
+            // Refresh applies the new user session (if username changed) and
+            // bounces through the index route to the dashboard.
+            window.location.href = '/dashboard';
+            return;
+        }
+        stepIdx++;
+        renderStep();
+    } catch (e) {
+        err(String(e.message || e));
+        btn.disabled = false;
+        btn.textContent = prevLabel;
+    }
+}
+
+async function skipStep() {
+    clearBanners();
+    stepIdx++;
+    renderStep();
+}
+
+function goPrev() {
+    if (stepIdx === 0) return;
+    stepIdx--;
+    renderStep();
+}
+
+// ── Load initial state, boot ──────────────────────────
+async function boot() {
+    try {
+        const res = await fetch('/api/setup/state');
+        const data = await res.json();
+        if (data.complete) {
+            window.location.href = '/dashboard';
+            return;
+        }
+        if (data.profile) {
+            $('profileName').value = data.profile.display_name || '';
+            $('profileEmail').value = data.profile.username && data.profile.username !== 'admin' ? data.profile.username : '';
+        }
+        if (data.public_url) $('publicUrl').value = data.public_url;
+        if (data.smtp) {
+            $('smtpHost').value = data.smtp.host || '';
+            $('smtpPort').value = data.smtp.port || 587;
+            $('smtpUser').value = data.smtp.username || '';
+            $('smtpFromEmail').value = data.smtp.from_email || '';
+            $('smtpFromName').value = data.smtp.from_name || '';
+            const tls = data.smtp.use_tls !== false;
+            $('smtpTlsToggle').classList.toggle('on', tls);
+            $('smtpTlsToggle').setAttribute('aria-checked', tls ? 'true' : 'false');
+        }
+        populateTimezones((data.display && data.display.timezone) || 'UTC');
+        const fmt = (data.display && data.display.time_format) || '12h';
+        document.querySelectorAll('#timeFormatSegmented button').forEach(b => {
+            b.classList.toggle('active', b.dataset.val === fmt);
+        });
+    } catch {
+        populateTimezones('UTC');
+    }
+    bindPasswordUi();
+    bindTlsToggle();
+    bindTimeFormatSegmented();
+    $('btnNext').addEventListener('click', submitStep);
+    $('btnSkip').addEventListener('click', skipStep);
+    $('btnPrev').addEventListener('click', goPrev);
+    refreshPasswordUi();
+    renderStep();
+}
+
+boot();
+</script>
+
+</body>
+</html>

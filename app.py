@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.3'
+APP_VERSION = '1.6.4'
 
 app = Flask(__name__)
 
@@ -956,6 +956,35 @@ def migrate_v31(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_woa_note ON work_order_attachments(note_id)")
 
 
+def migrate_v32(conn):
+    """Introduce the `setup_complete` app setting that gates the first-run
+    setup wizard. Fresh installs — where the seeded admin still has the
+    default 'admin' password — start with setup_complete=False and get
+    walked through the wizard on first login. Existing installs (any
+    non-default admin password) start True so upgrades don't shove live
+    users back into onboarding."""
+    import json as json_mod
+    # Already present (e.g. re-run) → don't overwrite.
+    existing = conn.execute(
+        "SELECT key FROM app_settings WHERE key = 'setup_complete'"
+    ).fetchone()
+    if existing:
+        return
+    is_fresh = False
+    row = conn.execute(
+        "SELECT password_hash FROM users WHERE username = 'admin' LIMIT 1"
+    ).fetchone()
+    if row:
+        try:
+            is_fresh = bool(check_password_hash(row['password_hash'], 'admin'))
+        except Exception:
+            is_fresh = False
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('setup_complete', ?)",
+        (json_mod.dumps(not is_fresh),)
+    )
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -991,6 +1020,7 @@ MIGRATIONS = [
     (29, migrate_v29),
     (30, migrate_v30),
     (31, migrate_v31),
+    (32, migrate_v32),
 ]
 
 
@@ -1321,10 +1351,14 @@ def login():
             session.permanent = True
             # Always land on the dashboard after signing in — ignore any `next`
             # parameter so users start at a known screen regardless of where
-            # the auth redirect came from.
+            # the auth redirect came from. On a fresh install the admin is
+            # routed to the first-run wizard instead.
+            dest = '/dashboard'
+            if not _is_setup_complete() and user.is_admin:
+                dest = '/setup'
             if is_ajax:
-                return jsonify({'success': True, 'redirect': '/dashboard'})
-            return redirect('/dashboard')
+                return jsonify({'success': True, 'redirect': dest})
+            return redirect(dest)
 
         # Failure — burn a hash for missing users so timing can't distinguish
         if not row:
@@ -1709,8 +1743,262 @@ def unlock_user(uid):
 
 
 # ══════════════════════════════════════════
+#  FIRST-RUN SETUP WIZARD API
+#  (all @admin_required; only meaningful while setup_complete=False)
+# ══════════════════════════════════════════
+
+# Wizard password rules are intentionally stricter than the baseline
+# PASSWORD_MIN_LENGTH — this is specifically for replacing the default
+# admin/admin seed, so we don't want users sliding a weak one in here.
+_SETUP_PW_MIN = 12
+_SETUP_PW_BANNED = {'admin', 'password', 'warehouse', 'manager', 'warehousemanager', 'admin123', 'password123', 'changeme'}
+
+
+def _score_password(pw):
+    """Simple policy scorer. Returns (ok, reason_if_not).
+    Requires: length ≥ 12; at least 3 of {lower, upper, digit, symbol};
+    no banned clichés; not the username 'admin'."""
+    if not pw or len(pw) < _SETUP_PW_MIN:
+        return False, f'At least {_SETUP_PW_MIN} characters.'
+    if pw.lower() in _SETUP_PW_BANNED:
+        return False, 'That password is too common — pick something less guessable.'
+    classes = 0
+    if re.search(r'[a-z]', pw): classes += 1
+    if re.search(r'[A-Z]', pw): classes += 1
+    if re.search(r'\d', pw): classes += 1
+    if re.search(r'[^A-Za-z0-9]', pw): classes += 1
+    if classes < 3:
+        return False, 'Mix at least 3 of: lowercase, uppercase, numbers, symbols.'
+    return True, None
+
+
+def _require_setup_pending():
+    """Shared gate for all wizard endpoints. Once setup_complete is flipped
+    to True, these become no-ops so a curious admin can't keep posting to
+    /api/setup/* long after onboarding is finished."""
+    if _is_setup_complete():
+        return jsonify({'error': 'Setup has already been completed.'}), 409
+    return None
+
+
+@app.route('/api/setup/state', methods=['GET'])
+@login_required
+def setup_state():
+    """Returns whether setup is complete and (for admins) the current
+    starting values for each step so the wizard can pre-populate fields."""
+    complete = _is_setup_complete()
+    if not current_user.is_admin:
+        return jsonify({'complete': complete, 'admin': False})
+    conn = get_db()
+    smtp = _get_setting(conn, 'smtp_config', {}) or {}
+    public_url = _get_setting(conn, 'public_url', '') or ''
+    tz = _get_setting(conn, 'display_timezone', 'UTC')
+    fmt = _get_setting(conn, 'display_time_format', '12h')
+    u = conn.execute(
+        "SELECT username, display_name FROM users WHERE id = ?",
+        (current_user.id,)
+    ).fetchone()
+    conn.close()
+    # Strip SMTP password from the state payload — the wizard collects a new
+    # one rather than round-tripping a masked placeholder, matching how the
+    # SMTP admin modal behaves.
+    smtp_out = {k: v for k, v in smtp.items() if k != 'password'}
+    return jsonify({
+        'complete': complete,
+        'admin': True,
+        'profile': {
+            'username': (u and u['username']) or '',
+            'display_name': (u and u['display_name']) or '',
+        },
+        'public_url': public_url,
+        'smtp': smtp_out,
+        'display': {
+            'timezone': tz,
+            'time_format': fmt if fmt in ('12h', '24h') else '12h',
+        },
+    })
+
+
+@app.route('/api/setup/password', methods=['POST'])
+@admin_required
+def setup_password():
+    """Mandatory first step — replace the default admin password.
+    The wizard disables the Continue button until this succeeds."""
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    data = request.get_json() or {}
+    new_pw = str(data.get('new_password') or '')
+    confirm = str(data.get('confirm_password') or '')
+    if new_pw != confirm:
+        return jsonify({'error': 'Password confirmation does not match.'}), 400
+    ok, reason = _score_password(new_pw)
+    if not ok:
+        return jsonify({'error': reason}), 400
+    if new_pw.strip().lower() == 'admin':
+        return jsonify({'error': "The password can't be 'admin'."}), 400
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL WHERE id = ?",
+        (generate_password_hash(new_pw, method='pbkdf2:sha256'), current_user.id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/setup/profile', methods=['POST'])
+@admin_required
+def setup_profile():
+    """Optional — update the acting admin's display name + username (email).
+    Leaving fields blank keeps the existing values."""
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    data = request.get_json() or {}
+    display_name = str(data.get('display_name') or '').strip()
+    username = str(data.get('username') or '').strip().lower()
+    if username and not _valid_email(username):
+        return jsonify({'error': 'Email / username must be a valid email address.'}), 400
+    conn = get_db()
+    fields, values = [], []
+    if display_name:
+        fields.append('display_name = ?')
+        values.append(display_name)
+    if username:
+        clash = conn.execute(
+            "SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?",
+            (username, current_user.id)
+        ).fetchone()
+        if clash:
+            conn.close()
+            return jsonify({'error': 'Another user already has that email.'}), 400
+        fields.append('username = ?')
+        values.append(username)
+    if fields:
+        values.append(current_user.id)
+        conn.execute(
+            f"UPDATE users SET {', '.join(fields)} WHERE id = ?",
+            tuple(values)
+        )
+        conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/setup/public-url', methods=['POST'])
+@admin_required
+def setup_public_url():
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    data = request.get_json() or {}
+    raw = str(data.get('public_url') or '').strip()
+    raw = raw.replace('\r', '').replace('\n', '').rstrip('/')
+    if raw and not re.match(r'^https?://', raw, re.IGNORECASE):
+        return jsonify({'error': 'Public URL must start with http:// or https://'}), 400
+    conn = get_db()
+    _set_setting(conn, 'public_url', raw)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/setup/smtp', methods=['POST'])
+@admin_required
+def setup_smtp():
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = _get_setting(conn, 'smtp_config', {}) or {}
+    cfg = {
+        'host': str(data.get('host', existing.get('host', '')) or '').strip(),
+        'port': int(data.get('port', existing.get('port', 587)) or 587),
+        'username': str(data.get('username', existing.get('username', '')) or '').strip(),
+        'use_tls': bool(data.get('use_tls', existing.get('use_tls', True))),
+        'from_email': str(data.get('from_email', existing.get('from_email', '')) or '').strip(),
+        'from_name': str(data.get('from_name', existing.get('from_name', 'Warehouse Manager')) or 'Warehouse Manager').strip(),
+    }
+    pw = data.get('password', None)
+    if pw is None or pw == '':
+        cfg['password'] = existing.get('password', '')
+    else:
+        cfg['password'] = str(pw)
+    _set_setting(conn, 'smtp_config', cfg)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/setup/display', methods=['POST'])
+@admin_required
+def setup_display():
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    data = request.get_json() or {}
+    tz = str(data.get('timezone') or 'UTC').strip() or 'UTC'
+    fmt = str(data.get('time_format') or '12h').strip().lower()
+    if fmt not in ('12h', '24h'):
+        fmt = '12h'
+    # Validate the timezone the same way the regular settings endpoint does
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except Exception:
+        return jsonify({'error': f'Unknown timezone: {tz}'}), 400
+    conn = get_db()
+    _set_setting(conn, 'display_timezone', tz)
+    _set_setting(conn, 'display_time_format', fmt)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/setup/complete', methods=['POST'])
+@admin_required
+def setup_complete():
+    """Flip the flag. From this point on the admin lands on /dashboard on
+    login, /setup redirects away, and all the /api/setup/* endpoints 409."""
+    gate = _require_setup_pending()
+    if gate is not None:
+        return gate
+    # Sanity: require that the admin password actually got changed during
+    # the wizard. If somehow the flag gets flipped while the default admin
+    # password is still in place, /setup would still be reachable but the
+    # guard on login would keep routing here. Belt-and-braces: re-check.
+    conn = get_db()
+    row = conn.execute(
+        "SELECT password_hash FROM users WHERE id = ?", (current_user.id,)
+    ).fetchone()
+    conn.close()
+    if row and check_password_hash(row['password_hash'], 'admin'):
+        return jsonify({'error': 'The default admin password is still in use — complete step 1 first.'}), 400
+    conn = get_db()
+    _set_setting(conn, 'setup_complete', True)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════
 #  PAGE ROUTES
 # ══════════════════════════════════════════
+
+def _is_setup_complete():
+    """Fast read of the setup_complete flag. Defaults to True on any error
+    so we never accidentally black-hole an authenticated user into the
+    wizard because of a transient DB hiccup."""
+    try:
+        conn = get_db()
+        val = _get_setting(conn, 'setup_complete', True)
+        conn.close()
+        return bool(val)
+    except Exception:
+        return True
+
 
 @app.route('/')
 @app.route('/dashboard')
@@ -1722,7 +2010,24 @@ def unlock_user(uid):
 @app.route('/parts/<slug>')
 @login_required
 def index(slug=None, wid=None, wo_number=None):
+    # Fresh install: bounce admins into the setup wizard before they see
+    # anything else. Non-admins get a neutral holding screen (the app isn't
+    # really usable until setup is done).
+    if not _is_setup_complete():
+        if current_user.is_admin:
+            return redirect('/setup')
+        return render_template('login.html', error='This Warehouse Manager instance is still being set up by an administrator. Please try again shortly.', turnstile_enabled=False, turnstile_site_key='')
     return render_template('index.html')
+
+
+@app.route('/setup')
+@login_required
+def setup_page():
+    if not current_user.is_admin:
+        return redirect('/dashboard')
+    if _is_setup_complete():
+        return redirect('/dashboard')
+    return render_template('setup.html', app_version=APP_VERSION)
 
 
 _UPLOAD_NAME_RE = re.compile(r'^[a-f0-9]{32}\.(?:png|jpg|jpeg|gif|webp)$', re.IGNORECASE)
@@ -2879,7 +3184,7 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format'}
 
 
 def _get_setting(conn, key, default):
@@ -3633,6 +3938,25 @@ def _lookup_salesperson_email(conn, name):
     if row:
         return row['username']
     return ''
+
+
+def _is_wo_sales_person(user, wo_row):
+    """True when the authenticated user is the salesperson assigned to this
+    work order. Matches case-insensitively against the user's display_name
+    OR username, mirroring how _lookup_salesperson_email resolves the
+    free-text sales_person column back to a user record."""
+    if not user or not getattr(user, 'is_authenticated', False) or wo_row is None:
+        return False
+    try:
+        sp = wo_row['sales_person']
+    except (KeyError, IndexError, TypeError):
+        sp = None
+    sp = (sp or '').strip().lower()
+    if not sp:
+        return False
+    dn = (getattr(user, 'display_name', None) or '').strip().lower()
+    un = (getattr(user, 'username', None) or '').strip().lower()
+    return sp == dn or sp == un
 
 
 # ══════════════════════════════════════════
@@ -4458,16 +4782,18 @@ def update_work_order(wid):
     if existing['status'] == 'delivered':
         conn.close()
         return jsonify({'error': 'Delivered work orders cannot be edited. Reopen first.'}), 400
-    # Editing the original request body is restricted to the originator, admins,
-    # and supervisors. Plain editors who didn't create this WO can still add
-    # notes, upload photos, mark parts pulled/flagged — just not rewrite the
-    # request fields or the parts list.
+    # Editing the original request body is restricted to the originator, the
+    # assigned salesperson on the work order, admins, and supervisors. Plain
+    # editors who don't match any of those can still add notes, upload photos,
+    # and mark parts pulled/flagged — just not rewrite the request fields or
+    # the parts list.
     is_originator = existing['created_by_user_id'] == current_user.id \
         if 'created_by_user_id' in existing.keys() else False
-    if not (current_user.is_admin or current_user.role == 'supervisor' or is_originator):
+    is_sales_person = _is_wo_sales_person(current_user, existing)
+    if not (current_user.is_admin or current_user.role == 'supervisor' or is_originator or is_sales_person):
         conn.close()
         return jsonify({
-            'error': 'Only the originator, an admin, or a supervisor can edit this work order. You can still add notes and photos.'
+            'error': 'Only the originator, the assigned salesperson, an admin, or a supervisor can edit this work order. You can still add notes and photos.'
         }), 403
 
     # Same required-field rules as create: customer + quote/invoice must not
