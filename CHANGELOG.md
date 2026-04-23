@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.9
+- <strong>Browser tab title flashes when a new WO notification arrives off-tab</strong> — If the tab is hidden when a notification poll returns new items, the title starts alternating every ~1.1 seconds between "Warehouse Manager" and "🔔 N new updates — Warehouse Manager" so users on other tabs can see at a glance that something's waiting. The flash stops the moment the tab becomes visible again (also listens for <code>focus</code> as a defensive fallback). Initial-page-load backlog items don't trigger the flash — those land as toasts immediately anyway.
+
 ## v1.6.8
 - <strong>Originator and assigned salesperson get unlimited note delete</strong> — Previously only admins could delete notes past the 15-second retraction window or cascade-delete a root with replies. The WO's originator and assigned salesperson now have the same authority on that specific work order: no retraction window, and deleting a root cascades its replies (same behaviour as admin). Plain authors with no other role on the WO still get only the 15-second window and only for notes without foreign replies. Both backend gates (<code>DELETE /api/work-orders/&lt;id&gt;/notes/&lt;note_id&gt;</code>) and the frontend button/dialog respect the new rules; the confirmation dialog shows the "replies will be deleted too" warning for any privileged role.
 

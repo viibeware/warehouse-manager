@@ -3921,11 +3921,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 const NOTIF_POLL_MS = 5000;
 const NOTIF_INITIAL_CAP = 5;        // on first load, show at most N backlog items
 const NOTIF_AUTODISMISS_MS = 15000; // auto-fade after this long
+const NOTIF_FLASH_INTERVAL_MS = 1100; // title alternation cadence
 
 let _notifSinceId = 0;
 let _notifTimer = null;
 let _notifFirstPoll = true;
 let _notifUnreadTotal = 0;          // mirrors server-side unread count for the badge
+
+// ── Tab-title flash (grab attention while the user is on another tab) ──
+// When a new notification arrives and the tab is hidden, alternate
+// document.title between the original and an alert variant. Flash stops
+// the moment the tab becomes visible again (which is how the user "sees"
+// the new update).
+const _origDocTitle = document.title;
+let _flashTimer = null;
+let _flashOn = false;
+let _flashPendingCount = 0;
+
+function _startTitleFlash(newCount) {
+    if (_flashTimer) {
+        // Already flashing — just update the count on the next tick
+        _flashPendingCount = Math.max(_flashPendingCount || 0, newCount || 1);
+        return;
+    }
+    _flashPendingCount = newCount || 1;
+    _flashOn = false;
+    _flashTimer = setInterval(() => {
+        _flashOn = !_flashOn;
+        if (_flashOn) {
+            const n = _flashPendingCount || 1;
+            document.title = `🔔 ${n} new update${n === 1 ? '' : 's'} — ${_origDocTitle}`;
+        } else {
+            document.title = _origDocTitle;
+        }
+    }, NOTIF_FLASH_INTERVAL_MS);
+}
+
+function _stopTitleFlash() {
+    if (_flashTimer) { clearInterval(_flashTimer); _flashTimer = null; }
+    _flashOn = false;
+    _flashPendingCount = 0;
+    document.title = _origDocTitle;
+}
+
+// The user coming back to the tab counts as "viewing" the notifications.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) _stopTitleFlash();
+});
+// Defensive: some browsers don't fire visibilitychange reliably on focus.
+window.addEventListener('focus', _stopTitleFlash);
 
 const NOTIF_KIND_META = {
     note:            { icon: '✎', label: 'note' },
@@ -4071,6 +4115,13 @@ async function _pollNotifications() {
             // Stagger so they cascade instead of stacking instantly
             setTimeout(() => _renderNotif(it), i * 180);
         });
+        // If the tab is hidden and new items arrived on this poll (anything
+        // past the first), flash the title until the user comes back. We
+        // skip the initial-load batch since users expect to see backlog
+        // toasts when they first land, not a flashing tab.
+        if (!_notifFirstPoll && items.length && document.hidden) {
+            _startTitleFlash(items.length);
+        }
         if (typeof data.max_id === 'number' && data.max_id > _notifSinceId) {
             _notifSinceId = data.max_id;
         }
