@@ -10,6 +10,27 @@ import sqlite3
 
 APP_VERSION = '1.6.12'
 
+
+def _compute_build_fingerprint():
+    """Short hash of the server + templates so the client-side update banner
+    fires on rebuilds even when APP_VERSION wasn't bumped (hot patches, CSS
+    tweaks, etc.). Computed once at import time — each Gunicorn worker reads
+    the same on-disk files and produces the same digest."""
+    import hashlib
+    here = os.path.dirname(os.path.abspath(__file__))
+    h = hashlib.sha256()
+    for rel in ('app.py', 'templates/index.html', 'templates/login.html'):
+        path = os.path.join(here, rel)
+        try:
+            with open(path, 'rb') as f:
+                h.update(f.read())
+        except FileNotFoundError:
+            pass
+    return h.hexdigest()[:12]
+
+
+BUILD_FINGERPRINT = _compute_build_fingerprint()
+
 app = Flask(__name__)
 
 # Data directory — configurable via env for Docker volume mounting
@@ -1466,10 +1487,10 @@ def logout():
 @app.route('/api/version')
 @login_required
 def api_version():
-    """Tiny endpoint for the frontend version-drift check. Returns just the
-    deployed APP_VERSION so a client running an older bundle can detect the
-    update without pulling auth/me and the display settings each poll."""
-    return jsonify({'version': APP_VERSION})
+    """Tiny endpoint for the frontend version-drift check. Returns the deployed
+    APP_VERSION plus a short build fingerprint so the client catches rebuilds
+    even when APP_VERSION didn't move (hot patches, CSS tweaks, etc.)."""
+    return jsonify({'version': APP_VERSION, 'build': BUILD_FINGERPRINT})
 
 
 @app.route('/api/auth/me')
@@ -1491,6 +1512,7 @@ def auth_me():
         'can_edit': current_user.can_edit,
         'can_view_audit': current_user.can_view_audit,
         'version': APP_VERSION,
+        'build': BUILD_FINGERPRINT,
         'timezone': tz,
         'time_format': time_fmt if time_fmt in ('12h', '24h') else '12h',
     })
