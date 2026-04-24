@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.11'
+APP_VERSION = '1.6.12'
 
 app = Flask(__name__)
 
@@ -6381,6 +6381,10 @@ def work_order_pdf(wid):
         conn.close()
         return jsonify({'error': 'Not found'}), 404
     wo = _work_order_to_dict(conn, row)
+    tz_name = _get_setting(conn, 'display_timezone', 'UTC') or 'UTC'
+    time_fmt = _get_setting(conn, 'display_time_format', '12h')
+    if time_fmt not in ('12h', '24h'):
+        time_fmt = '12h'
     conn.close()
 
     buf = BytesIO()
@@ -6393,12 +6397,19 @@ def work_order_pdf(wid):
     c.setFont("Helvetica-Bold", 14)
     c.drawRightString(w - 0.6 * inch, h - 0.75 * inch, wo['wo_number'])
 
-    # Status badge text
-    status_label = {
-        'requested': 'REQUESTED',
-        'flagged': 'FLAGGED',
-        'delivered': 'DELIVERED / COMPLETE',
-    }.get(wo['status'], wo['status'].upper())
+    # Status badge text — mirrors the UI "Not Deliverable" badge for both the
+    # pending-archive flag and the archived-without-delivery case.
+    is_not_deliverable = bool(wo.get('was_not_deliverable')) or (
+        wo.get('archived_at') and not wo.get('was_delivered') and wo.get('status') != 'delivered'
+    )
+    if is_not_deliverable:
+        status_label = 'NOT DELIVERABLE'
+    else:
+        status_label = {
+            'requested': 'REQUESTED',
+            'flagged': 'FLAGGED',
+            'delivered': 'DELIVERED / COMPLETE',
+        }.get(wo.get('status'), (wo.get('status') or '').upper())
     c.setFont("Helvetica", 10)
     c.drawRightString(w - 0.6 * inch, h - 1.0 * inch, f"Status: {status_label}")
 
@@ -6406,34 +6417,60 @@ def work_order_pdf(wid):
     c.setStrokeColorRGB(0.7, 0.7, 0.7)
     c.line(0.6 * inch, h - 1.15 * inch, w - 0.6 * inch, h - 1.15 * inch)
 
-    # Field table
+    # Two-column key/value table for Request Date … Created By.
     y = h - 1.5 * inch
     line_h = 0.26 * inch
 
-    def _kv(label, value):
-        nonlocal y
+    col1_label_x = 0.6 * inch
+    col1_value_x = 2.0 * inch
+    col2_label_x = 4.35 * inch
+    col2_value_x = 6.0 * inch
+
+    def _draw_cell(x_label, x_value, label, value):
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(0.6 * inch, y, f"{label}:")
+        c.drawString(x_label, y, f"{label}:")
         c.setFont("Helvetica", 10)
-        c.drawString(2.2 * inch, y, str(value or '—'))
+        c.drawString(x_value, y, str(value if value not in (None, '') else '—'))
+
+    request_date_str = _fmt_display_ts(wo.get('request_date'), tz_name, time_fmt)
+    pairs = [
+        ("Request Date", request_date_str, "Warehouse Location", wo.get('warehouse_location')),
+        ("Customer Name", wo.get('customer_name'), "Quote / Invoice #", wo.get('quote_invoice')),
+        ("Sales Person", wo.get('sales_person'), "Vehicle", wo.get('vehicle')),
+        ("Priority", wo.get('priority'), "VIN", wo.get('vin')),
+    ]
+    if wo.get('completed_at'):
+        pairs.append(("Created By", wo.get('created_by'),
+                      "Completed", _fmt_display_ts(wo.get('completed_at'), tz_name, time_fmt)))
+    else:
+        pairs.append(("Created By", wo.get('created_by'), None, None))
+
+    for l1, v1, l2, v2 in pairs:
+        _draw_cell(col1_label_x, col1_value_x, l1, v1)
+        if l2 is not None:
+            _draw_cell(col2_label_x, col2_value_x, l2, v2)
         y -= line_h
 
-    _kv("Request Date", (wo.get('request_date') or '').split('.')[0])
-    _kv("Warehouse Location", wo.get('warehouse_location'))
-    _kv("Customer Name", wo.get('customer_name'))
-    _kv("Quote / Invoice #", wo.get('quote_invoice'))
-    _kv("Sales Person", wo.get('sales_person'))
-    _kv("Vehicle", wo.get('vehicle'))
-    _kv("VIN", wo.get('vin'))
-    _kv("Priority", wo.get('priority'))
-    _kv("Created By", wo.get('created_by'))
-    if wo.get('completed_at'):
-        _kv("Completed", (wo.get('completed_at') or '').split('.')[0])
+    # Request details block (moved above Parts Requested so the narrative
+    # context prints first). Blank line above and below for breathing room.
+    y -= line_h
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(0.6 * inch, y, "Request Details")
+    y -= 0.22 * inch
+    c.setFont("Helvetica", 10)
+    notes_text = (wo.get('notes') or '').strip() or '—'
+    for line in _wrap_text(notes_text, 90):
+        if y < 1.2 * inch:
+            c.showPage()
+            y = h - 0.75 * inch
+        c.drawString(0.6 * inch, y, line)
+        y -= 0.2 * inch
+    y -= line_h
 
     # Parts requested
     parts = wo.get('parts') or []
     if parts:
-        y -= line_h * 0.25
+        y -= line_h
         c.setFont("Helvetica-Bold", 11)
         c.drawString(0.6 * inch, y, "Parts Requested")
         y -= 0.22 * inch
@@ -6465,30 +6502,16 @@ def work_order_pdf(wid):
                     c.drawString(1.2 * inch, y, line)
                     y -= 0.18 * inch
                 c.setFont("Helvetica", 10)
-
-    # Request details block
-    y -= line_h * 0.25
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(0.6 * inch, y, "Request Details")
-    y -= 0.2 * inch
-    c.setFont("Helvetica", 10)
-    notes_text = (wo.get('notes') or '').strip() or '—'
-    for line in _wrap_text(notes_text, 90):
-        if y < 1.2 * inch:
-            c.showPage()
-            y = h - 0.75 * inch
-        c.drawString(0.6 * inch, y, line)
-        y -= 0.2 * inch
+        y -= line_h
 
     # Activity & notes log
     if wo.get('notes_log'):
-        y -= 0.1 * inch
         c.setFont("Helvetica-Bold", 11)
         c.drawString(0.6 * inch, y, "Notes & Activity")
         y -= 0.22 * inch
         c.setFont("Helvetica", 9)
         for n in wo['notes_log']:
-            header = f"[{(n.get('created_at') or '').split('.')[0]}] {n.get('author', '')}"
+            header = f"[{_fmt_display_ts(n.get('created_at'), tz_name, time_fmt)}] {n.get('author', '')}"
             if y < 1.2 * inch:
                 c.showPage()
                 y = h - 0.75 * inch
@@ -6516,6 +6539,28 @@ def work_order_pdf(wid):
         mimetype='application/pdf',
         headers={'Content-Disposition': f'inline; filename=work-order-{wo["wo_number"]}.pdf'}
     )
+
+
+def _fmt_display_ts(ts, tz_name, time_fmt):
+    """Render a stored UTC timestamp in the configured display timezone +
+    12h/24h format. Mirrors the frontend _fmtServerTs helper so exported
+    PDFs match what the user sees in the browser."""
+    if not ts:
+        return '—'
+    from datetime import datetime
+    s = str(ts).split('.')[0].replace('T', ' ')
+    try:
+        dt = datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return s
+    try:
+        from zoneinfo import ZoneInfo
+        dt = dt.replace(tzinfo=ZoneInfo('UTC')).astimezone(ZoneInfo(tz_name or 'UTC'))
+    except Exception:
+        pass
+    if time_fmt == '24h':
+        return dt.strftime('%m/%d/%Y %H:%M')
+    return dt.strftime('%m/%d/%Y %I:%M %p')
 
 
 def _wrap_text(text, width):

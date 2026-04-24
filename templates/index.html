@@ -1183,6 +1183,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wo-meta-row {
     display: flex; gap: 0.85rem; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap;
 }
+.wo-meta-row.wo-vehicle-row { margin-top: 1rem; }
 .wo-meta-row span strong { color: var(--text-secondary); font-weight: 500; }
 .wo-status-badge {
     font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
@@ -6421,15 +6422,18 @@ function renderWorkOrderCard(wo) {
                 </span>
             </div>
             <div class="wo-meta-row">
-                <span><strong>${esc(wo.vehicle || '—')}</strong></span>
-                ${wo.vin ? `<span style="font-family:var(--mono);font-size:0.72rem;"><strong>VIN:</strong> ${esc(wo.vin)}</span>` : ''}
                 ${wo.warehouse_location ? `<span>📍 ${esc(wo.warehouse_location)}</span>` : ''}
-                ${wo.sales_person ? `<span>👤 ${esc(wo.sales_person)}</span>` : ''}
+                ${wo.sales_person ? `<span>👤 <strong>Sales Person:</strong> ${esc(wo.sales_person)}</span>` : ''}
+                ${wo.created_by ? `<span>✍️ <strong>Created by:</strong> ${esc(wo.created_by)}</span>` : ''}
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
+            <div class="wo-meta-row wo-vehicle-row">
+                <span><strong>Vehicle:</strong> ${esc(wo.vehicle || '—')}</span>
+                ${wo.vin ? `<span style="font-family:var(--mono);font-size:0.72rem;"><strong>VIN:</strong> ${esc(wo.vin)}</span>` : ''}
+            </div>
+            ${notesBlock}
             <div class="wo-card-collapsible">
                 <div class="wo-card-collapsible-inner">
-                    ${notesBlock}
                     ${attachmentsBlock}
                     ${partsBlock}
                     ${notesThreadBlock}
