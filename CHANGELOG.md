@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.14
+- <strong>Part labels always print the latest version</strong> — Printing a label after editing a part could open a stale copy the browser had cached from a previous print. The label PDF is regenerated on every request, so the endpoints now send no-cache headers (<code>Cache-Control: no-store</code>) and the print action appends a cache-busting timestamp to the URL. An edited part now always prints its freshly generated label.
+- <strong>Tighter spacing under the SKU on labels</strong> — Reduced the gap between the IMS SKU line and the smaller two-column field text below it, so the lower rows no longer run past the label's bottom margin and get clipped at print. Applies to both the single-part label and the batch print.
+
 ## v1.6.13
 - <strong>Product label text no longer clipped at the top</strong> — On the 4"×1" part-label PDFs (both the single-part label and the batch print), the text column — starting with the WM product number — was anchored flush to the label's top edge, so the printer's non-printable top margin cut off the top of the first line. The text block is now anchored to the top of the QR code's vertical band with a small safety margin, and the two-column field list stops at the bottom of that band rather than the label edge. All label text now fits inside the same height as the QR code.
 

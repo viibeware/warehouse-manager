@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.13'
+APP_VERSION = '1.6.14'
 
 
 def _compute_build_fingerprint():
@@ -3196,7 +3196,9 @@ def part_label_pdf(pid):
     if sku:
         c.setFont("Helvetica-Bold", 9)
         c.drawString(x_start, y, sku)
-        y -= 10
+        # Tight gap to the smaller two-column text below so it doesn't run
+        # past the label's bottom margin and get clipped at print.
+        y -= 7
 
     # Remaining fields in two columns
     remaining = [(lbl, val) for lbl, val in label_fields if lbl not in ('Product #', 'SKU')]
@@ -3237,7 +3239,14 @@ def part_label_pdf(pid):
     return Response(
         buf.getvalue(),
         mimetype='application/pdf',
-        headers={'Content-Disposition': f'inline; filename=label-{pn}.pdf'}
+        headers={
+            'Content-Disposition': f'inline; filename=label-{pn}.pdf',
+            # Regenerated on every request — never let the browser/proxy serve
+            # a stale label after the part has been edited.
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        }
     )
 
 
@@ -3296,7 +3305,9 @@ def batch_labels_pdf():
         if sku:
             c.setFont("Helvetica-Bold", 9)
             c.drawString(x_start, y, sku)
-            y -= 10
+            # Tight gap to the smaller two-column text below so it doesn't run
+            # past the label's bottom margin and get clipped at print.
+            y -= 7
 
         # Remaining fields in two columns
         remaining = [(lbl, val) for lbl, val in label_fields if lbl not in ('Product #', 'SKU')]
@@ -3338,7 +3349,13 @@ def batch_labels_pdf():
     return Response(
         buf.getvalue(),
         mimetype='application/pdf',
-        headers={'Content-Disposition': 'inline; filename=labels-batch.pdf'}
+        headers={
+            'Content-Disposition': 'inline; filename=labels-batch.pdf',
+            # Regenerated on every request — never serve a stale cached batch.
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        }
     )
 
 

@@ -5020,7 +5020,9 @@ function _refreshAfterAudit(pid) {
 }
 
 function printLabel(id) {
-    window.open(`/api/parts/${id}/label.pdf`, '_blank');
+    // Cache-bust so an edited part always prints its freshly generated label
+    // rather than a stale copy the browser cached from a prior print.
+    window.open(`/api/parts/${id}/label.pdf?t=${Date.now()}`, '_blank');
 }
 
 async function printBatchLabels() {
