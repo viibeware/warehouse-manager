@@ -8,7 +8,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.12'
+APP_VERSION = '1.6.13'
 
 
 def _compute_build_fingerprint():
@@ -3174,12 +3174,16 @@ def part_label_pdf(pid):
     qr_png = _generate_qr_png(part.get('product_number', ''))
     qr_img = ImageReader(BytesIO(qr_png))
     qr_size = 0.82 * inch
-    c.drawImage(qr_img, 4, (h - qr_size) / 2, qr_size, qr_size)
+    qr_y = (h - qr_size) / 2
+    qr_top = qr_y + qr_size
+    qr_bottom = qr_y
+    c.drawImage(qr_img, 4, qr_y, qr_size, qr_size)
 
-    # Text fields on the right
+    # Text fields on the right — kept within the QR code's vertical band so the
+    # printer's non-printable top margin doesn't clip the first line.
     x_start = qr_size + 10
     text_area_w = w - x_start - 6
-    y = h - 13
+    y = qr_top - 9
 
     # Product number bold
     c.setFont("Helvetica-Bold", 9)
@@ -3214,7 +3218,7 @@ def part_label_pdf(pid):
             text = text[:-4] + '…'
         c.drawString(col1_x, col_y, text)
         col_y -= line_h
-        if col_y < 3:
+        if col_y < qr_bottom:
             break
 
     col_y = y
@@ -3224,7 +3228,7 @@ def part_label_pdf(pid):
             text = text[:-4] + '…'
         c.drawString(col2_x, col_y, text)
         col_y -= line_h
-        if col_y < 3:
+        if col_y < qr_bottom:
             break
 
     c.save()
@@ -3272,12 +3276,16 @@ def batch_labels_pdf():
         qr_png = _generate_qr_png(part.get('product_number', ''))
         qr_img = ImageReader(BytesIO(qr_png))
         qr_size = 0.82 * inch
-        c.drawImage(qr_img, 4, (lh - qr_size) / 2, qr_size, qr_size)
+        qr_y = (lh - qr_size) / 2
+        qr_top = qr_y + qr_size
+        qr_bottom = qr_y
+        c.drawImage(qr_img, 4, qr_y, qr_size, qr_size)
 
-        # Text
+        # Text — kept within the QR code's vertical band so the printer's
+        # non-printable top margin doesn't clip the first line.
         x_start = qr_size + 10
         text_area_w = lw - x_start - 6
-        y = lh - 13
+        y = qr_top - 9
 
         c.setFont("Helvetica-Bold", 9)
         pn = part.get('product_number', '')
@@ -3310,7 +3318,7 @@ def batch_labels_pdf():
                 text = text[:-4] + '…'
             c.drawString(col1_x, col_y, text)
             col_y -= line_h
-            if col_y < 3:
+            if col_y < qr_bottom:
                 break
 
         col_y = y
@@ -3320,7 +3328,7 @@ def batch_labels_pdf():
                 text = text[:-4] + '…'
             c.drawString(col2_x, col_y, text)
             col_y -= line_h
-            if col_y < 3:
+            if col_y < qr_bottom:
                 break
 
     c.save()

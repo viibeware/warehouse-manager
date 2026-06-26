@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.13
+- <strong>Product label text no longer clipped at the top</strong> — On the 4"×1" part-label PDFs (both the single-part label and the batch print), the text column — starting with the WM product number — was anchored flush to the label's top edge, so the printer's non-printable top margin cut off the top of the first line. The text block is now anchored to the top of the QR code's vertical band with a small safety margin, and the two-column field list stops at the bottom of that band rather than the label edge. All label text now fits inside the same height as the QR code.
+
 ## v1.6.12
 - <strong>Work order PDF polish</strong> — The printed status now reflects every archived/pending state (including "NOT DELIVERABLE" for WOs that were archived without delivery or are pending the not-deliverable auto-archive), not just requested/flagged/delivered. Request Date, Completed, and the notes-log timestamps are formatted using the site's configured display timezone and 12-hour / 24-hour preference instead of the raw UTC string. Request Details prints above Parts Requested so the narrative context comes first, and the top field block (Request Date through Created By) now lays out as two columns (Priority left, VIN right) to cut the amount of vertical space it consumed.
 - <strong>Work order PDF layout breathing room</strong> — Widened the gap between the right-column label and value in the two-column header so "Warehouse Location:" no longer overruns into its value, and added blank-line padding above and below the Request Details and Parts Requested sections so the document reads more comfortably.
