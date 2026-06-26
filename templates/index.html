@@ -5,17 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Warehouse Manager</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Inter — self-hosted (static/fonts) so the app has no runtime CDN dependency
+   for it. Used app-wide in place of any monospace face. */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/static/fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('/static/fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('/static/fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('/static/fonts/inter-700.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap; src: url('/static/fonts/inter-800.woff2') format('woff2'); }
 
 /* ══════════════════════════════════════════ */
 /*  THEME VARIABLES                          */
 /* ══════════════════════════════════════════ */
 :root {
-    --font: 'DM Sans', -apple-system, sans-serif;
-    --mono: 'JetBrains Mono', monospace;
+    /* Inter is the single typeface app-wide (self-hosted via @font-face above).
+       --mono is kept as an alias so existing var(--mono) usages stay valid. */
+    --font: 'Inter', -apple-system, sans-serif;
+    --mono: 'Inter', -apple-system, sans-serif;
     --transition: 0.2s ease;
     --radius: 8px;
     --radius-lg: 12px;
@@ -174,9 +182,11 @@ body {
     transition: transform 0.25s ease;
 }
 .sidebar-logo, .sidebar-footer { flex: 0 0 auto; }
+/* Fixed sidebar header (search + Dashboard) — always visible above the
+   scrollable module nav. */
+.sidebar-head { flex: 0 0 auto; padding: 0.75rem 0.5rem 0.25rem; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--border); }
 .sidebar-logo {
     padding: 1.25rem 1rem; display: flex; align-items: flex-start; gap: 0.75rem;
-    border-bottom: 1px solid var(--border);
 }
 .sidebar-logo img { width: 44px; height: 44px; border-radius: 6px; margin-top: 1px; }
 .sidebar-logo-text {
@@ -190,12 +200,51 @@ body {
     font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted);
     letter-spacing: 0.03em; margin-top: 2px;
 }
-.sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0.75rem 0.5rem; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0.5rem 0.5rem 0.75rem; display: flex; flex-direction: column; gap: 2px; }
 .sidebar-section-label {
     font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
     padding: 0.75rem 0.75rem 0.35rem;
 }
+/* Divider line + breathing room above each module section (also separates the
+   first section from Dashboard). Hidden sections (display:none) don't render a
+   line, so disabling a module never leaves an orphan divider. */
+.nav-section {
+    border-top: 1px solid var(--border);
+    margin-top: 6px; padding-top: 4px;
+}
+/* First section sits right under the fixed header divider — no double line. */
+.sidebar-nav > .nav-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+/* Collapsible module section header (caret + label). Resets button chrome but
+   inherits the .sidebar-section-label type styles. */
+.nav-section-header {
+    display: flex; align-items: center; gap: 5px;
+    width: 100%; text-align: left; background: none; border: none;
+    border-radius: var(--radius); cursor: pointer;
+    transition: color var(--transition), background var(--transition);
+    /* Match the size/case of the nav items beneath each section. */
+    font-size: 0.85rem; text-transform: none; letter-spacing: 0;
+}
+.nav-section-header:hover { color: var(--text-secondary); background: var(--bg-card); }
+.nav-caret {
+    flex-shrink: 0; transition: transform 0.22s ease; opacity: 0.8;
+}
+.nav-section.collapsed .nav-caret { transform: rotate(-90deg); }
+/* Smooth expand/collapse: animate grid rows 1fr→0fr so it eases to the real
+   content height (no fixed max-height guesswork). The inner wrapper clips the
+   overflow while the row track shrinks. */
+.nav-section-body {
+    display: grid; grid-template-rows: 1fr;
+    transition: grid-template-rows 0.24s ease;
+}
+.nav-section.collapsed .nav-section-body { grid-template-rows: 0fr; }
+.nav-section-inner { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Gap between heading and first item only while expanded (collapsed stays tight). */
+.nav-section:not(.collapsed) .nav-section-header { margin-bottom: 1rem; }
+/* Applied while restoring saved collapsed state on load so it snaps instantly
+   instead of animating shut on every page load. */
+.nav-section.nav-no-anim .nav-section-body,
+.nav-section.nav-no-anim .nav-caret { transition: none; }
 /* Inline "?" help trigger that reveals a tooltip on hover/focus */
 .section-help {
     position: relative;
@@ -669,11 +718,19 @@ body {
 }
 .modal-header h2 { font-size: 1rem; font-weight: 600; }
 .modal-close {
-    width: 30px; height: 30px; border: none; background: var(--bg-input);
-    color: var(--text-secondary); border-radius: var(--radius); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: all var(--transition); font-size: 1rem;
+    width: 30px; height: 30px; flex-shrink: 0; padding: 0;
+    border: none; background: var(--bg-input);
+    color: var(--text-secondary); border-radius: 50%; cursor: pointer;
+    transition: all var(--transition);
+    position: relative; font-size: 0;  /* hide the &times; glyph; draw the X below */
 }
+/* Perfectly-centered X drawn from two lines (the × glyph's metrics are off-center) */
+.modal-close::before, .modal-close::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 13px; height: 2px; border-radius: 1px; background: currentColor;
+}
+.modal-close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.modal-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .modal-close:hover { background: var(--danger); color: #fff; }
 .modal-body { padding: 1.25rem; }
 .modal-footer {
@@ -805,12 +862,20 @@ body {
     opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
 }
 .lightbox-overlay.active { opacity: 1; pointer-events: all; }
-.lightbox-img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: var(--radius); }
+.lightbox-img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: var(--radius); transition: transform 0.2s ease; cursor: zoom-in; }
+.lightbox-img.zoomed { cursor: zoom-out; }
 .lightbox-close {
     position: absolute; top: 18px; right: 22px; width: 38px; height: 38px;
     border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 50%;
-    cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 0;  /* hide the &times; glyph; draw a centered X below */
 }
+/* Perfectly-centered X from two rotated lines (the × glyph sits off-center). */
+.lightbox-close::before, .lightbox-close::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 16px; height: 2px; border-radius: 1px; background: currentColor;
+}
+.lightbox-close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.lightbox-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .lightbox-close:hover { background: rgba(255,255,255,0.25); }
 .lightbox-nav {
     position: absolute; top: 50%; transform: translateY(-50%);
@@ -2044,13 +2109,30 @@ a.wo-number.clickable:hover { text-decoration: none; }
     padding: 0 1.25rem;
     overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+    /* Scrollable when tabs overflow, but the scrollbar itself is hidden. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
-.settings-tabs::-webkit-scrollbar { height: 4px; }
-.settings-tabs::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
-    border-radius: 4px;
+.settings-tabs::-webkit-scrollbar { height: 0; width: 0; display: none; }
+
+/* Manage button + toggle grouped on the right of a module row. */
+.module-row-controls { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+/* Nested sub-module row (e.g. Glossary under Knowledge Base): a tidy L-shaped
+   tree connector branching from the parent row down into this one. The compound
+   selector beats `.settings-row`'s padding shorthand so the indent sticks. */
+/* No divider between a module and its sub-module — they read as one group. */
+.settings-row.module-row-parent { border-bottom: none; }
+.settings-row.module-sub-row { position: relative; padding-left: 2rem; }
+/* Connector meets the label, which sits ~1.5rem below the row's top. */
+.module-sub-row::before {
+    content: ''; position: absolute; left: 0.7rem; top: -0.85rem; height: 2.35rem;
+    width: 2px; background: var(--border);
 }
+.module-sub-row::after {
+    content: ''; position: absolute; left: 0.7rem; top: 1.5rem;
+    width: 0.6rem; height: 2px; background: var(--border);
+}
+.module-sub-row .settings-label { font-size: 0.84rem; color: var(--text-secondary); }
 .settings-tab {
     padding: 0.7rem 1rem; font-family: var(--font); font-size: 0.85rem; font-weight: 600;
     letter-spacing: 0; color: var(--text-muted);
@@ -2059,10 +2141,12 @@ a.wo-number.clickable:hover { text-decoration: none; }
     flex-shrink: 0; white-space: nowrap;
 }
 
-/* Keep settings modal at a fixed height so switching tabs doesn't resize it */
+/* Settings modal: fixed height so switching tabs never jumps the modal, and
+   allowed to widen up to 90vw. Tab content scrolls inside the body. */
 #settingsModal .modal {
     display: flex; flex-direction: column;
-    height: 780px; max-height: 92vh;
+    width: 100%; max-width: 80vw;
+    height: 80vh; max-height: 80vh;
     overflow: hidden;
 }
 #settingsModal .modal-body {
@@ -2082,6 +2166,24 @@ a.wo-number.clickable:hover { text-decoration: none; }
 #woFormModal .modal-body {
     flex: 1; min-height: 0; overflow-y: auto;
 }
+#kbUploadModal .modal {
+    display: flex; flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+#kbUploadModal .modal-header,
+#kbUploadModal .modal-footer {
+    flex-shrink: 0;
+}
+#kbUploadModal .modal-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 1rem;
+}
+/* Footer stacks the error message above the action buttons */
+#kbUploadModal .modal-footer {
+    flex-direction: column; align-items: stretch; gap: 0.5rem;
+}
+#kbUploadModal .modal-footer > div:empty { display: none; }
 .settings-tab:hover { color: var(--text-secondary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .settings-tab-content { display: none; }
@@ -2244,7 +2346,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .icon-picker {
     display: flex; flex-wrap: wrap; gap: 4px; padding: 6px;
     background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
-    max-height: 120px; overflow-y: auto;
+    max-height: 200px; overflow-y: auto;
 }
 .icon-pick {
     width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
@@ -2502,6 +2604,197 @@ body:has(.sidebar.open) .hamburger-icon {
     #adminModal .admin-table td.admin-actions-cell { padding-top: 8px; }
     #adminModal .admin-table td.admin-actions-cell .table-actions { justify-content: flex-start !important; }
 }
+
+/* ── Knowledge Base ── */
+.kb-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.kb-title { margin: 0; font-size: 1.4rem; }
+.kb-subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem; }
+.kb-header-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.kb-search { min-width: 220px; }
+.kb-docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.kb-card { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s; }
+.kb-card:hover { border-color: var(--accent); box-shadow: var(--shadow-lg); }
+.kb-thumb { display: flex; align-items: center; justify-content: center; height: 130px; background: rgba(127,127,127,0.08); text-decoration: none; border-bottom: 1px solid var(--border); }
+.kb-thumb-img { background-size: cover; background-position: center; }
+.kb-thumb-file { flex-direction: column; gap: 6px; color: var(--text-secondary); }
+.kb-glyph { font-size: 2.4rem; line-height: 1; }
+.kb-ext { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.05em; color: var(--text-muted); }
+.kb-card-body { padding: 0.7rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+.kb-card-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); text-decoration: none; word-break: break-word; }
+.kb-card-title:hover { color: var(--accent); text-decoration: underline; }
+.kb-card-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* File-less "article" entries show more of their text since the body IS the content. */
+.kb-card-desc-full { -webkit-line-clamp: 12; }
+.kb-thumb-article { color: var(--text-muted); }
+.kb-thumb-glossary { color: var(--accent); background: var(--accent-dim); }
+.kb-card-meta { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); margin-top: auto; }
+.kb-card-actions { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
+.btn-xs { padding: 3px 8px; font-size: 0.72rem; }
+.kb-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.9rem; }
+/* KB table view (reuses .parts-table chrome) */
+.kb-table { min-width: 760px; }
+.kb-table tr { cursor: default; }
+.kb-table-title { color: var(--text-primary); font-weight: 600; text-decoration: none; }
+.kb-table-title:hover { color: var(--accent); text-decoration: underline; }
+.kb-table-title-plain { color: var(--text-primary); font-weight: 600; }
+/* Detail / article modal */
+.kb-detail-cat { display: inline-block; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--accent-dim); padding: 3px 9px; border-radius: 999px; }
+/* KB detail = floating, layerable, draggable windows (no opaque backdrop) so
+   several can stay open at once and be moved apart. They live below standard
+   modals (200), the lightbox (500) and the palette (600). */
+.kb-win { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: 6vh 1rem 1rem; pointer-events: none; }
+.kb-win .modal { pointer-events: auto; display: flex; flex-direction: column; width: 100%; max-width: 880px; max-height: 84vh; overflow: hidden; box-shadow: var(--shadow-lg); }
+.kb-win .modal-header, .kb-win .modal-footer { flex-shrink: 0; }
+.kb-win .modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+/* Fixed metadata sub-header above the scrolling detail body */
+.kbdetail-head { flex-shrink: 0; padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+/* Organized record-detail block (fixed sub-header) — fields flow in a row,
+   each a compact label-over-value cell, wrapping as needed to save space. */
+.kb-detail-meta { display: flex; flex-flow: row wrap; gap: 0.55rem 1.6rem; align-items: flex-start; }
+.kb-detail-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
+.kb-detail-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.kb-chip-clickable { cursor: pointer; transition: filter var(--transition), box-shadow var(--transition); }
+.kb-chip-clickable:hover { filter: brightness(1.08); box-shadow: 0 0 0 1px var(--accent) inset; }
+.kb-detail-val { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 0.88rem; color: var(--text-primary); }
+.kb-detail-val .kb-card-parts, .kb-detail-val .kb-parts-label { margin: 0; }
+.kb-detail-type { font-family: var(--mono); font-size: 0.72rem; color: var(--text-secondary); }
+.kb-detail-media { margin: 0.6rem 0; text-align: center; }
+.kb-detail-img { display: inline-block; max-width: 100%; max-height: 62vh; height: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.kb-detail-pdf { margin: 0.6rem 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.kb-detail-pdf iframe { display: block; width: 100%; height: 68vh; border: 0; background: #fff; }
+.kb-detail-content { white-space: pre-wrap; line-height: 1.5; font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.6rem; }
+/* Glossary modal: fixed header + search, scrolling term list */
+#glossaryModal .modal { display: flex; flex-direction: column; max-height: 82vh; overflow: hidden; }
+#glossaryModal .modal-header, #glossaryModal .glossary-search-wrap { flex-shrink: 0; }
+#glossaryModal .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding-top: 0.5rem; }
+.glossary-search-wrap { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1.25rem; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+.glossary-search-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: 0.95rem; color: var(--text-primary); }
+.glossary-count { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); white-space: nowrap; }
+.glossary-letter { position: sticky; top: 0; background: var(--bg-secondary); font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); padding: 0.4rem 0.25rem 0.25rem; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.glossary-term { display: grid; grid-template-columns: minmax(90px, 0.32fr) 1fr; gap: 0.85rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--border); }
+.glossary-term dt { font-weight: 600; color: var(--text-primary); font-size: 0.86rem; word-break: break-word; }
+.glossary-term dd { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin: 0; }
+.glossary-term mark { background: var(--accent-dim); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+/* Draggable modal/window title bars */
+.modal-header { cursor: move; user-select: none; }
+.modal-header .modal-close { cursor: pointer; }
+.modal.dragging { transition: none !important; }
+.kb-detail-actions { display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border); }
+.kb-table .kb-row-actions { white-space: nowrap; text-align: right; }
+.kb-table .kb-row-actions .table-btn { vertical-align: middle; }
+
+/* Vehicle-fitment chips on a KB card */
+.kb-card-fitment { display: flex; flex-wrap: wrap; gap: 4px; }
+.kb-fit-chip {
+    font-size: 0.66rem; font-weight: 600; line-height: 1;
+    padding: 3px 7px; border-radius: 999px;
+    background: var(--accent-dim); color: var(--accent);
+}
+/* Associated parts on a KB card */
+.kb-card-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.kb-parts-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.kb-part-link, .kb-part-tag {
+    font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: var(--radius);
+    border: 1px solid var(--border); color: var(--text-secondary); text-decoration: none;
+}
+.kb-part-link { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.kb-part-link:hover { background: var(--accent-dim); }
+.kb-extlink-ic { flex-shrink: 0; opacity: 0.75; }
+
+/* Associated-parts editor rows in the upload / edit modals */
+.kb-parts-editor { display: flex; flex-direction: column; gap: 6px; }
+.kb-part-row { display: flex; gap: 6px; align-items: center; }
+.kb-part-row .kb-part-num { flex: 0 0 38%; }
+.kb-part-row .kb-part-url { flex: 1 1 auto; }
+.kb-part-remove {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: none; color: var(--text-muted);
+    font-size: 1.1rem; line-height: 1; cursor: pointer; transition: all var(--transition);
+}
+.kb-part-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+/* WordPress import wizard */
+.wp-steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+.wp-step { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); padding: 4px 8px; border-radius: 999px; }
+.wp-step-n { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-card); color: var(--text-muted); font-size: 0.66rem; }
+.wp-step.active { color: var(--accent); }
+.wp-step.active .wp-step-n { background: var(--accent); color: #fff; }
+.wp-step.done .wp-step-n { background: var(--yes, #10b981); color: #fff; }
+.wp-error { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius); padding: 8px 11px; font-size: 0.82rem; margin-bottom: 0.8rem; }
+.wp-help { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.4; }
+.wp-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
+.wp-fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.85rem; margin-bottom: 0.85rem; }
+.wp-fieldset-title { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.wp-preview-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+table.wp-preview { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+table.wp-preview th, table.wp-preview td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.wp-result-ok { font-size: 0.95rem; color: var(--text-primary); padding: 0.5rem 0; }
+.wp-errlist { margin: 0.3rem 0 0 1.1rem; font-size: 0.76rem; color: var(--text-muted); max-height: 180px; overflow: auto; }
+.wp-warn { background: rgba(245,158,11,0.12); color: var(--engine, #f59e0b); border: 1px solid rgba(245,158,11,0.35); border-radius: var(--radius); padding: 8px 11px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 0.9rem; }
+/* WordPress import modal: fixed header/sub-header + footer, scrollable middle, up to 80vh */
+#kbWpImportModal .kbwp-modal {
+    display: flex; flex-direction: column;
+    width: 100%; max-width: 720px;
+    height: 80vh; max-height: 80vh; overflow: hidden;
+}
+#kbWpImportModal .modal-header,
+#kbWpImportModal .kbwp-subhead,
+#kbWpImportModal .kbwp-footer { flex-shrink: 0; }
+#kbWpImportModal .kbwp-subhead { padding: 0.9rem 1.25rem 0; border-bottom: 1px solid var(--border); }
+#kbWpImportModal .kbwp-subhead .wp-steps { margin-bottom: 0.8rem; }
+#kbWpImportModal .kbwp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 1.1rem 1.25rem; }
+#kbWpImportModal .kbwp-footer { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.85rem 1.25rem; border-top: 1px solid var(--border); }
+
+/* ── Sidebar global-search trigger ── */
+.sidebar-search {
+    display: flex; align-items: center; gap: 0.55rem; width: 100%;
+    padding: 0.5rem 0.7rem; margin-bottom: 0.5rem;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-muted); cursor: pointer; font-family: var(--font); font-size: 0.82rem;
+    transition: border-color var(--transition), color var(--transition);
+}
+.sidebar-search:hover { border-color: var(--accent); color: var(--text-secondary); }
+.sidebar-search svg { flex-shrink: 0; }
+.sidebar-search-label { flex: 1; text-align: left; }
+.kbd-chip {
+    font-family: var(--mono); font-size: 0.62rem; font-weight: 600; color: var(--text-muted);
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 6px; line-height: 1;
+}
+
+/* ── Command palette ── */
+.cmdk-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 600;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 10vh 1rem 1rem; opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
+}
+.cmdk-overlay.active { opacity: 1; pointer-events: all; }
+.cmdk-panel {
+    width: 100%; max-width: 620px; background: var(--bg-secondary);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg); overflow: hidden;
+    display: flex; flex-direction: column; max-height: 70vh;
+    transform: translateY(-8px); transition: transform 0.15s ease;
+}
+.cmdk-overlay.active .cmdk-panel { transform: translateY(0); }
+.cmdk-input-wrap { display: flex; align-items: center; gap: 0.6rem; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; color: var(--text-muted); }
+.cmdk-input-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: 1rem; color: var(--text-primary); }
+.cmdk-esc { font-family: var(--mono); font-size: 0.6rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; }
+.cmdk-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.4rem; line-height: 1; padding: 0 2px; transition: color var(--transition); }
+.cmdk-close:hover { color: var(--text-primary); }
+.cmdk-results { overflow-y: auto; padding: 0.4rem; min-height: 0; }
+.cmdk-group-label { font-family: var(--mono); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 0.5rem 0.6rem 0.25rem; }
+.cmdk-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: var(--radius); cursor: pointer; }
+.cmdk-item .cmdk-ic { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--bg-card); color: var(--text-secondary); font-size: 0.8rem; }
+.cmdk-item .cmdk-text { min-width: 0; flex: 1; }
+.cmdk-item .cmdk-label { font-size: 0.88rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-item .cmdk-sub { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-item.sel, .cmdk-item:hover { background: var(--accent-dim); }
+.cmdk-item.sel .cmdk-label { color: var(--accent); }
+.cmdk-empty { padding: 1.8rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+.cmdk-hint { padding: 1.4rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
 </style>
 </head>
 <body>
@@ -2520,38 +2813,85 @@ body:has(.sidebar.open) .hamburger-icon {
             <div class="sidebar-logo-version" id="sidebarVersion"></div>
         </div>
     </div>
-    <nav class="sidebar-nav">
+    <div class="sidebar-head">
+        <button class="sidebar-search" onclick="openCmdk()" title="Search (⌘K)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span class="sidebar-search-label">Search…</span>
+            <span class="kbd-chip" id="cmdkChip">⌘K</span>
+        </button>
         <button class="nav-item" data-view="dashboard" onclick="showDashboard()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
             Dashboard
         </button>
-        <div class="sidebar-section-label">Inventory</div>
-        <button class="nav-item" data-category="" onclick="setFilter(this)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            All Parts <span class="nav-count" id="countAll"></span>
-        </button>
-        <div id="sidebarCategoryNav"><!-- dynamic --></div>
+    </div>
+    <nav class="sidebar-nav">
+        <div id="navSectionInventory" class="nav-section">
+            <button type="button" class="sidebar-section-label nav-section-header" onclick="toggleNavSection('navSectionInventory')">
+                <svg class="nav-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                Inventory
+            </button>
+            <div class="nav-section-body"><div class="nav-section-inner">
+                <button class="nav-item" data-category="" onclick="setFilter(this)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    All Parts <span class="nav-count" id="countAll"></span>
+                </button>
+                <div id="sidebarCategoryNav"><!-- dynamic --></div>
 
-        <div class="sidebar-section-label" id="actionsLabel" style="display:none;">Actions</div>
-        <button class="nav-item" id="navAddPart" style="display:none;" onclick="openAddModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Part
-        </button>
+                <div class="sidebar-section-label" id="actionsLabel" style="display:none;">Actions</div>
+                <button class="nav-item" id="navAddPart" style="display:none;" onclick="openAddModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Part
+                </button>
+            </div></div>
+        </div>
 
-        <div class="sidebar-section-label">Work Orders</div>
-        <button class="nav-item" id="navNewRequest" style="display:none;" onclick="openNewWorkOrderModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Request
-        </button>
-        <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Work Orders <span class="nav-count" id="countWoActive"></span>
-            <span class="nav-flag-badge" id="navWoNotifBadge" style="display:none;" title="Unread work-order notifications"></span>
-        </button>
-        <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-            Archive
-        </button>
+        <div id="navSectionWorkOrders" class="nav-section">
+            <button type="button" class="sidebar-section-label nav-section-header" onclick="toggleNavSection('navSectionWorkOrders')">
+                <svg class="nav-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                Work Orders
+            </button>
+            <div class="nav-section-body"><div class="nav-section-inner">
+                <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Work Orders <span class="nav-count" id="countWoActive"></span>
+                    <span class="nav-flag-badge" id="navWoNotifBadge" style="display:none;" title="Unread work-order notifications"></span>
+                </button>
+                <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                    Archive
+                </button>
+
+                <div class="sidebar-section-label" id="woActionsLabel" style="display:none;">Actions</div>
+                <button class="nav-item" id="navNewRequest" style="display:none;" onclick="openNewWorkOrderModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Request
+                </button>
+            </div></div>
+        </div>
+
+        <div id="navSectionKnowledgeBase" class="nav-section">
+            <button type="button" class="sidebar-section-label nav-section-header" onclick="toggleNavSection('navSectionKnowledgeBase')">
+                <svg class="nav-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                Knowledge Base
+            </button>
+            <div class="nav-section-body"><div class="nav-section-inner">
+                <button class="nav-item" data-kb-view="all" onclick="showKnowledgeBaseView('')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    All Documents <span class="nav-count" id="countKbAll"></span>
+                </button>
+                <button class="nav-item" id="navGlossary" style="display:none;" onclick="openGlossaryModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    Glossary
+                </button>
+                <div id="sidebarKbNav"><!-- dynamic --></div>
+
+                <div class="sidebar-section-label" id="kbActionsLabel" style="display:none;">Actions</div>
+                <button class="nav-item" id="navAddDocument" style="display:none;" onclick="openKbUploadModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Document
+                </button>
+            </div></div>
+        </div>
 
         <div style="flex:1;"></div>
 
@@ -2624,6 +2964,29 @@ body:has(.sidebar.open) .hamburger-icon {
         <div id="pagination" class="pagination"></div>
         <div id="workOrdersContainer" style="display:none;"></div>
         <div id="dashboardContainer" style="display:none;"></div>
+        <div id="kbContainer" style="display:none;">
+            <div class="kb-header">
+                <div>
+                    <h2 class="kb-title" id="kbViewTitle">Knowledge Base</h2>
+                    <div class="kb-subtitle" id="kbViewSubtitle">Instruction sheets, diagrams, and documents</div>
+                </div>
+                <div class="kb-header-actions">
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn active" id="kbViewCards" onclick="setKbView('cards')" title="Card view">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                        </button>
+                        <button class="view-toggle-btn" id="kbViewTable" onclick="setKbView('table')" title="Table view">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="kbAddDocBtn" style="display:none;" onclick="openKbUploadModal()">+ Add Document</button>
+                </div>
+            </div>
+            <div id="kbBulkBar" style="display:none;"></div>
+            <div id="kbDocsGrid" class="kb-docs-grid"></div>
+            <div id="kbDocsTable" class="parts-table-wrap" style="display:none;"></div>
+            <div id="kbEmptyState" class="kb-empty" style="display:none;"></div>
+        </div>
     </div>
 </div>
 
@@ -2686,7 +3049,7 @@ body:has(.sidebar.open) .hamburger-icon {
 
 <!-- ═══ SETTINGS MODAL ═══ -->
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal" style="max-width:900px;">
+    <div class="modal">
         <div class="modal-header">
             <h2>Settings</h2>
             <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
@@ -2695,8 +3058,8 @@ body:has(.sidebar.open) .hamburger-icon {
             <div class="settings-tabs">
                 <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
                 <button class="settings-tab" onclick="switchSettingsTab('access', this)">Your Access</button>
-                <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Admin</button>
-                <button class="settings-tab" id="settingsBrandingTab" style="display:none;" onclick="switchSettingsTab('branding', this)">Branding</button>
+                <button class="settings-tab" id="settingsModulesTab" style="display:none;" onclick="switchSettingsTab('modules', this)">Modules</button>
+                <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Options</button>
                 <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
                 <button class="settings-tab" id="settingsAboutTab" style="display:none;" onclick="switchSettingsTab('about', this)">About</button>
             </div>
@@ -2765,7 +3128,68 @@ body:has(.sidebar.open) .hamburger-icon {
                 </div>
             </div>
 
-            <!-- Admin Tab -->
+            <!-- Modules Tab -->
+            <div class="settings-tab-content" id="settingsTabModules">
+                <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.2rem;">
+                    <div>
+                        <div class="settings-label">Modules</div>
+                        <div class="settings-desc">Turn whole feature areas on or off for everyone. A disabled module disappears from the sidebar; its data is preserved and reappears when you re-enable it. Use Manage to configure an enabled module.</div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Inventory</div>
+                        <div class="settings-desc">Parts inventory, categories, search, labels, and import/export.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleInventoryManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleInventoryToggle" onchange="saveModule('inventory', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Work Orders</div>
+                        <div class="settings-desc">Work-order requests, fulfillment, notes, attachments, and email alerts.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleWorkOrdersManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openWoListsModal();">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleWorkOrdersToggle" onchange="saveModule('work_orders', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row module-row-parent">
+                    <div>
+                        <div class="settings-label">Knowledge Base</div>
+                        <div class="settings-desc">Instruction sheets, diagrams, and documents under an admin-defined category tree.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleKnowledgeBaseManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openKbCategoryManager();">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleKnowledgeBaseToggle" onchange="saveModule('knowledge_base', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row module-sub-row" id="moduleGlossaryRow">
+                    <div>
+                        <div class="settings-label">Glossary</div>
+                        <div class="settings-desc">A searchable glossary of terms, shown under Knowledge Base in the sidebar.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleGlossaryToggle" onchange="saveModule('glossary', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options Tab (was "Admin") -->
             <div class="settings-tab-content" id="settingsTabAdmin">
                 <div class="settings-row" id="settingsManageUsers">
                     <div>
@@ -2773,20 +3197,6 @@ body:has(.sidebar.open) .hamburger-icon {
                         <div class="settings-desc">Create, edit, and remove user accounts</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openAdminPanel();">Manage</button>
-                </div>
-                <div class="settings-row" id="settingsCategories">
-                    <div>
-                        <div class="settings-label">Manage Categories</div>
-                        <div class="settings-desc">Add or edit parts categories and their field sets</div>
-                    </div>
-                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
-                </div>
-                <div class="settings-row">
-                    <div>
-                        <div class="settings-label">Work Order Settings</div>
-                        <div class="settings-desc">Manage warehouse locations (with a default for new requests), priorities, and sales people</div>
-                    </div>
-                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openWoListsModal();">Manage</button>
                 </div>
                 <div class="settings-row">
                     <div>
@@ -2819,10 +3229,13 @@ body:has(.sidebar.open) .hamburger-icon {
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openTurnstileModal();">Configure</button>
                 </div>
-            </div>
-
-            <!-- Branding Tab -->
-            <div class="settings-tab-content" id="settingsTabBranding">
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">External API Keys</div>
+                        <div class="settings-desc">Read-only keys for the public-facing Knowledge Base frontend to pull KB records. A key is shown in full once; revoke any time.</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openApiKeysModal();">Manage</button>
+                </div>
                 <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:0.6rem;">
                     <div>
                         <div class="settings-label">Login Screen Logo</div>
@@ -2873,6 +3286,26 @@ body:has(.sidebar.open) .hamburger-icon {
                         <div class="settings-desc">Download entire inventory as CSV</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="exportCSV();">Export</button>
+                </div>
+                <div class="settings-row" id="settingsKbWpImport">
+                    <div>
+                        <div class="settings-label">Import Knowledge Base from WordPress</div>
+                        <div class="settings-desc">Pull posts (including ACF fields) from a WordPress install into the Knowledge Base</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="closeModal('settingsModal'); openKbWpImport();">Import</button>
+                </div>
+                <div class="settings-row" id="settingsKbGlossaryExport">
+                    <div>
+                        <div class="settings-label">Export / Import Glossary (CSV)</div>
+                        <div class="settings-desc">Download the structured glossary terms as CSV, or import a CSV (columns: term, definition) — e.g. to move the glossary to a production install. Import replaces existing terms.</div>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button class="btn btn-ghost btn-sm" onclick="kbGlossaryExport()">Export</button>
+                        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+                            <input type="file" accept=".csv,text/csv" style="display:none;" onchange="kbGlossaryImport(this)">
+                            Import
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -3057,6 +3490,304 @@ body:has(.sidebar.open) .hamburger-icon {
                 </button>
             </div>
             <div id="catManagerList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ KB CATEGORY MANAGER MODAL ═══ -->
+<div class="modal-overlay" id="kbCatManagerModal">
+    <div class="modal wide">
+        <div class="modal-header">
+            <h2>Knowledge Base Categories</h2>
+            <button class="modal-close" onclick="closeSubModal('kbCatManagerModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="kbCatFormId" value="">
+            <div class="form-group" style="margin-bottom:0.6rem;">
+                <label class="form-label" id="kbCatFormLabel">New Category</label>
+                <input class="form-input" type="text" id="kbCatName" placeholder="e.g. Diagrams" onkeydown="if(event.key==='Enter'){event.preventDefault();saveKbCategory();}">
+            </div>
+            <div class="form-group" style="margin-bottom:0.6rem;">
+                <label class="form-label">Sidebar icon</label>
+                <input type="hidden" id="kbCatIcon" value="">
+                <div class="icon-picker" id="kbCatIconPicker"></div>
+            </div>
+            <div id="kbCatManagerError" style="color:var(--danger);font-size:0.8rem;margin-bottom:0.5rem;"></div>
+            <div style="display:flex;gap:0.5rem;margin-bottom:1.1rem;">
+                <button class="btn btn-primary btn-sm" id="kbCatSaveBtn" onclick="saveKbCategory()">+ Add Category</button>
+                <button class="btn btn-ghost btn-sm" id="kbCatCancelBtn" onclick="resetKbCatForm()" style="display:none;">Cancel</button>
+            </div>
+            <div id="kbCatManagerList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ KB UPLOAD MODAL ═══ -->
+<div class="modal-overlay" id="kbUploadModal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2>Add Document</h2>
+            <button class="modal-close" onclick="closeModal('kbUploadModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-input" id="kbUploadCategory"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Title <span style="color:var(--text-muted);font-weight:normal;">(optional — defaults to the file name)</span></label>
+                <input class="form-input" type="text" id="kbUploadTitle" placeholder="e.g. LS3 Exploded Diagram">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description <span style="color:var(--text-muted);font-weight:normal;">(optional)</span></label>
+                <textarea class="form-input" id="kbUploadDesc" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Vehicle Fitment <span style="color:var(--text-muted);font-weight:normal;">(comma-separated)</span></label>
+                <input class="form-input" type="text" id="kbUploadFitment" placeholder="e.g. Camaro 2010-2015, Firebird, GTO">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Associated Parts <span style="color:var(--text-muted);font-weight:normal;">(part number + optional URL)</span></label>
+                <div id="kbUploadParts" class="kb-parts-editor"></div>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="kbAddPartRow('kbUploadParts')" style="margin-top:0.4rem;">+ Add Part</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">File(s)</label>
+                <input class="form-input" type="file" id="kbUploadFile" multiple
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.png,.jpg,.jpeg,.gif,.webp,.svg">
+                <span class="form-hint">PDF, Office docs, text, and images. Multiple files share the title only on the first; the rest use their own name.</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Featured Image <span style="color:var(--text-muted);font-weight:normal;">(optional — separate from the file above)</span></label>
+                <input class="form-input" type="file" id="kbUploadFeatured"
+                       accept=".png,.jpg,.jpeg,.gif,.webp">
+                <span class="form-hint">Shown as the card thumbnail and document banner.</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div id="kbUploadError" style="color:var(--danger);font-size:0.82rem;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('kbUploadModal')">Cancel</button>
+                <button class="btn btn-primary btn-sm" id="kbUploadSubmitBtn" onclick="submitKbUpload()">Upload</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ KB EDIT MODAL ═══ -->
+<div class="modal-overlay" id="kbEditModal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2>Edit Document</h2>
+            <button class="modal-close" onclick="closeModal('kbEditModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">File</label>
+                <div id="kbEditFileName" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-muted);"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-input" id="kbEditCategory"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input class="form-input" type="text" id="kbEditTitle">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-input" id="kbEditDesc" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Vehicle Fitment <span style="color:var(--text-muted);font-weight:normal;">(comma-separated)</span></label>
+                <input class="form-input" type="text" id="kbEditFitment" placeholder="e.g. Camaro 2010-2015, Firebird, GTO">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Associated Parts <span style="color:var(--text-muted);font-weight:normal;">(part number + optional URL)</span></label>
+                <div id="kbEditParts" class="kb-parts-editor"></div>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="kbAddPartRow('kbEditParts')" style="margin-top:0.4rem;">+ Add Part</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Featured Image</label>
+                <div id="kbEditFeaturedPreview" style="margin-bottom:0.5rem;"></div>
+                <input class="form-input" type="file" id="kbEditFeatured"
+                       accept=".png,.jpg,.jpeg,.gif,.webp">
+                <span class="form-hint">Choose a file to replace the featured image. Saved when you click Save Changes.</span>
+            </div>
+            <div id="kbEditError" style="color:var(--danger);font-size:0.82rem;margin-bottom:0.5rem;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('kbEditModal')">Cancel</button>
+                <button class="btn btn-primary btn-sm" onclick="submitKbEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ KB DETAIL / ARTICLE VIEW — rendered as floating windows by spawnKbWindow() ═══ -->
+
+<!-- ═══ KB GLOSSARY (searchable terms) ═══ -->
+<div class="modal-overlay" id="glossaryModal">
+    <div class="modal" style="max-width:680px;">
+        <div class="modal-header">
+            <h2 id="glossaryTitle">Glossary of Terms</h2>
+            <button class="modal-close" onclick="closeModal('glossaryModal')">&times;</button>
+        </div>
+        <div class="glossary-search-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="glossarySearch" autocomplete="off" spellcheck="false" placeholder="Search terms…" oninput="renderGlossaryList()">
+            <span class="glossary-count" id="glossaryCount"></span>
+        </div>
+        <div class="modal-body" id="glossaryBody"></div>
+    </div>
+</div>
+
+<!-- ═══ KB WORDPRESS IMPORT WIZARD ═══ -->
+<div class="modal-overlay" id="kbWpImportModal">
+    <div class="modal kbwp-modal">
+        <div class="modal-header">
+            <h2>Import from WordPress</h2>
+            <button class="modal-close" onclick="closeModal('kbWpImportModal')">&times;</button>
+        </div>
+        <!-- Fixed sub-header: step rail + error banner -->
+        <div class="kbwp-subhead">
+            <div class="wp-steps">
+                <div class="wp-step active" data-wp-step="1"><span class="wp-step-n">1</span> Connect</div>
+                <div class="wp-step" data-wp-step="2"><span class="wp-step-n">2</span> Source</div>
+                <div class="wp-step" data-wp-step="3"><span class="wp-step-n">3</span> Map fields</div>
+                <div class="wp-step" data-wp-step="4"><span class="wp-step-n">4</span> Preview</div>
+                <div class="wp-step" data-wp-step="5"><span class="wp-step-n">5</span> Done</div>
+            </div>
+            <div id="kbWpError" class="wp-error" style="display:none;"></div>
+        </div>
+        <!-- Scrollable body -->
+        <div class="modal-body kbwp-body">
+            <!-- Step 1: Connect -->
+            <div class="wp-pane" id="kbWpPane1">
+                <div class="form-group">
+                    <label class="form-label">WordPress URL</label>
+                    <input class="form-input" type="text" id="kbWpUrl" placeholder="https://your-wordpress-site.com">
+                    <span class="form-hint">The site's home URL. We talk to its REST API at <code>/wp-json</code>.</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username <span style="color:var(--text-muted);font-weight:normal;">(optional — only for private content / ACF)</span></label>
+                    <input class="form-input" type="text" id="kbWpUser" autocomplete="off" placeholder="admin">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Application Password <span style="color:var(--text-muted);font-weight:normal;">(optional)</span></label>
+                    <input class="form-input" type="password" id="kbWpPass" autocomplete="off" placeholder="xxxx xxxx xxxx xxxx">
+                    <span class="form-hint">Create one in WordPress under Users → Profile → Application Passwords. Leave blank for public sites.</span>
+                </div>
+            </div>
+
+            <!-- Step 2: Source -->
+            <div class="wp-pane" id="kbWpPane2" style="display:none;">
+                <div class="form-group">
+                    <label class="form-label">Post type</label>
+                    <select class="form-input" id="kbWpPostType"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category filter <span style="color:var(--text-muted);font-weight:normal;">(optional)</span></label>
+                    <select class="form-input" id="kbWpCategory"><option value="">All categories</option></select>
+                </div>
+            </div>
+
+            <!-- Step 3: Map -->
+            <div class="wp-pane" id="kbWpPane3" style="display:none;">
+                <p class="wp-help">Map WordPress fields to Knowledge Base entry fields. Dropdowns list every field found across sample posts — including ACF fields exposed in the REST API.</p>
+                <div id="kbWpAcfWarn" class="wp-warn" style="display:none;"></div>
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <select class="form-input wp-path" id="kbWpMapTitle"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <select class="form-input wp-path" id="kbWpMapDesc"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vehicle Fitment <span style="color:var(--text-muted);font-weight:normal;">(string or list → chips)</span></label>
+                    <select class="form-input wp-path" id="kbWpMapFitment"></select>
+                </div>
+                <div class="wp-fieldset">
+                    <div class="wp-fieldset-title">Associated parts</div>
+                    <div class="form-group">
+                        <label class="form-label">Repeater field <span style="color:var(--text-muted);font-weight:normal;">(an ACF repeater / array)</span></label>
+                        <select class="form-input wp-path" id="kbWpMapPartsRepeater" onchange="kbWpRepeaterChanged()"></select>
+                    </div>
+                    <div id="kbWpRepeaterKeys" style="display:none;">
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label class="form-label">Part number sub-field</label>
+                                <select class="form-input" id="kbWpMapPartNumKey"></select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">URL sub-field</label>
+                                <select class="form-input" id="kbWpMapPartUrlKey"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" id="kbWpPartsCommaWrap">
+                        <label class="form-label">…or a single part-numbers field <span style="color:var(--text-muted);font-weight:normal;">(comma-separated / list)</span></label>
+                        <select class="form-input wp-path" id="kbWpMapPartNumbers"></select>
+                    </div>
+                </div>
+                <div class="wp-fieldset">
+                    <div class="wp-fieldset-title">Document file</div>
+                    <div class="form-group">
+                        <label class="form-label">Source for each entry's file</label>
+                        <select class="form-input" id="kbWpFileSource" onchange="kbWpFileSourceChanged()">
+                            <option value="auto">Auto — best available (file field → content image → featured)</option>
+                            <option value="content_image">First image embedded in the post content</option>
+                            <option value="field_url">A field containing a file URL</option>
+                            <option value="featured_image">Featured image</option>
+                            <option value="none">No file — content only (map Post content → Description)</option>
+                            <option value="post_text">Post content saved as a .txt article</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="kbWpFileFieldWrap" style="display:none;">
+                        <label class="form-label">File URL field</label>
+                        <select class="form-input wp-path" id="kbWpMapFileField"></select>
+                    </div>
+                    <span class="form-hint" id="kbWpFileHint">Posts with no usable file are imported as file-less articles (click their title to view the content).</span>
+                    <span class="form-hint" id="kbWpNoFileHint" style="display:none;">No file will be created. Make sure <strong>Description</strong> above is mapped to the post content (e.g. <code>content.rendered</code>) so the text is captured.</span>
+                </div>
+                <div class="wp-fieldset">
+                    <div class="wp-fieldset-title">Featured image</div>
+                    <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;font-weight:normal;cursor:pointer;">
+                        <input type="checkbox" id="kbWpImportFeatured" checked>
+                        Import each post's featured image into its own field
+                    </label>
+                    <span class="form-hint">Stored separately from the document file — never consumed as the attached file — and shown as the card thumbnail and document banner.</span>
+                </div>
+                <div class="wp-fieldset">
+                    <div class="wp-fieldset-title">Knowledge Base category</div>
+                    <div class="form-group">
+                        <select class="form-input" id="kbWpCatMode" onchange="kbWpCatModeChanged()">
+                            <option value="fixed">Put all imported entries in one category</option>
+                            <option value="wp">Recreate the WordPress category for each post</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="kbWpFixedCatWrap">
+                        <label class="form-label">Target category</label>
+                        <select class="form-input" id="kbWpFixedCat"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Preview -->
+            <div class="wp-pane" id="kbWpPane4" style="display:none;">
+                <p class="wp-help" id="kbWpPreviewSummary"></p>
+                <div id="kbWpPreviewTable" class="wp-preview-wrap"></div>
+            </div>
+
+            <!-- Step 5: Result -->
+            <div class="wp-pane" id="kbWpPane5" style="display:none;">
+                <div id="kbWpResult"></div>
+            </div>
+        </div>
+        <!-- Fixed footer: navigation, always in view -->
+        <div class="modal-footer kbwp-footer">
+            <button class="btn btn-ghost btn-sm" id="kbWpBackBtn" onclick="kbWpBack()">← Back</button>
+            <button class="btn btn-primary btn-sm" id="kbWpNextBtn" onclick="kbWpNext()">Connect →</button>
         </div>
     </div>
 </div>
@@ -3472,6 +4203,46 @@ body:has(.sidebar.open) .hamburger-icon {
     </div>
 </div>
 
+<!-- ═══ EXTERNAL API KEYS (admin) ═══ -->
+<div class="modal-overlay" id="apiKeysModal">
+    <div class="modal" style="max-width:620px;">
+        <div class="modal-header">
+            <h2>External API Keys</h2>
+            <button class="modal-close" onclick="closeSubModal('apiKeysModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+                These keys let the public-facing Knowledge Base frontend read KB categories and documents over the API.
+                Keys are <strong>read-only</strong> and require the Knowledge Base module to be enabled.
+                Send the key in the <code>X-API-Key</code> header. A key is shown in full <strong>once</strong> — copy it now.
+            </div>
+            <div class="form-grid" style="align-items:end;">
+                <div class="form-group full-width">
+                    <label class="form-label">Create a key</label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="form-input" type="text" id="apiKeyName" placeholder="e.g. KB frontend (prod)" style="flex:1;">
+                        <button class="btn btn-primary" onclick="createApiKey()">Generate</button>
+                    </div>
+                </div>
+            </div>
+            <div id="apiKeyReveal" style="display:none;margin-top:0.85rem;padding:0.85rem;border:1px solid var(--accent);border-radius:var(--radius);background:var(--accent-dim);">
+                <div class="settings-label" style="margin-bottom:4px;">New key — copy it now, it won't be shown again</div>
+                <div style="display:flex;gap:0.5rem;align-items:center;">
+                    <code id="apiKeyValue" style="flex:1;font-family:var(--mono);font-size:0.8rem;word-break:break-all;"></code>
+                    <button class="btn btn-ghost btn-sm" onclick="copyApiKey()">Copy</button>
+                </div>
+            </div>
+            <div style="margin-top:1.1rem;">
+                <table class="parts-table" style="min-width:0;width:100%;">
+                    <thead><tr><th>Name</th><th>Prefix</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+                    <tbody id="apiKeysTableBody"></tbody>
+                </table>
+                <div id="apiKeysEmpty" style="display:none;color:var(--text-muted);font-size:0.8rem;padding:0.85rem 0;">No API keys yet.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ SMTP SETTINGS (admin) ═══ -->
 <div class="modal-overlay" id="smtpModal">
     <div class="modal" style="max-width:580px;">
@@ -3541,9 +4312,22 @@ body:has(.sidebar.open) .hamburger-icon {
 <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
     <button class="lightbox-nav prev" onclick="lightboxNav(-1); event.stopPropagation();">‹</button>
-    <img class="lightbox-img" id="lightboxImg" src="" alt="">
+    <img class="lightbox-img" id="lightboxImg" src="" alt="" onclick="lbToggleZoom(event)" onmousemove="lbPan(event)">
     <button class="lightbox-nav next" onclick="lightboxNav(1); event.stopPropagation();">›</button>
     <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- ═══ GLOBAL SEARCH / COMMAND PALETTE (⌘K) ═══ -->
+<div class="cmdk-overlay" id="cmdkOverlay" onclick="if(event.target===this)closeCmdk()">
+    <div class="cmdk-panel" role="dialog" aria-label="Search">
+        <div class="cmdk-input-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="cmdkInput" type="text" autocomplete="off" spellcheck="false" placeholder="Search parts, work orders, documents…" oninput="cmdkOnInput()">
+            <span class="cmdk-esc">esc</span>
+            <button class="cmdk-close" onclick="closeCmdk()" aria-label="Close search" title="Close">&times;</button>
+        </div>
+        <div class="cmdk-results" id="cmdkResults"></div>
+    </div>
 </div>
 
 <div class="toast-container" id="toastContainer"></div>
@@ -3687,8 +4471,8 @@ function openSettingsModal(tab) {
     const btnSelector = {
         general: '.settings-tab',
         access: '.settings-tab:nth-child(2)',
+        modules: '#settingsModulesTab',
         admin: '#settingsAdminTab',
-        branding: '#settingsBrandingTab',
         data: '#settingsDataTab',
         about: '.settings-tabs .settings-tab:last-child',
     }[tab] || '.settings-tab';
@@ -3736,6 +4520,55 @@ async function saveGlobalNotifications(enabled) {
     } catch { showToast('Connection error', 'error'); }
 }
 
+function refreshModuleToggles() {
+    const m = getModules();
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+    set('moduleInventoryToggle', m.inventory);
+    set('moduleWorkOrdersToggle', m.work_orders);
+    set('moduleKnowledgeBaseToggle', m.knowledge_base);
+    set('moduleGlossaryToggle', m.glossary);
+    // The Glossary sub-toggle is only meaningful while KB is on.
+    const gt = document.getElementById('moduleGlossaryToggle');
+    if (gt) gt.disabled = !m.knowledge_base;
+}
+
+async function saveModule(name, enabled) {
+    try {
+        const res = await fetch('/api/settings/modules', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ modules: { [name]: enabled } }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            showToast(data.error || 'Failed to update module', 'error');
+            refreshModuleToggles();
+            return;
+        }
+        // Reflect the authoritative state the server returned, then re-apply
+        // visibility across the sidebar and settings tabs live.
+        if (currentUserData) currentUserData.modules = data.modules || currentUserData.modules;
+        applyModuleVisibility();
+        // If KB was just enabled, populate its sidebar; if a module the user is
+        // currently viewing was disabled, bounce them to the dashboard.
+        const m = getModules();
+        if (m.knowledge_base) loadKbCategories();
+        const showingKb = document.getElementById('kbContainer').style.display !== 'none';
+        const showingWo = document.getElementById('workOrdersContainer').style.display !== 'none';
+        const showingParts = document.getElementById('partsToolbar').style.display !== 'none';
+        if ((!m.knowledge_base && showingKb) || (!m.work_orders && showingWo) || (!m.inventory && showingParts)) {
+            showDashboard();
+        }
+        // Keep the glossary toggle's disabled state in sync after a KB change.
+        refreshModuleToggles();
+        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary' }[name] || name;
+        showToast(`${label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch {
+        showToast('Connection error', 'error');
+        refreshModuleToggles();
+    }
+}
+
 function updateNotificationsBanner(globalEnabled) {
     const banner = document.getElementById('woNotifsBanner');
     if (!banner) return;
@@ -3770,15 +4603,16 @@ function switchSettingsTab(tab, btn) {
     const tabMap = {
         general: 'settingsTabGeneral',
         access: 'settingsTabAccess',
+        modules: 'settingsTabModules',
         admin: 'settingsTabAdmin',
-        branding: 'settingsTabBranding',
         data: 'settingsTabData',
         about: 'settingsTabAbout',
     };
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
     if (tab === 'access') renderYourAccessCard();
-    if (tab === 'branding') refreshBrandingPreview();
+    if (tab === 'modules') refreshModuleToggles();
+    if (tab === 'admin') refreshBrandingPreview();
     if (tab === 'about') loadAboutChangelog();
 }
 
@@ -3907,7 +4741,9 @@ async function removeBrandingLogo() {
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     await loadCurrentUser();
+    restoreNavSectionStates();
     await loadCategories();
+    loadKbCategories();
     loadWoSettings();
     loadStats();
     loadWoCounts();
@@ -4231,15 +5067,84 @@ async function loadCurrentUser() {
             document.getElementById('navAddPart').style.display = '';
             document.getElementById('actionsLabel').style.display = '';
             document.getElementById('navNewRequest').style.display = '';
+            document.getElementById('woActionsLabel').style.display = '';
+            document.getElementById('navAddDocument').style.display = '';
+            document.getElementById('kbActionsLabel').style.display = '';
+            const kbAddBtn = document.getElementById('kbAddDocBtn');
+            if (kbAddBtn) kbAddBtn.style.display = '';
         }
         if (currentUserData.role === 'admin') {
+            document.getElementById('settingsModulesTab').style.display = '';
             document.getElementById('settingsAdminTab').style.display = '';
-            document.getElementById('settingsBrandingTab').style.display = '';
             document.getElementById('settingsDataTab').style.display = '';
             document.getElementById('settingsAboutTab').style.display = '';
         }
+        applyModuleVisibility();
         renderYourAccessCard();
     } catch { window.location.href = '/login'; }
+}
+
+/* App-wide module enablement. Hides/shows the three sidebar feature sections
+   and their per-module Settings tabs based on currentUserData.modules. Module
+   settings tabs are admin-only AND require the module to be enabled. Called on
+   load and again after an admin toggles a module so the change is live. */
+function getModules() {
+    const m = (currentUserData && currentUserData.modules) || {};
+    return {
+        inventory: m.inventory !== false,
+        work_orders: m.work_orders !== false,
+        knowledge_base: m.knowledge_base !== false,
+        glossary: m.glossary !== false,
+    };
+}
+function applyModuleVisibility() {
+    const m = getModules();
+    const setDisp = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+    setDisp('navSectionInventory', m.inventory);
+    setDisp('navSectionWorkOrders', m.work_orders);
+    setDisp('navSectionKnowledgeBase', m.knowledge_base);
+    // Manage buttons in the Modules tab: shown only when the module is enabled.
+    setDisp('moduleInventoryManageBtn', m.inventory);
+    setDisp('moduleWorkOrdersManageBtn', m.work_orders);
+    setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
+    // WordPress → KB importer (Data tab) only makes sense when KB is enabled.
+    setDisp('settingsKbWpImport', m.knowledge_base);
+    // Glossary sub-module: sidebar item + its Data-tab tools, gated on KB AND glossary.
+    const glossaryOn = m.knowledge_base && m.glossary;
+    setDisp('navGlossary', glossaryOn);
+    setDisp('settingsKbGlossaryExport', glossaryOn);
+    // The Glossary sub-module row only applies when KB is on.
+    setDisp('moduleGlossaryRow', m.knowledge_base);
+}
+function getModulesGlossary() { return getModules().glossary; }
+
+/* Collapse/expand a sidebar module section. The caret rotates and the
+   section's body hides via the .collapsed class; the state is remembered
+   per-section in localStorage so it survives reloads. */
+function toggleNavSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const collapsed = el.classList.toggle('collapsed');
+    try {
+        const st = JSON.parse(localStorage.getItem('wm-nav-collapsed') || '{}');
+        st[id] = collapsed;
+        localStorage.setItem('wm-nav-collapsed', JSON.stringify(st));
+    } catch {}
+}
+function restoreNavSectionStates() {
+    let st = {};
+    try { st = JSON.parse(localStorage.getItem('wm-nav-collapsed') || '{}'); } catch {}
+    for (const id of Object.keys(st)) {
+        if (st[id]) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.add('nav-no-anim', 'collapsed'); }
+        }
+    }
+    // Re-enable transitions after the collapsed state has been painted so the
+    // restore itself doesn't animate (only subsequent user toggles do).
+    requestAnimationFrame(() => {
+        document.querySelectorAll('.nav-section.nav-no-anim').forEach(el => el.classList.remove('nav-no-anim'));
+    });
 }
 
 /* Render the "Your Access" panel on Settings → General. Lists capabilities
@@ -4678,6 +5583,7 @@ function setFilter(btn) {
 function setCategoryBySlug(slug, push) {
     exitWorkOrdersView();
     exitDashboard();
+    exitKnowledgeBaseView();
     currentCategory = slug || '';
     currentPage = 1;
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === currentCategory));
@@ -4955,9 +5861,31 @@ async function openDetail(id) {
 }
 
 function switchGalleryImage(idx) { const m=document.getElementById('detailMainImg');if(!m||!lightboxImages[idx])return;m.src=lightboxImages[idx];m.onclick=()=>openLightbox(idx);document.querySelectorAll('.detail-gallery-thumb').forEach((t,i)=>t.classList.toggle('active',i===idx)); }
-function openLightbox(idx) { if(!lightboxImages.length)return;lightboxIndex=idx;const lb=document.getElementById('lightbox');document.getElementById('lightboxImg').src=lightboxImages[idx];updateLightboxCounter();lb.classList.add('active');lb.querySelectorAll('.lightbox-nav').forEach(b=>b.style.display=lightboxImages.length>1?'':'none');lb.querySelector('.lightbox-counter').style.display=lightboxImages.length>1?'':'none'; }
-function closeLightbox(e) { if(e&&e.target!==e.currentTarget)return;document.getElementById('lightbox').classList.remove('active'); }
-function lightboxNav(dir) { lightboxIndex=(lightboxIndex+dir+lightboxImages.length)%lightboxImages.length;document.getElementById('lightboxImg').src=lightboxImages[lightboxIndex];updateLightboxCounter(); }
+function openLightbox(idx) { if(!lightboxImages.length)return;lbResetZoom();lightboxIndex=idx;const lb=document.getElementById('lightbox');document.getElementById('lightboxImg').src=lightboxImages[idx];updateLightboxCounter();lb.classList.add('active');lb.querySelectorAll('.lightbox-nav').forEach(b=>b.style.display=lightboxImages.length>1?'':'none');lb.querySelector('.lightbox-counter').style.display=lightboxImages.length>1?'':'none'; }
+function closeLightbox(e) { if(e&&e.target!==e.currentTarget)return;lbResetZoom();document.getElementById('lightbox').classList.remove('active'); }
+function lightboxNav(dir) { lbResetZoom();lightboxIndex=(lightboxIndex+dir+lightboxImages.length)%lightboxImages.length;document.getElementById('lightboxImg').src=lightboxImages[lightboxIndex];updateLightboxCounter(); }
+// Click an image to toggle a 2× zoom; move the cursor while zoomed to pan.
+let _lbZoom = false;
+function lbApplyOrigin(e) {
+    const img = document.getElementById('lightboxImg');
+    if (!img.offsetWidth || !img.offsetHeight) return;
+    const x = Math.max(0, Math.min(100, (e.offsetX / img.offsetWidth) * 100));
+    const y = Math.max(0, Math.min(100, (e.offsetY / img.offsetHeight) * 100));
+    img.style.transformOrigin = `${x}% ${y}%`;
+}
+function lbToggleZoom(e) {
+    e.stopPropagation();   // don't let the backdrop close the lightbox
+    const img = document.getElementById('lightboxImg');
+    _lbZoom = !_lbZoom;
+    if (_lbZoom) { lbApplyOrigin(e); img.style.transform = 'scale(2)'; img.classList.add('zoomed'); }
+    else { lbResetZoom(); }
+}
+function lbPan(e) { if (_lbZoom) lbApplyOrigin(e); }
+function lbResetZoom() {
+    _lbZoom = false;
+    const img = document.getElementById('lightboxImg');
+    if (img) { img.style.transform = ''; img.style.transformOrigin = ''; img.classList.remove('zoomed'); }
+}
 function updateLightboxCounter() { document.getElementById('lightboxCounter').textContent=`${lightboxIndex+1} / ${lightboxImages.length}`; }
 document.addEventListener('keydown',(e)=>{const lb=document.getElementById('lightbox');if(lb.classList.contains('active')){if(e.key==='Escape'){lb.classList.remove('active');e.stopPropagation();}else if(e.key==='ArrowLeft')lightboxNav(-1);else if(e.key==='ArrowRight')lightboxNav(1);}});
 
@@ -5215,6 +6143,72 @@ const ICON_LIB = {
     clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
     archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
     package: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+    car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C1.4 11.3 1 12.1 1 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
+    fuel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+    bookOpen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
+    fileText: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    mapPin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+    camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+    database: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+    server: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
+    power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
+    flame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+    cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>',
+    compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    award: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>',
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    barChart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
+    trendingUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+    dollar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
+    paperclip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+    hash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+    anchor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>',
+    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+    printer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+    sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+    monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+    smartphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 8.7 8.7 21.3a1 1 0 0 1-1.4 0l-4.6-4.6a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4Z"/><path d="m7.5 10.5 2 2"/><path d="m10.5 7.5 2 2"/><path d="m13.5 4.5 2 2"/><path d="m4.5 13.5 2 2"/></svg>',
+    flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v5l4.5 9A2 2 0 0 1 17.7 20H6.3a2 2 0 0 1-1.8-3L9 8z"/><line x1="9" y1="3" x2="15" y2="3"/><line x1="7" y1="14" x2="17" y2="14"/></svg>',
+    crosshair: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>',
+    bolt2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2 9 12h4l-2 10 7-12h-4z"/></svg>',
+    sticky: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z"/><path d="M15 3v6h6"/></svg>',
 };
 
 function getIconSvg(key) {
@@ -5279,6 +6273,111 @@ async function deleteCategory(slug, name) {
         await loadCategories();
         loadStats();
     } catch { showToast('Failed to delete category', 'error'); }
+}
+
+// ── KB category manager (Settings → Knowledge Base) ──
+let _kbCatList = [];
+
+async function openKbCategoryManager() {
+    openModal('kbCatManagerModal');
+    resetKbCatForm();
+    await loadKbCatManager();
+}
+
+// KB icon picker — reuses the shared ICON_LIB; '' = default folder icon.
+function renderKbCatIconPicker(selectedKey) {
+    const c = document.getElementById('kbCatIconPicker');
+    if (!c) return;
+    let h = `<div class="icon-pick${!selectedKey ? ' selected' : ''}" data-icon="" onclick="selectKbCatIcon('')" title="Default (folder)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>`;
+    for (const [key, svg] of Object.entries(ICON_LIB)) {
+        h += `<div class="icon-pick${key === selectedKey ? ' selected' : ''}" data-icon="${key}" onclick="selectKbCatIcon('${key}')" title="${key}">${svg}</div>`;
+    }
+    c.innerHTML = h;
+}
+function selectKbCatIcon(key) {
+    document.getElementById('kbCatIcon').value = key;
+    document.querySelectorAll('#kbCatIconPicker .icon-pick').forEach(el =>
+        el.classList.toggle('selected', el.dataset.icon === key));
+}
+function resetKbCatForm() {
+    document.getElementById('kbCatFormId').value = '';
+    document.getElementById('kbCatName').value = '';
+    document.getElementById('kbCatIcon').value = '';
+    document.getElementById('kbCatManagerError').textContent = '';
+    document.getElementById('kbCatFormLabel').textContent = 'New Category';
+    document.getElementById('kbCatSaveBtn').textContent = '+ Add Category';
+    document.getElementById('kbCatCancelBtn').style.display = 'none';
+    renderKbCatIconPicker('');
+}
+function editKbCategory(id) {
+    const cat = _kbCatList.find(c => c.id === id);
+    if (!cat) return;
+    document.getElementById('kbCatFormId').value = cat.id;
+    document.getElementById('kbCatName').value = cat.name;
+    document.getElementById('kbCatIcon').value = cat.icon || '';
+    document.getElementById('kbCatManagerError').textContent = '';
+    document.getElementById('kbCatFormLabel').textContent = 'Edit Category';
+    document.getElementById('kbCatSaveBtn').textContent = 'Save Changes';
+    document.getElementById('kbCatCancelBtn').style.display = '';
+    renderKbCatIconPicker(cat.icon || '');
+    document.getElementById('kbCatName').focus();
+}
+
+async function loadKbCatManager() {
+    try {
+        const data = await (await fetch('/api/kb/categories')).json();
+        _kbCatList = data.categories || [];
+        let h = '';
+        for (const cat of _kbCatList) {
+            const ico = cat.icon && ICON_LIB[cat.icon]
+                ? `<span style="display:inline-flex;width:18px;height:18px;color:var(--text-secondary);">${ICON_LIB[cat.icon]}</span>`
+                : `<span style="display:inline-flex;width:18px;height:18px;color:var(--text-muted);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>`;
+            h += `<div class="cat-manager-item">
+                ${ico}
+                <div class="cat-manager-name">${esc(cat.name)}</div>
+                <span class="cat-manager-count">${cat.doc_count || 0} doc${cat.doc_count === 1 ? '' : 's'}</span>
+                <div class="table-actions">
+                    <button class="table-btn" onclick="editKbCategory(${cat.id})">Edit</button>
+                    <button class="table-btn danger" onclick="deleteKbCategory(${cat.id}, '${esc(cat.name).replace(/'/g, "\\'")}')">Delete</button>
+                </div>
+            </div>`;
+        }
+        document.getElementById('kbCatManagerList').innerHTML = h || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);">No categories yet</div>';
+    } catch { showToast('Failed to load KB categories', 'error'); }
+}
+
+async function saveKbCategory() {
+    const errEl = document.getElementById('kbCatManagerError');
+    errEl.textContent = '';
+    const id = document.getElementById('kbCatFormId').value;
+    const name = document.getElementById('kbCatName').value.trim();
+    const icon = document.getElementById('kbCatIcon').value;
+    if (!name) { errEl.textContent = 'Enter a category name.'; return; }
+    try {
+        const res = await fetch(id ? `/api/kb/categories/${id}` : '/api/kb/categories', {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, icon }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { errEl.textContent = data.error || 'Save failed.'; return; }
+        resetKbCatForm();
+        await loadKbCatManager();
+        await loadKbCategories();
+    } catch { errEl.textContent = 'Connection error.'; }
+}
+
+async function deleteKbCategory(id, name) {
+    if (!confirm(`Delete category "${name}"? Any documents in it must be moved or removed first.`)) return;
+    try {
+        const res = await fetch(`/api/kb/categories/${id}`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast(data.error || 'Delete failed', 'error'); return; }
+        showToast('Category deleted', 'success');
+        await loadKbCatManager();
+        await loadKbCategories();
+    } catch { showToast('Delete failed', 'error'); }
 }
 
 let catFormFieldCounter = 0;
@@ -5528,8 +6627,1235 @@ function exitDashboard() {
     document.getElementById('dashboardContainer').style.display = 'none';
 }
 
+// ══════════════════════════════════════════
+//  KNOWLEDGE BASE
+// ══════════════════════════════════════════
+let kbCategoriesData = [];      // [{id,name,slug,doc_count}]
+let kbUncategorizedCount = 0;
+let currentKbCategory = '';     // '' = all, 'null' = uncategorized, else slug
+let _kbSearchTimer = null;
+
+function exitKnowledgeBaseView() {
+    document.getElementById('kbContainer').style.display = 'none';
+}
+
+async function loadKbCategories() {
+    if (!getModules().knowledge_base) return;
+    try {
+        const data = await (await fetch('/api/kb/categories')).json();
+        kbCategoriesData = data.categories || [];
+        kbUncategorizedCount = data.uncategorized_count || 0;
+        renderKbSidebar();
+    } catch { console.error('Failed to load KB categories'); }
+}
+
+function renderKbSidebar() {
+    const container = document.getElementById('sidebarKbNav');
+    if (!container) return;
+    let total = kbUncategorizedCount;
+    let h = '';
+    const folderSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+    for (const cat of kbCategoriesData) {
+        total += (cat.doc_count || 0);
+        const active = currentKbCategory === cat.slug ? ' active' : '';
+        const ico = cat.icon && ICON_LIB[cat.icon]
+            ? `<span style="display:inline-flex;width:16px;height:16px;flex-shrink:0;">${ICON_LIB[cat.icon]}</span>`
+            : folderSvg;
+        h += `<button class="nav-item${active}" data-kb-view="cat" data-kb-slug="${esc(cat.slug)}" onclick="showKnowledgeBaseView('${esc(cat.slug)}')">
+            ${ico}
+            ${esc(cat.name)} <span class="nav-count">${cat.doc_count || 0}</span>
+        </button>`;
+    }
+    if (kbUncategorizedCount > 0) {
+        const active = currentKbCategory === 'null' ? ' active' : '';
+        h += `<button class="nav-item${active}" data-kb-view="cat" data-kb-slug="null" onclick="showKnowledgeBaseView('null')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            Uncategorized <span class="nav-count">${kbUncategorizedCount}</span>
+        </button>`;
+    }
+    container.innerHTML = h;
+    const allCount = document.getElementById('countKbAll');
+    if (allCount) allCount.textContent = total || '';
+}
+
+async function showKnowledgeBaseView(slug='', push=true) {
+    if (!getModules().knowledge_base) { showDashboard(); return; }
+    exitWorkOrdersView();
+    exitDashboard();
+    currentKbCategory = slug || '';
+    // Hide parts UI
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    document.getElementById('kbContainer').style.display = '';
+    // Nav active state
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => {
+        if (b.dataset.kbView === 'all') b.classList.toggle('active', !currentKbCategory);
+        else b.classList.toggle('active', b.dataset.kbSlug === currentKbCategory);
+    });
+    document.getElementById('sidebar').classList.remove('open');
+    // Title + subtitle
+    const titleEl = document.getElementById('kbViewTitle');
+    const subEl = document.getElementById('kbViewSubtitle');
+    if (!currentKbCategory) {
+        titleEl.textContent = 'Knowledge Base';
+        subEl.textContent = 'Instruction sheets, diagrams, and documents';
+        subEl.style.display = '';
+    } else if (currentKbCategory === 'null') {
+        titleEl.textContent = 'Uncategorized';
+        subEl.textContent = 'Documents not assigned to a category';
+        subEl.style.display = '';
+    } else {
+        const cat = kbCategoriesData.find(c => c.slug === currentKbCategory);
+        titleEl.textContent = cat ? cat.name : 'Knowledge Base';
+        // No redundant subheading on a specific category page.
+        subEl.textContent = '';
+        subEl.style.display = 'none';
+    }
+    // Reset search box on category change
+    const searchEl = document.getElementById('kbSearchInput');
+    if (searchEl) searchEl.value = '';
+    if (push) {
+        const url = currentKbCategory && currentKbCategory !== 'null' ? `/kb/${currentKbCategory}` : '/kb';
+        history.pushState({ view: 'kb', slug: currentKbCategory }, '', url);
+    }
+    await loadKbCategories();
+    await loadKbDocuments();
+}
+
+
+async function loadKbDocuments() {
+    const grid = document.getElementById('kbDocsGrid');
+    const empty = document.getElementById('kbEmptyState');
+    const q = (document.getElementById('kbSearchInput')?.value || '').trim();
+    const params = new URLSearchParams();
+    if (currentKbCategory === 'null') params.set('category_id', 'null');
+    else if (currentKbCategory) {
+        const cat = kbCategoriesData.find(c => c.slug === currentKbCategory);
+        if (cat) params.set('category_id', cat.id);
+    }
+    if (q) params.set('q', q);
+    try {
+        const data = await (await fetch('/api/kb/documents?' + params.toString())).json();
+        renderKbDocs(data.documents || []);
+    } catch {
+        grid.innerHTML = '';
+        empty.style.display = '';
+        empty.textContent = 'Failed to load documents.';
+    }
+}
+
+const KB_EXT_GLYPH = {
+    pdf: '📄', doc: '📝', docx: '📝', rtf: '📝', odt: '📝', txt: '📄',
+    xls: '📊', xlsx: '📊', csv: '📊', ppt: '📈', pptx: '📈',
+};
+
+let kbView = 'cards';          // 'cards' | 'table'
+let kbSelected = new Set();    // selected document ids (table view)
+let _kbDocs = [];              // last-loaded docs, so toggling view doesn't refetch
+
+// Entry point called after a fetch — remember the docs and render the active view.
+function renderKbDocs(docs) {
+    _kbDocs = docs || [];
+    kbSelected.clear();
+    renderKbView();
+}
+
+function setKbView(mode) {
+    kbView = mode;
+    const cb = document.getElementById('kbViewCards');
+    const tb = document.getElementById('kbViewTable');
+    if (cb) cb.classList.toggle('active', mode === 'cards');
+    if (tb) tb.classList.toggle('active', mode === 'table');
+    kbSelected.clear();
+    renderKbView();
+}
+
+function renderKbView() {
+    const grid = document.getElementById('kbDocsGrid');
+    const table = document.getElementById('kbDocsTable');
+    const empty = document.getElementById('kbEmptyState');
+    const canEdit = currentUserData && currentUserData.can_edit;
+    updateKbBulkBar();
+    if (!_kbDocs.length) {
+        grid.style.display = 'none'; grid.innerHTML = '';
+        table.style.display = 'none'; table.innerHTML = '';
+        empty.style.display = '';
+        empty.innerHTML = canEdit
+            ? `No documents here yet. <a onclick="openKbUploadModal()" style="cursor:pointer;color:var(--accent);">Add one</a>.`
+            : 'No documents here yet.';
+        return;
+    }
+    empty.style.display = 'none';
+    if (kbView === 'table') {
+        grid.style.display = 'none'; grid.innerHTML = '';
+        table.style.display = ''; renderKbTable(_kbDocs);
+    } else {
+        table.style.display = 'none'; table.innerHTML = '';
+        grid.style.display = ''; renderKbCards(_kbDocs);
+    }
+}
+
+// Admin-only "publish to the public companion site" toggle, shared by the card
+// and table views. A document defaults to public; switching it off withholds it
+// from the external API the companion app syncs from.
+function kbPublicToggle(d) {
+    const on = d.public !== false;
+    const tip = on
+        ? 'Visible on the public companion site — click to hide'
+        : 'Hidden from the public companion site — click to publish';
+    return `<label class="toggle-switch kb-vis-toggle" title="${tip}" onclick="event.stopPropagation();">`
+        + `<input type="checkbox" ${on ? 'checked' : ''} onchange="kbToggleDocPublic(${d.id}, this.checked)">`
+        + `<span class="toggle-track"></span></label>`;
+}
+
+function renderKbCards(docs) {
+    const grid = document.getElementById('kbDocsGrid');
+    const canEdit = currentUserData && currentUserData.can_edit;
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    let h = '';
+    for (const d of docs) {
+        const dl = `/api/kb/documents/${d.id}/download`;
+        const isGloss = d.doc_type === 'glossary';
+        const openExpr = isGloss ? 'openGlossaryModal()' : `openKbDetail(${d.id})`;
+        // Every entry opens its viewer (glossary modal, or the detail modal which
+        // previews image/PDF + metadata) rather than jumping straight to a file.
+        let thumb;
+        if (isGloss) {
+            thumb = `<div class="kb-thumb kb-thumb-file kb-thumb-glossary" style="cursor:pointer;" onclick="${openExpr}"><span class="kb-glyph">📖</span><span class="kb-ext">GLOSSARY</span></div>`;
+        } else if (d.has_featured) {
+            thumb = `<div class="kb-thumb kb-thumb-img" style="background-image:url('/uploads/${esc(d.featured_image)}');cursor:pointer;" onclick="${openExpr}"></div>`;
+        } else if (d.is_image && d.has_file) {
+            thumb = `<div class="kb-thumb kb-thumb-img" style="background-image:url('${dl}');cursor:pointer;" onclick="${openExpr}"></div>`;
+        } else if (!d.has_file) {
+            thumb = `<div class="kb-thumb kb-thumb-file kb-thumb-article" style="cursor:pointer;" onclick="${openExpr}"><span class="kb-glyph">📝</span><span class="kb-ext">ARTICLE</span></div>`;
+        } else {
+            thumb = `<div class="kb-thumb kb-thumb-file" style="cursor:pointer;" onclick="${openExpr}"><span class="kb-glyph">${KB_EXT_GLYPH[d.ext] || '📁'}</span><span class="kb-ext">${esc((d.ext||'').toUpperCase())}</span></div>`;
+        }
+        const titleEl = `<a class="kb-card-title" style="cursor:pointer;" title="${esc(d.original_name || d.title)}" onclick="${openExpr}">${esc(d.title)}</a>`;
+        const editBtns = canEdit
+            ? `<div class="kb-card-actions">
+                 <button class="btn btn-ghost btn-xs" onclick="openKbEditModal(${d.id})" title="Edit">Edit</button>
+                 <button class="btn btn-ghost btn-xs" style="color:var(--danger);" onclick="deleteKbDocument(${d.id})" title="Delete">Delete</button>
+               </div>`
+            : '';
+        const desc = d.description ? `<div class="kb-card-desc${d.has_file ? '' : ' kb-card-desc-full'}">${esc(d.description)}</div>` : '';
+        let fitHtml = '';
+        if (d.vehicle_fitment) {
+            const chips = d.vehicle_fitment.split(',').map(s => s.trim()).filter(Boolean)
+                .map(s => `<span class="kb-fit-chip">${esc(s)}</span>`).join('');
+            if (chips) fitHtml = `<div class="kb-card-fitment">${chips}</div>`;
+        }
+        let partsHtml = '';
+        if (Array.isArray(d.associated_parts) && d.associated_parts.length) {
+            const items = d.associated_parts.map(kbPartChip).filter(Boolean).join('');
+            if (items) partsHtml = `<div class="kb-card-parts"><span class="kb-parts-label">Parts</span>${items}</div>`;
+        }
+        const size = d.file_size ? formatBytes(d.file_size) : '';
+        const meta = isGloss
+            ? `${d.term_count || 0} term${d.term_count === 1 ? '' : 's'}`
+            : [size, d.uploaded_by ? esc(d.uploaded_by) : ''].filter(Boolean).join(' · ');
+        const visHtml = (isAdmin && !isGloss)
+            ? `<div class="kb-card-visibility">${kbPublicToggle(d)}<span class="kb-vis-label ${d.public !== false ? '' : 'is-hidden'}">${d.public !== false ? 'Public' : 'Hidden'}</span></div>`
+            : '';
+        h += `<div class="kb-card${(isAdmin && !isGloss && d.public === false) ? ' kb-card-private' : ''}" data-kb-id="${d.id}">
+            ${thumb}
+            <div class="kb-card-body">
+                ${titleEl}
+                ${desc}
+                ${fitHtml}
+                ${partsHtml}
+                <div class="kb-card-meta">${meta}</div>
+                ${visHtml}
+                ${editBtns}
+            </div>
+        </div>`;
+    }
+    grid.innerHTML = h;
+}
+
+function kbCatName(id) {
+    const c = kbCategoriesData.find(c => c.id === id);
+    return c ? c.name : '';
+}
+
+// Associated-part chip: a link (with an external-link arrow + tooltip) when it
+// has a URL, otherwise a plain tag.
+function kbPartChip(p) {
+    const label = esc(p.number || p.url || '');
+    if (!label) return '';
+    if (p.url) {
+        const safe = String(p.url).replace(/"/g, '%22');
+        let host = 'an external site';
+        try { host = new URL(p.url).hostname.replace(/^www\./, ''); } catch {}
+        const arrow = `<svg class="kb-extlink-ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;
+        return `<a href="${safe}" target="_blank" rel="noopener" class="kb-part-link" title="Opens ${esc(host)} in a new tab">${label}${arrow}</a>`;
+    }
+    return `<span class="kb-part-tag">${label}</span>`;
+}
+
+// Detail / "article" view — opened when a file-less entry (or any entry) is
+// clicked, so posts without a downloadable file are still readable.
+// KB detail entries open as floating, layerable, draggable windows so several
+// can stay open at once (e.g. opening a second doc from search keeps the first).
+function openKbDetail(id) {
+    const d = _kbDocs.find(x => x.id === id);
+    if (d) spawnKbWindow(d);
+}
+
+function _kbMetaHtml(d) {
+    const rows = [];
+    const cat = kbCatName(d.category_id);
+    if (cat) {
+        rows.push(`<div class="kb-detail-row"><span class="kb-detail-label">Category</span><span class="kb-detail-val"><span class="kb-detail-cat kb-chip-clickable" title="View ${esc(cat)} in the Knowledge Base" onclick="kbGotoCategory(${d.category_id == null ? 'null' : d.category_id})">${esc(cat)}</span></span></div>`);
+    }
+    if (d.vehicle_fitment) {
+        const chips = d.vehicle_fitment.split(',').map(s => s.trim()).filter(Boolean)
+            .map(s => `<span class="kb-fit-chip kb-chip-clickable" title="Search for “${esc(s)}”" onclick="kbFitmentSearch('${encodeURIComponent(s)}')">${esc(s)}</span>`).join('');
+        if (chips) rows.push(`<div class="kb-detail-row"><span class="kb-detail-label">Fitment</span><span class="kb-detail-val">${chips}</span></div>`);
+    }
+    if (Array.isArray(d.associated_parts) && d.associated_parts.length) {
+        const items = d.associated_parts.map(kbPartChip).filter(Boolean).join('');
+        if (items) rows.push(`<div class="kb-detail-row"><span class="kb-detail-label">Parts</span><span class="kb-detail-val">${items}</span></div>`);
+    }
+    const ftype = d.has_file ? ((d.ext || '').toUpperCase() || 'FILE') : 'Article (no file)';
+    rows.push(`<div class="kb-detail-row"><span class="kb-detail-label">Type</span><span class="kb-detail-val kb-detail-type">${esc(ftype)}${d.file_size ? ` · ${formatBytes(d.file_size)}` : ''}</span></div>`);
+    return `<div class="kb-detail-meta">${rows.join('')}</div>`;
+}
+function _kbBodyHtml(d) {
+    const dl = `/api/kb/documents/${d.id}/download`;
+    let h = '';
+    if (d.has_featured) {
+        const fu = `/uploads/${esc(d.featured_image)}`;
+        h += `<div class="kb-detail-media kb-detail-featured"><img src="${fu}" class="kb-detail-img" alt="${esc(d.title)}" style="cursor:zoom-in;" onclick="kbLightbox('${fu}')"></div>`;
+    }
+    if (d.description) {
+        h += `<div class="kb-detail-content">${esc(d.description)}</div>`;
+    } else if (!d.has_file) {
+        h += `<div class="kb-empty" style="padding:1.5rem 0;">This entry has no content yet.</div>`;
+    }
+    if (d.has_file) {
+        const ext = (d.ext || '').toLowerCase();
+        if (d.is_image) {
+            h += `<div class="kb-detail-media"><img src="${dl}" class="kb-detail-img" alt="${esc(d.title)}" style="cursor:zoom-in;" onclick="kbLightbox('${dl}')"></div>`;
+        } else if (ext === 'pdf') {
+            h += `<a class="btn btn-ghost btn-sm" href="${dl}" target="_blank" rel="noopener" style="margin-bottom:0.5rem;">Open PDF in new tab ↗</a>`;
+            h += `<div class="kb-detail-pdf"><iframe src="${dl}#view=FitH" title="${esc(d.title)}"></iframe></div>`;
+        } else {
+            h += `<a class="btn btn-ghost btn-sm" href="${dl}" target="_blank" rel="noopener" style="margin:0.4rem 0;">Open file (${esc(ext.toUpperCase() || 'download')}) ↗</a>`;
+        }
+    }
+    return h;
+}
+function _kbWinToFront(win) {
+    let max = 150;
+    document.querySelectorAll('.kb-win').forEach(w => { const z = parseInt(w.style.zIndex || '150', 10); if (z > max) max = z; });
+    win.style.zIndex = Math.min(max + 1, 189);  // stay below modals(200)/lightbox(500)/palette(600)
+}
+function spawnKbWindow(d) {
+    const canEdit = currentUserData && currentUserData.can_edit;
+    const footer = canEdit
+        ? `<div class="modal-footer"><button class="btn btn-ghost btn-sm" data-kbedit>Edit</button><button class="btn btn-ghost btn-sm" style="color:var(--danger);" data-kbdelete>Delete</button></div>`
+        : '';
+    const win = document.createElement('div');
+    win.className = 'kb-win';
+    win.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h2>${esc(d.title || 'Document')}</h2>
+          <button class="modal-close" aria-label="Close" data-kbclose>&times;</button>
+        </div>
+        <div class="kbdetail-head">${_kbMetaHtml(d)}</div>
+        <div class="modal-body">${_kbBodyHtml(d)}</div>
+        ${footer}
+      </div>`;
+    document.body.appendChild(win);
+    _kbWinToFront(win);
+    // Cascade so a stacked window doesn't perfectly cover the one beneath it.
+    const cascade = (document.querySelectorAll('.kb-win').length - 1) * 26;
+    setModalPos(win.querySelector('.modal'), cascade, cascade);
+    win.querySelector('[data-kbclose]').onclick = () => win.remove();
+    const eb = win.querySelector('[data-kbedit]'); if (eb) eb.onclick = () => { win.remove(); openKbEditModal(d.id); };
+    const db = win.querySelector('[data-kbdelete]'); if (db) db.onclick = () => { win.remove(); deleteKbDocument(d.id); };
+    // Click anywhere in a window brings it to the front of the stack.
+    win.addEventListener('mousedown', () => _kbWinToFront(win));
+}
+
+// Open a single image in the shared full-screen lightbox (layers above the modal).
+function kbLightbox(url) {
+    lightboxImages = [url];
+    openLightbox(0);
+}
+
+// Detail-modal chip actions: jump to a KB category, or search a fitment.
+function kbGotoCategory(catId) {
+    document.querySelectorAll('.kb-win').forEach(w => w.remove());
+    const c = kbCategoriesData.find(c => c.id === catId);
+    showKnowledgeBaseView(c ? c.slug : (catId == null ? 'null' : ''));
+}
+function kbFitmentSearch(enc) {
+    const q = decodeURIComponent(enc);
+    // Leave the KB detail modal open in the background (the palette layers on
+    // top); closing the palette returns the user to it.
+    openCmdk();
+    const inp = document.getElementById('cmdkInput');
+    inp.value = q;
+    cmdkOnInput();
+}
+
+// Open a KB entry's detail modal by id from anywhere (e.g. global search),
+// fetching the record if it isn't already in the current list.
+async function openKbDetailById(id) {
+    let d = _kbDocs.find(x => x.id === id);
+    if (!d) {
+        try {
+            const res = await fetch(`/api/kb/documents/${id}`);
+            if (res.ok) { d = await res.json(); if (d && d.id) _kbDocs.push(d); }
+        } catch {}
+    }
+    if (d && d.id) openKbDetail(id);
+}
+
+// Glossary CSV export / import (move structured terms between installs).
+function kbGlossaryExport() {
+    window.location = '/api/kb/glossary/export';
+}
+async function kbGlossaryImport(input) {
+    const file = input.files && input.files[0];
+    input.value = '';  // allow re-selecting the same file later
+    if (!file) return;
+    if (!confirm(`Import "${file.name}"? This replaces all existing glossary terms.`)) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const res = await fetch('/api/kb/glossary/import', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast(data.error || 'Glossary import failed', 'error'); return; }
+        showToast(`Glossary imported — ${data.terms} term${data.terms === 1 ? '' : 's'}`, 'success');
+        loadKbCategories();
+        if (document.getElementById('kbContainer').style.display !== 'none') loadKbDocuments();
+    } catch { showToast('Glossary import failed', 'error'); }
+}
+
+// ── Glossary: searchable terms modal ──
+let _glossaryTerms = [];
+async function openGlossaryModal(prefill) {
+    try {
+        _glossaryTerms = (await (await fetch('/api/kb/glossary/terms')).json()).terms || [];
+    } catch { _glossaryTerms = []; }
+    const s = document.getElementById('glossarySearch');
+    s.value = prefill || '';
+    renderGlossaryList();
+    openModal('glossaryModal');
+    setTimeout(() => s.focus(), 30);
+}
+function _glossHighlight(text, q) {
+    const t = esc(text);
+    if (!q) return t;
+    try {
+        const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+        return t.replace(re, '<mark>$1</mark>');
+    } catch { return t; }
+}
+function renderGlossaryList() {
+    const q = (document.getElementById('glossarySearch').value || '').trim();
+    const ql = q.toLowerCase();
+    const body = document.getElementById('glossaryBody');
+    let terms = _glossaryTerms;
+    if (ql) terms = terms.filter(t =>
+        t.term.toLowerCase().includes(ql) || (t.definition || '').toLowerCase().includes(ql));
+    document.getElementById('glossaryCount').textContent = `${terms.length} term${terms.length === 1 ? '' : 's'}`;
+    if (!terms.length) {
+        body.innerHTML = `<div class="kb-empty" style="padding:2rem;">${_glossaryTerms.length ? 'No matching terms.' : 'The glossary has no terms yet.'}</div>`;
+        return;
+    }
+    let h = '', cur = null;
+    for (const t of terms) {
+        const L = (t.letter || (t.term[0] || '#')).toUpperCase();
+        if (L !== cur) { cur = L; h += `<div class="glossary-letter">${esc(L)}</div>`; }
+        h += `<dl class="glossary-term"><dt>${_glossHighlight(t.term, q)}</dt><dd>${_glossHighlight(t.definition, q)}</dd></dl>`;
+    }
+    body.innerHTML = h;
+}
+
+// ══════════════════════════════════════════
+//  GLOBAL SEARCH / COMMAND PALETTE (⌘K)
+// ══════════════════════════════════════════
+let _cmdkItems = [];      // flat list of result actions, in display order
+let _cmdkSel = -1;
+let _cmdkTimer = null;
+let _cmdkSeq = 0;         // guards against out-of-order async responses
+
+function openCmdk() {
+    const ov = document.getElementById('cmdkOverlay');
+    ov.classList.add('active');
+    const inp = document.getElementById('cmdkInput');
+    inp.value = '';
+    _cmdkItems = []; _cmdkSel = -1;
+    document.getElementById('cmdkResults').innerHTML =
+        `<div class="cmdk-hint">Type to search parts, work orders, and the knowledge base…</div>`;
+    setTimeout(() => inp.focus(), 30);
+}
+function closeCmdk() {
+    document.getElementById('cmdkOverlay').classList.remove('active');
+}
+function cmdkOnInput() {
+    clearTimeout(_cmdkTimer);
+    const q = document.getElementById('cmdkInput').value.trim();
+    if (q.length < 2) {
+        _cmdkItems = []; _cmdkSel = -1;
+        document.getElementById('cmdkResults').innerHTML =
+            `<div class="cmdk-hint">Keep typing… (at least 2 characters)</div>`;
+        return;
+    }
+    document.getElementById('cmdkResults').innerHTML = `<div class="cmdk-hint">Searching…</div>`;
+    _cmdkTimer = setTimeout(() => cmdkSearch(q), 160);
+}
+async function cmdkSearch(q) {
+    const seq = ++_cmdkSeq;
+    try {
+        const data = await (await fetch('/api/search?q=' + encodeURIComponent(q))).json();
+        if (seq !== _cmdkSeq) return;   // a newer query already fired
+        renderCmdkResults(data);
+    } catch {
+        document.getElementById('cmdkResults').innerHTML = `<div class="cmdk-empty">Search failed.</div>`;
+    }
+}
+const CMDK_ICON = { part: '🔩', wo: '📋', kb: '📄' };
+function renderCmdkResults(data) {
+    _cmdkItems = [];
+    let h = '';
+    const group = (label, rows, build) => {
+        if (!rows || !rows.length) return;
+        h += `<div class="cmdk-group-label">${label}</div>`;
+        for (const r of rows) {
+            const idx = _cmdkItems.length;
+            _cmdkItems.push(build(r));
+            const it = _cmdkItems[idx];
+            h += `<div class="cmdk-item" data-idx="${idx}" onclick="cmdkActivate(${idx})" onmousemove="cmdkSelect(${idx})">
+                <span class="cmdk-ic">${it.icon}</span>
+                <span class="cmdk-text">
+                    <div class="cmdk-label">${esc(it.label)}</div>
+                    ${it.sub ? `<div class="cmdk-sub">${esc(it.sub)}</div>` : ''}
+                </span>
+            </div>`;
+        }
+    };
+    group('Inventory', data.parts, r => ({ icon: CMDK_ICON.part, label: r.label, sub: r.sub, act: () => { closeCmdk(); openDetail(r.id); } }));
+    group('Work Orders', data.work_orders, r => ({ icon: CMDK_ICON.wo, label: r.label, sub: r.sub, act: () => { closeCmdk(); document.querySelectorAll('.kb-win').forEach(w => w.remove()); showSingleWorkOrder(r.wo_number || r.id); } }));
+    group('Knowledge Base', data.kb, r => ({ icon: CMDK_ICON.kb, label: r.label, sub: r.sub, act: () => { closeCmdk(); openKbDetailById(r.id); } }));
+    group('Glossary', data.glossary, r => ({ icon: '📖', label: r.term, sub: r.sub, act: () => { closeCmdk(); openGlossaryModal(r.term); } }));
+    const el = document.getElementById('cmdkResults');
+    if (!_cmdkItems.length) {
+        el.innerHTML = `<div class="cmdk-empty">No results for “${esc(data.q || '')}”.</div>`;
+        _cmdkSel = -1;
+        return;
+    }
+    el.innerHTML = h;
+    _cmdkSel = 0;
+    cmdkHighlight();
+}
+function cmdkHighlight() {
+    const items = document.querySelectorAll('#cmdkResults .cmdk-item');
+    items.forEach((el, i) => el.classList.toggle('sel', i === _cmdkSel));
+    const sel = items[_cmdkSel];
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+function cmdkSelect(idx) { if (idx !== _cmdkSel) { _cmdkSel = idx; cmdkHighlight(); } }
+function cmdkMove(dir) {
+    if (!_cmdkItems.length) return;
+    _cmdkSel = (_cmdkSel + dir + _cmdkItems.length) % _cmdkItems.length;
+    cmdkHighlight();
+}
+function cmdkActivate(idx) {
+    const it = _cmdkItems[idx];
+    // Leave any background modal (e.g. a KB detail modal opened before the
+    // palette) untouched — only the user dismisses it. A KB result simply
+    // re-renders that same modal with the chosen entry.
+    if (it && it.act) it.act();
+}
+// ⌘K / Ctrl+K from anywhere; arrows + enter inside the palette.
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        const ov = document.getElementById('cmdkOverlay');
+        if (ov.classList.contains('active')) closeCmdk(); else openCmdk();
+        return;
+    }
+    if (!document.getElementById('cmdkOverlay').classList.contains('active')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeCmdk(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); cmdkMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkMove(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (_cmdkSel >= 0) cmdkActivate(_cmdkSel); }
+});
+// Show the right shortcut chip per platform.
+(function () {
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+    const chip = document.getElementById('cmdkChip');
+    if (chip && !isMac) chip.textContent = 'Ctrl K';
+})();
+
+function renderKbTable(docs) {
+    const canEdit = currentUserData && currentUserData.can_edit;
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    const head = `<thead><tr>
+        ${canEdit ? `<th class="cb-cell"><input type="checkbox" onclick="toggleKbSelectAll(this)" title="Select all"></th>` : ''}
+        <th>Title</th><th>Category</th><th>Fitment</th><th>Parts</th><th>Type</th><th>Size</th><th>Uploaded By</th>
+        ${isAdmin ? '<th title="Visible on the public companion site">Public</th>' : ''}
+        ${canEdit ? '<th></th>' : ''}
+    </tr></thead>`;
+    let rows = '';
+    for (const d of docs) {
+        const dl = `/api/kb/documents/${d.id}/download`;
+        const sel = kbSelected.has(d.id);
+        const cb = canEdit
+            ? `<td class="cb-cell"><input type="checkbox" value="${d.id}" ${sel ? 'checked' : ''} onclick="event.stopPropagation();toggleKbRowSelect(this,${d.id})"></td>`
+            : '';
+        const cat = esc(kbCatName(d.category_id) || '—');
+        const fit = esc(d.vehicle_fitment || '—');
+        const parts = (Array.isArray(d.associated_parts) && d.associated_parts.length)
+            ? esc(d.associated_parts.map(p => p.number || p.url).filter(Boolean).join(', ')) || '—'
+            : '—';
+        const isGloss = d.doc_type === 'glossary';
+        const openExpr = isGloss ? 'openGlossaryModal()' : `openKbDetail(${d.id})`;
+        const ext = isGloss ? 'GLOSSARY' : (esc((d.ext || '').toUpperCase()) || '—');
+        const size = isGloss ? `${d.term_count || 0} terms` : (d.file_size ? formatBytes(d.file_size) : '—');
+        const actions = canEdit
+            ? `<td class="kb-row-actions"><button class="table-btn" onclick="event.stopPropagation();openKbEditModal(${d.id})">Edit</button><button class="table-btn danger" onclick="event.stopPropagation();deleteKbDocument(${d.id})">Delete</button></td>`
+            : '';
+        const titleCell = `<a class="kb-table-title" style="cursor:pointer;" title="${esc(d.original_name || d.title)}" onclick="event.stopPropagation();${openExpr}">${esc(d.title)}</a>`;
+        rows += `<tr class="${sel ? 'row-selected' : ''}" data-kb-id="${d.id}">
+            ${cb}
+            <td>${titleCell}</td>
+            <td>${cat}</td><td>${fit}</td><td>${parts}</td><td>${ext || '—'}</td><td>${size}</td><td>${esc(d.uploaded_by || '—')}</td>
+            ${actions}
+        </tr>`;
+    }
+    document.getElementById('kbDocsTable').innerHTML =
+        `<table class="parts-table kb-table">${head}<tbody>${rows}</tbody></table>`;
+}
+
+// ── Table multi-select + bulk delete ──
+function toggleKbSelectAll(cb) {
+    document.querySelectorAll('#kbDocsTable tbody input[type="checkbox"]').forEach(c => {
+        c.checked = cb.checked;
+        const id = parseInt(c.value, 10);
+        const row = c.closest('tr');
+        if (cb.checked) { kbSelected.add(id); row.classList.add('row-selected'); }
+        else { kbSelected.delete(id); row.classList.remove('row-selected'); }
+    });
+    updateKbBulkBar();
+}
+function toggleKbRowSelect(cb, id) {
+    const row = cb.closest('tr');
+    if (cb.checked) { kbSelected.add(id); row.classList.add('row-selected'); }
+    else { kbSelected.delete(id); row.classList.remove('row-selected'); }
+    const all = document.querySelectorAll('#kbDocsTable tbody input[type="checkbox"]');
+    const hdr = document.querySelector('#kbDocsTable thead input[type="checkbox"]');
+    if (hdr) hdr.checked = [...all].every(c => c.checked) && all.length > 0;
+    updateKbBulkBar();
+}
+function updateKbBulkBar() {
+    const bar = document.getElementById('kbBulkBar');
+    if (!bar) return;
+    if (!kbSelected.size || kbView !== 'table') { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = '';
+    bar.innerHTML = `<div class="bulk-bar"><div class="bulk-bar-count">${kbSelected.size} selected</div><div class="bulk-bar-actions"><button class="btn btn-danger btn-sm" onclick="kbBulkDelete()">Delete Selected</button><button class="btn btn-ghost btn-sm" onclick="clearKbSelection()">Cancel</button></div></div>`;
+}
+function clearKbSelection() {
+    kbSelected.clear();
+    document.querySelectorAll('#kbDocsTable input[type="checkbox"]').forEach(c => c.checked = false);
+    document.querySelectorAll('#kbDocsTable tr.row-selected').forEach(r => r.classList.remove('row-selected'));
+    updateKbBulkBar();
+}
+async function kbBulkDelete() {
+    const count = kbSelected.size;
+    if (!count) return;
+    if (!confirm(`Delete ${count} document${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const ids = [...kbSelected];
+    showBulkProgress(`Deleting 0 of ${count}…`);
+    let d = 0, f = 0, done = 0;
+    const CONC = 6;
+    async function worker() {
+        while (ids.length) {
+            const id = ids.shift();
+            try { const r = await fetch(`/api/kb/documents/${id}`, { method: 'DELETE' }); if (r.ok) d++; else f++; }
+            catch { f++; }
+            done++;
+            updateBulkProgress(`Deleting ${done} of ${count}…`);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONC, count) }, worker));
+    hideBulkProgress();
+    kbSelected.clear();
+    showToast(`${d} deleted${f ? `, ${f} failed` : ''}`, f ? 'error' : 'success');
+    await loadKbCategories();
+    await loadKbDocuments();
+}
+
+function formatBytes(n) {
+    if (!n) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+    return (n/(1024*1024)).toFixed(1) + ' MB';
+}
+
+// ── Upload modal ──
+function kbCategoryOptions(selectedId) {
+    let opts = '<option value="null">Uncategorized</option>';
+    for (const c of kbCategoriesData) {
+        const sel = (String(selectedId) === String(c.id)) ? ' selected' : '';
+        opts += `<option value="${c.id}"${sel}>${esc(c.name)}</option>`;
+    }
+    return opts;
+}
+
+// ── Associated-parts repeatable rows (part number + URL) ──
+function kbAddPartRow(containerId, num, url) {
+    const c = document.getElementById(containerId);
+    c.insertAdjacentHTML('beforeend', `<div class="kb-part-row">
+        <input class="form-input kb-part-num" type="text" placeholder="Part number">
+        <input class="form-input kb-part-url" type="url" placeholder="https://… (optional)">
+        <button type="button" class="kb-part-remove" title="Remove" onclick="this.closest('.kb-part-row').remove()">&times;</button>
+    </div>`);
+    const row = c.lastElementChild;
+    // Set via property (not attribute) so values with quotes can't break markup.
+    if (num) row.querySelector('.kb-part-num').value = num;
+    if (url) row.querySelector('.kb-part-url').value = url;
+}
+function kbSetParts(containerId, parts) {
+    const c = document.getElementById(containerId);
+    c.innerHTML = '';
+    (parts || []).forEach(p => kbAddPartRow(containerId, p.number, p.url));
+    if (!c.children.length) kbAddPartRow(containerId);  // always show one empty row
+}
+function kbCollectParts(containerId) {
+    const out = [];
+    document.getElementById(containerId).querySelectorAll('.kb-part-row').forEach(r => {
+        const number = r.querySelector('.kb-part-num').value.trim();
+        const url = r.querySelector('.kb-part-url').value.trim();
+        if (number || url) out.push({ number, url });
+    });
+    return out;
+}
+
+async function openKbUploadModal() {
+    if (!(currentUserData && currentUserData.can_edit)) return;
+    await loadKbCategories();
+    // Default to the currently-viewed category when applicable.
+    let preselect = '';
+    if (currentKbCategory && currentKbCategory !== 'null') {
+        const cat = kbCategoriesData.find(c => c.slug === currentKbCategory);
+        if (cat) preselect = cat.id;
+    }
+    document.getElementById('kbUploadCategory').innerHTML = kbCategoryOptions(preselect);
+    document.getElementById('kbUploadTitle').value = '';
+    document.getElementById('kbUploadDesc').value = '';
+    document.getElementById('kbUploadFitment').value = '';
+    kbSetParts('kbUploadParts', []);
+    document.getElementById('kbUploadFile').value = '';
+    document.getElementById('kbUploadFeatured').value = '';
+    document.getElementById('kbUploadError').textContent = '';
+    openModal('kbUploadModal');
+}
+
+async function submitKbUpload() {
+    const fileInput = document.getElementById('kbUploadFile');
+    const errEl = document.getElementById('kbUploadError');
+    errEl.textContent = '';
+    if (!fileInput.files || !fileInput.files.length) {
+        errEl.textContent = 'Please choose at least one file.';
+        return;
+    }
+    const fd = new FormData();
+    fd.append('category_id', document.getElementById('kbUploadCategory').value);
+    fd.append('title', document.getElementById('kbUploadTitle').value.trim());
+    fd.append('description', document.getElementById('kbUploadDesc').value.trim());
+    fd.append('vehicle_fitment', document.getElementById('kbUploadFitment').value.trim());
+    fd.append('associated_parts', JSON.stringify(kbCollectParts('kbUploadParts')));
+    for (const f of fileInput.files) fd.append('file', f);
+    const featInput = document.getElementById('kbUploadFeatured');
+    if (featInput.files && featInput.files.length) fd.append('featured_image', featInput.files[0]);
+    const btn = document.getElementById('kbUploadSubmitBtn');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+        const res = await fetch('/api/kb/documents', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { errEl.textContent = data.error || 'Upload failed.'; return; }
+        closeModal('kbUploadModal');
+        await loadKbCategories();
+        await loadKbDocuments();
+    } catch {
+        errEl.textContent = 'Upload failed.';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Upload';
+    }
+}
+
+// ── Edit modal ──
+let _kbEditId = null;
+async function openKbEditModal(id) {
+    if (!(currentUserData && currentUserData.can_edit)) return;
+    await loadKbCategories();
+    let doc = null;
+    try {
+        const data = await (await fetch('/api/kb/documents?category_id=all')).json();
+        doc = (data.documents || []).find(d => d.id === id);
+    } catch {}
+    if (!doc) return;
+    _kbEditId = id;
+    document.getElementById('kbEditCategory').innerHTML = kbCategoryOptions(doc.category_id);
+    document.getElementById('kbEditTitle').value = doc.title || '';
+    document.getElementById('kbEditDesc').value = doc.description || '';
+    document.getElementById('kbEditFitment').value = doc.vehicle_fitment || '';
+    kbSetParts('kbEditParts', doc.associated_parts || []);
+    document.getElementById('kbEditFileName').textContent = doc.original_name || '(no file — content only)';
+    document.getElementById('kbEditFeatured').value = '';
+    _kbRenderEditFeatured(doc);
+    document.getElementById('kbEditError').textContent = '';
+    openModal('kbEditModal');
+}
+
+function _kbRenderEditFeatured(doc) {
+    const box = document.getElementById('kbEditFeaturedPreview');
+    if (doc && doc.has_featured) {
+        box.innerHTML =
+            `<div style="display:flex;align-items:center;gap:0.75rem;">
+                <img src="/uploads/${esc(doc.featured_image)}" alt="Featured"
+                     style="width:96px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="removeKbFeatured()">Remove featured image</button>
+             </div>`;
+    } else {
+        box.innerHTML = `<div style="font-size:0.82rem;color:var(--text-muted);">No featured image set.</div>`;
+    }
+}
+
+async function removeKbFeatured() {
+    if (_kbEditId == null) return;
+    try {
+        const res = await fetch(`/api/kb/documents/${_kbEditId}/featured`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { document.getElementById('kbEditError').textContent = data.error || 'Remove failed.'; return; }
+        _kbRenderEditFeatured(data.document);
+    } catch { document.getElementById('kbEditError').textContent = 'Remove failed.'; }
+}
+
+async function submitKbEdit() {
+    if (_kbEditId == null) return;
+    const errEl = document.getElementById('kbEditError');
+    errEl.textContent = '';
+    const payload = {
+        title: document.getElementById('kbEditTitle').value.trim(),
+        description: document.getElementById('kbEditDesc').value.trim(),
+        category_id: document.getElementById('kbEditCategory').value,
+        vehicle_fitment: document.getElementById('kbEditFitment').value.trim(),
+        associated_parts: kbCollectParts('kbEditParts'),
+    };
+    try {
+        const res = await fetch(`/api/kb/documents/${_kbEditId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { errEl.textContent = data.error || 'Save failed.'; return; }
+        // Upload a replacement featured image if one was chosen.
+        const featInput = document.getElementById('kbEditFeatured');
+        if (featInput.files && featInput.files.length) {
+            const ffd = new FormData();
+            ffd.append('featured_image', featInput.files[0]);
+            const fres = await fetch(`/api/kb/documents/${_kbEditId}/featured`, { method: 'POST', body: ffd });
+            if (!fres.ok) { const fd2 = await fres.json().catch(()=>({})); errEl.textContent = fd2.error || 'Featured image upload failed.'; return; }
+        }
+        closeModal('kbEditModal');
+        await loadKbCategories();
+        await loadKbDocuments();
+    } catch { errEl.textContent = 'Save failed.'; }
+}
+
+async function deleteKbDocument(id) {
+    if (!confirm('Delete this document? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`/api/kb/documents/${id}`, { method: 'DELETE' });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); alert(d.error || 'Delete failed.'); return; }
+        await loadKbCategories();
+        await loadKbDocuments();
+    } catch { alert('Delete failed.'); }
+}
+
+// ══════════════════════════════════════════
+//  KB WORDPRESS IMPORT WIZARD
+// ══════════════════════════════════════════
+let _kbWp = { sample: [], paths: [] };
+const _kbWpVal = id => (document.getElementById(id).value || '').trim();
+
+function kbWpError(msg) {
+    const el = document.getElementById('kbWpError');
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = msg; el.style.display = '';
+}
+// Footer-driven navigation: one Back + one Next button live in the fixed
+// footer and reconfigure per step, so they're always in view.
+const KBWP_STEPS = {
+    1: { back: false, next: 'Connect →',    action: () => kbWpConnect() },
+    2: { back: true,  next: 'Load fields →', action: () => kbWpLoadFields() },
+    3: { back: true,  next: 'Preview →',     action: () => kbWpPreview() },
+    4: { back: true,  next: 'Import all →',  action: () => kbWpRun() },
+    5: { back: false, next: 'Done',          action: () => kbWpDone() },
+};
+let _kbWpStep = 1;
+function kbWpGoto(step) {
+    _kbWpStep = step;
+    for (let i = 1; i <= 5; i++) {
+        const pane = document.getElementById('kbWpPane' + i);
+        if (pane) pane.style.display = (i === step) ? '' : 'none';
+    }
+    document.querySelectorAll('.wp-step').forEach(s => {
+        const n = parseInt(s.dataset.wpStep, 10);
+        s.classList.toggle('active', n === step);
+        s.classList.toggle('done', n < step);
+    });
+    const cfg = KBWP_STEPS[step] || {};
+    const back = document.getElementById('kbWpBackBtn');
+    if (back) back.style.display = cfg.back ? '' : 'none';
+    kbWpResetNext();
+    kbWpError('');
+    const body = document.querySelector('#kbWpImportModal .kbwp-body');
+    if (body) body.scrollTop = 0;
+}
+function kbWpResetNext() {
+    const next = document.getElementById('kbWpNextBtn');
+    if (!next) return;
+    next.disabled = false;
+    next.textContent = (KBWP_STEPS[_kbWpStep] || {}).next || 'Next →';
+}
+function kbWpBusy(label) {
+    const next = document.getElementById('kbWpNextBtn');
+    if (next) { next.disabled = true; next.textContent = label; }
+}
+function kbWpBack() { if (_kbWpStep > 1) kbWpGoto(_kbWpStep - 1); }
+function kbWpNext() { const cfg = KBWP_STEPS[_kbWpStep]; if (cfg && cfg.action) cfg.action(); }
+function kbWpDone() { closeModal('kbWpImportModal'); loadKbCategories(); loadKbDocuments(); }
+function kbWpAuth() {
+    return { url: _kbWpVal('kbWpUrl'), username: _kbWpVal('kbWpUser'), app_password: document.getElementById('kbWpPass').value };
+}
+
+async function openKbWpImport() {
+    if (!(currentUserData && currentUserData.role === 'admin')) return;
+    await loadKbCategories();
+    document.getElementById('kbWpUrl').value = '';
+    document.getElementById('kbWpUser').value = '';
+    document.getElementById('kbWpPass').value = '';
+    _kbWp = { sample: [], paths: [] };
+    kbWpGoto(1);
+    openModal('kbWpImportModal');
+}
+
+async function kbWpConnect() {
+    if (!_kbWpVal('kbWpUrl')) { kbWpError('Enter a WordPress URL.'); return; }
+    kbWpBusy('Connecting…'); kbWpError('');
+    try {
+        const res = await fetch('/api/kb/import/wp/connect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(kbWpAuth()),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { kbWpError(data.error || 'Connection failed.'); kbWpResetNext(); return; }
+        _kbWp.base = data.base;
+        const pt = document.getElementById('kbWpPostType');
+        pt.innerHTML = (data.post_types || []).map(t =>
+            `<option value="${esc(t.rest_base)}">${esc(t.name)} (${esc(t.slug)})</option>`).join('')
+            || '<option value="posts">posts</option>';
+        const cat = document.getElementById('kbWpCategory');
+        cat.innerHTML = '<option value="">All categories</option>' +
+            (data.categories || []).map(c => `<option value="${c.id}">${esc(c.name)} (${c.count})</option>`).join('');
+        kbWpGoto(2);
+    } catch (e) {
+        kbWpError('Connection failed.'); kbWpResetNext();
+    }
+}
+
+function kbWpPathDefault(paths, candidates) {
+    for (const c of candidates) if (paths.includes(c)) return c;
+    return '';
+}
+// Friendly labels for the well-known core fields so the dropdowns read in plain
+// language; the underlying value stays the raw dotted path.
+const KBWP_LABELS = {
+    'title.rendered': 'Post title',
+    'content.rendered': 'Post content',
+    'content.raw': 'Post content (raw HTML)',
+    'excerpt.rendered': 'Post excerpt',
+    'slug': 'Slug', 'date': 'Date published', 'modified': 'Date modified', 'link': 'Permalink',
+};
+function kbWpLabel(p) {
+    if (KBWP_LABELS[p]) return `${KBWP_LABELS[p]}  (${p})`;
+    if (p.startsWith('acf.')) return `ACF: ${p.slice(4)}`;
+    return p;
+}
+function kbWpFillPath(id, paths, selected) {
+    const el = document.getElementById(id);
+    el.innerHTML = '<option value="">— none —</option>' +
+        paths.map(p => `<option value="${esc(p)}">${esc(kbWpLabel(p))}</option>`).join('');
+    if (selected) el.value = selected;
+}
+
+async function kbWpLoadFields() {
+    kbWpBusy('Loading…'); kbWpError('');
+    try {
+        const body = Object.assign(kbWpAuth(), {
+            rest_base: _kbWpVal('kbWpPostType'),
+            category: _kbWpVal('kbWpCategory'),
+        });
+        const res = await fetch('/api/kb/import/wp/sample', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { kbWpError(data.error || 'Could not load fields.'); kbWpResetNext(); return; }
+        _kbWp.paths = data.paths || [];
+        _kbWp.sample = data.sample || [];
+        _kbWp.total = data.total;
+        // ACF visibility hint: the `acf` key is present but never populated →
+        // the field group needs "Show in REST API" enabled in WordPress.
+        const warn = document.getElementById('kbWpAcfWarn');
+        if (warn) {
+            if (data.acf_key_present && !data.acf_present) {
+                warn.innerHTML = 'No ACF field <em>values</em> were found in the REST API. If a field group\'s fields are missing from the lists below, open that group in WordPress (Custom Fields → Field Groups → <strong>Settings</strong>) and turn on <strong>Show in REST API</strong>, then reload fields.';
+                warn.style.display = '';
+            } else {
+                warn.style.display = 'none';
+            }
+        }
+        // Drop REST plumbing (_links / _embedded / class_list) — not mappable.
+        const usable = _kbWp.paths.filter(p =>
+            !p.startsWith('_links') && !p.startsWith('_embedded') && p !== 'class_list');
+        // Scalar paths (no repeater marker) feed the simple selects.
+        const scalar = usable.filter(p => !p.includes('[]'));
+        // A repeater's array lives at the text BEFORE the first '[]'
+        // (the marker is mid-path, e.g. 'acf.parts[].number' → 'acf.parts').
+        const repeaters = usable
+            .filter(p => p.includes('[]'))
+            .map(p => p.slice(0, p.indexOf('[]')));
+        const uniqRep = [...new Set(repeaters)];
+        const fitGuess = kbWpPathDefault(scalar, ['acf.vehicle_fitment', 'acf.fitment']);
+        const descGuess = kbWpPathDefault(scalar, ['acf.summary', 'excerpt.rendered', 'content.rendered']);
+        kbWpFillPath('kbWpMapTitle', scalar, kbWpPathDefault(scalar, ['title.rendered', 'title']));
+        kbWpFillPath('kbWpMapDesc', scalar, descGuess);
+        kbWpFillPath('kbWpMapFitment', scalar, fitGuess);
+        kbWpFillPath('kbWpMapPartNumbers', scalar, '');
+        // File field can live inside a repeater (e.g. an ACF file field that
+        // returns a media ID), so offer every usable path here, not just scalars.
+        // Prefer an explicit "attachment" field over any bare ".file" path.
+        const fileGuess = usable.find(p => /attachment/i.test(p))
+            || usable.find(p => /(^|\.)file(\[\]|$|\.)/i.test(p)) || '';
+        kbWpFillPath('kbWpMapFileField', usable, fileGuess);
+        // Repeater select — pre-select one that looks like a parts list.
+        const repEl = document.getElementById('kbWpMapPartsRepeater');
+        repEl.innerHTML = '<option value="">— none —</option>' +
+            uniqRep.map(p => `<option value="${esc(p)}">${esc(kbWpLabel(p))}</option>`).join('');
+        const repGuess = uniqRep.find(p => /part/i.test(p)) || '';
+        repEl.value = repGuess;
+        kbWpRepeaterChanged();
+        // Smart file-source default:
+        //  • the mapped file field actually has values in the sample → field_url
+        //  • else the post body embeds an image (e.g. diagrams) → content_image
+        //  • else a file-ish field exists (maybe empty here) → field_url
+        //  • else → none
+        const sampleHasContentImg = _kbWp.sample.some(p =>
+            /<img[^>]+src=/i.test((p.content && p.content.rendered) || ''));
+        const fileFieldHasValue = !!fileGuess && _kbWp.sample.some(p => {
+            const v = kbWpResolvePath(p, fileGuess);
+            return v != null && v !== '' && !(Array.isArray(v) && !v.length);
+        });
+        document.getElementById('kbWpFileSource').value =
+            (sampleHasContentImg || fileFieldHasValue || fileGuess) ? 'auto' : 'none';
+        // Fixed category select
+        document.getElementById('kbWpFixedCat').innerHTML = kbCategoryOptions('');
+        kbWpFileSourceChanged();
+        kbWpCatModeChanged();
+        kbWpGoto(3);
+    } catch (e) {
+        kbWpError('Could not load fields.'); kbWpResetNext();
+    }
+}
+
+function kbWpGetPath(obj, path) {
+    if (!path) return undefined;
+    let cur = obj;
+    for (const seg of path.replace(/\[\]/g, '').split('.')) {
+        if (seg === '') continue;
+        if (cur && typeof cur === 'object') cur = cur[seg]; else return undefined;
+        if (cur == null) return undefined;
+    }
+    return cur;
+}
+// Like kbWpGetPath but follows '[]' by taking the first array element (mirrors
+// the backend _wp_resolve_path), so repeater file fields can be probed.
+function kbWpResolvePath(obj, path) {
+    if (!path) return undefined;
+    let cur = obj;
+    for (const seg of path.split('.')) {
+        const arr = seg.endsWith('[]');
+        const key = arr ? seg.slice(0, -2) : seg;
+        if (key) cur = (cur && typeof cur === 'object') ? cur[key] : undefined;
+        if (arr) cur = (Array.isArray(cur) && cur.length) ? cur[0] : undefined;
+        if (cur == null) return undefined;
+    }
+    return cur;
+}
+function kbWpRepeaterChanged() {
+    const rep = _kbWpVal('kbWpMapPartsRepeater');
+    const keysWrap = document.getElementById('kbWpRepeaterKeys');
+    const commaWrap = document.getElementById('kbWpPartsCommaWrap');
+    if (!rep) { keysWrap.style.display = 'none'; commaWrap.style.display = ''; return; }
+    // Find sub-keys from the first sample item at this path.
+    let keys = [];
+    for (const post of _kbWp.sample) {
+        const v = kbWpGetPath(post, rep);
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object') { keys = Object.keys(v[0]); break; }
+    }
+    const opts = keys.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    document.getElementById('kbWpMapPartNumKey').innerHTML = '<option value="">— none —</option>' + opts;
+    document.getElementById('kbWpMapPartUrlKey').innerHTML = '<option value="">— none —</option>' + opts;
+    // Guess in priority order so a loose term ('part') can't beat a specific
+    // one ('number'/'url') when both sub-fields contain 'part'.
+    const guess = (cands) => {
+        for (const cand of cands) {
+            const k = keys.find(key => key.toLowerCase().includes(cand));
+            if (k) return k;
+        }
+        return '';
+    };
+    document.getElementById('kbWpMapPartNumKey').value = guess(['number', 'sku', 'pn', 'part']);
+    document.getElementById('kbWpMapPartUrlKey').value = guess(['url', 'link', 'href']);
+    keysWrap.style.display = '';
+    commaWrap.style.display = 'none';
+}
+function kbWpFileSourceChanged() {
+    const src = _kbWpVal('kbWpFileSource');
+    // The file-URL field is used directly by 'field_url' and as part of the
+    // 'auto' chain, so expose it for both.
+    document.getElementById('kbWpFileFieldWrap').style.display = (src === 'field_url' || src === 'auto') ? '' : 'none';
+    const fileHint = document.getElementById('kbWpFileHint');
+    const noFileHint = document.getElementById('kbWpNoFileHint');
+    if (fileHint) fileHint.style.display = (src === 'none') ? 'none' : '';
+    if (noFileHint) noFileHint.style.display = (src === 'none') ? '' : 'none';
+    // Convenience: when "no file" is picked and Description is unmapped, default
+    // it to the post content so the content has somewhere to land.
+    if (src === 'none') {
+        const desc = document.getElementById('kbWpMapDesc');
+        if (desc && !desc.value) {
+            const opt = [...desc.options].find(o => o.value === 'content.rendered');
+            if (opt) desc.value = 'content.rendered';
+        }
+    }
+}
+function kbWpCatModeChanged() {
+    document.getElementById('kbWpFixedCatWrap').style.display =
+        (_kbWpVal('kbWpCatMode') === 'fixed') ? '' : 'none';
+}
+
+function kbWpBuildMapping() {
+    const m = {
+        title_path: _kbWpVal('kbWpMapTitle') || 'title.rendered',
+        description_path: _kbWpVal('kbWpMapDesc'),
+        fitment_path: _kbWpVal('kbWpMapFitment'),
+        file_source: _kbWpVal('kbWpFileSource'),
+        file_field_path: _kbWpVal('kbWpMapFileField'),
+        import_featured: document.getElementById('kbWpImportFeatured').checked,
+        category_mode: _kbWpVal('kbWpCatMode'),
+        content_path: 'content.rendered',
+    };
+    const rep = _kbWpVal('kbWpMapPartsRepeater');
+    if (rep) {
+        m.parts_repeater_path = rep;
+        m.part_number_key = _kbWpVal('kbWpMapPartNumKey');
+        m.part_url_key = _kbWpVal('kbWpMapPartUrlKey');
+    } else {
+        m.part_numbers_path = _kbWpVal('kbWpMapPartNumbers');
+    }
+    if (m.category_mode === 'fixed') m.category_id = document.getElementById('kbWpFixedCat').value;
+    return m;
+}
+function kbWpRequestBody() {
+    return Object.assign(kbWpAuth(), {
+        rest_base: _kbWpVal('kbWpPostType'),
+        category: _kbWpVal('kbWpCategory'),
+        mapping: kbWpBuildMapping(),
+    });
+}
+
+async function kbWpPreview() {
+    kbWpBusy('Loading…'); kbWpError('');
+    try {
+        const res = await fetch('/api/kb/import/wp/preview', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(kbWpRequestBody()),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { kbWpError(data.error || 'Preview failed.'); kbWpResetNext(); return; }
+        const rows = data.rows || [];
+        const total = data.total || '?';
+        document.getElementById('kbWpPreviewSummary').textContent =
+            `About ${total} post(s) will be imported. Showing the first ${rows.length} as a preview:`;
+        let h = `<table class="wp-preview"><thead><tr><th>Title</th><th>Fitment</th><th>Parts</th><th>Category</th></tr></thead><tbody>`;
+        for (const r of rows) {
+            const fit = (r.vehicle_fitment || '').split(',').map(s => s.trim()).filter(Boolean)
+                .map(s => `<span class="kb-fit-chip">${esc(s)}</span>`).join(' ');
+            const parts = (r.associated_parts || []).map(p => esc(p.number || p.url)).join(', ');
+            const catLabel = _kbWpVal('kbWpCatMode') === 'wp' ? (r.wp_category || '—') : '(chosen)';
+            h += `<tr><td>${esc(r.title)}</td><td>${fit || '—'}</td><td>${parts || '—'}</td><td>${esc(catLabel)}</td></tr>`;
+        }
+        h += '</tbody></table>';
+        if (!rows.length) h = '<div class="wp-help">No posts matched.</div>';
+        document.getElementById('kbWpPreviewTable').innerHTML = h;
+        kbWpGoto(4);
+    } catch (e) {
+        kbWpError('Preview failed.'); kbWpResetNext();
+    }
+}
+
+async function kbWpRun() {
+    kbWpGoto(5);
+    kbWpBusy('Importing…'); kbWpError('');
+    document.getElementById('kbWpResult').innerHTML = '<div class="wp-help">Importing — this can take a while for large sites…</div>';
+    try {
+        const res = await fetch('/api/kb/import/wp/run', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(kbWpRequestBody()),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            document.getElementById('kbWpResult').innerHTML =
+                `<div class="wp-error" style="display:block;">${esc(data.error || 'Import failed.')}</div>`;
+            return;
+        }
+        let h = `<div class="wp-result-ok"><strong>Imported ${data.imported}</strong> entr${data.imported === 1 ? 'y' : 'ies'}.`;
+        if (data.already_imported) h += ` ${data.already_imported} already imported (skipped).`;
+        if (data.skipped) h += ` ${data.skipped} could not be imported.`;
+        h += '</div>';
+        if (data.already_imported) h += `<div class="wp-help" style="margin-top:0.4rem;">Re-running an import is safe — entries already brought in are detected by their source URL and skipped.</div>`;
+        if (data.errors && data.errors.length) {
+            h += `<div class="wp-help" style="margin-top:0.6rem;">Issues (${data.error_count}):</div><ul class="wp-errlist">` +
+                data.errors.map(e => `<li>${esc(e)}</li>`).join('') + '</ul>';
+        }
+        document.getElementById('kbWpResult').innerHTML = h;
+    } catch (e) {
+        document.getElementById('kbWpResult').innerHTML =
+            `<div class="wp-error" style="display:block;">Import failed.</div>`;
+    } finally { kbWpResetNext(); }
+}
+
 async function showWorkOrdersView(view, push=true) {
     exitDashboard();
+    exitKnowledgeBaseView();
     currentWoView = view;
     currentWoStatusFilter = 'all';
     // Archive-only sort options get reset when leaving the archive so the
@@ -5571,6 +7897,7 @@ async function showWorkOrdersView(view, push=true) {
 // stay human-readable and stable across DB restores.
 async function showSingleWorkOrder(ident, push=true) {
     exitDashboard();
+    exitKnowledgeBaseView();
     // Reuse the list-view's container + status helpers so the layout matches
     currentWoView = 'active';
     currentWoStatusFilter = 'all';
@@ -5643,6 +7970,7 @@ async function showSingleWorkOrder(ident, push=true) {
 // ══════════════════════════════════════════
 async function showDashboard(push=true) {
     exitWorkOrdersView();
+    exitKnowledgeBaseView();
     currentDashboard = true;
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
@@ -5850,6 +8178,11 @@ function initViewFromUrl() {
     } else if (path.startsWith('/parts/')) {
         const slug = path.replace('/parts/', '').split('/')[0];
         setCategoryBySlug(slug, false);
+    } else if (path === '/kb') {
+        showKnowledgeBaseView('', false);
+    } else if (path.startsWith('/kb/')) {
+        const slug = decodeURIComponent(path.replace('/kb/', '').split('/')[0]);
+        showKnowledgeBaseView(slug, false);
     } else {
         // '/', '/dashboard' or anything unknown → dashboard
         showDashboard(false);
@@ -8107,6 +10440,74 @@ async function saveTurnstile() {
     } catch { showToast('Connection error', 'error'); }
 }
 
+// ──────── External API Keys ────────
+async function openApiKeysModal() {
+    document.getElementById('apiKeyName').value = '';
+    document.getElementById('apiKeyReveal').style.display = 'none';
+    document.getElementById('apiKeyValue').textContent = '';
+    await loadApiKeys();
+    openModal('apiKeysModal');
+}
+
+async function loadApiKeys() {
+    const body = document.getElementById('apiKeysTableBody');
+    const empty = document.getElementById('apiKeysEmpty');
+    try {
+        const data = await (await fetch('/api/settings/api-keys')).json();
+        const keys = data.keys || [];
+        if (!keys.length) {
+            body.innerHTML = '';
+            empty.style.display = '';
+            return;
+        }
+        empty.style.display = 'none';
+        body.innerHTML = keys.map(k => `
+            <tr>
+                <td>${esc(k.name || 'Untitled key')}</td>
+                <td><code style="font-family:var(--mono);font-size:0.75rem;">${esc(k.key_prefix || '')}…</code></td>
+                <td>${k.last_used_at ? esc(k.last_used_at) : '<span style="color:var(--text-muted);">never</span>'}</td>
+                <td>${k.active ? '<span class="toggle-pill yes">ACTIVE</span>' : '<span class="toggle-pill no">REVOKED</span>'}</td>
+                <td style="text-align:right;">${k.active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="revokeApiKey(${k.id})">Revoke</button>` : ''}</td>
+            </tr>`).join('');
+    } catch { showToast('Failed to load API keys', 'error'); }
+}
+
+async function createApiKey() {
+    const name = document.getElementById('apiKeyName').value.trim();
+    try {
+        const res = await fetch('/api/settings/api-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Failed to create key', 'error'); return; }
+        document.getElementById('apiKeyValue').textContent = data.key;
+        document.getElementById('apiKeyReveal').style.display = '';
+        document.getElementById('apiKeyName').value = '';
+        await loadApiKeys();
+    } catch { showToast('Connection error', 'error'); }
+}
+
+function copyApiKey() {
+    const v = document.getElementById('apiKeyValue').textContent;
+    if (!v) return;
+    navigator.clipboard.writeText(v).then(
+        () => showToast('Key copied', 'success'),
+        () => showToast('Copy failed', 'error')
+    );
+}
+
+async function revokeApiKey(kid) {
+    if (!confirm('Revoke this API key? Any frontend using it will lose access immediately.')) return;
+    try {
+        const res = await fetch(`/api/settings/api-keys/${kid}`, { method: 'DELETE' });
+        if (!res.ok) { showToast('Failed to revoke', 'error'); return; }
+        showToast('Key revoked', 'success');
+        await loadApiKeys();
+    } catch { showToast('Connection error', 'error'); }
+}
+
 // ──────── SMTP ────────
 async function openSmtpModal() {
     try {
@@ -8215,17 +10616,59 @@ function _fmtAttachmentSize(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.remove('active'); }
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const m = el.querySelector('.modal');
+    if (m) { _modalPos.delete(m); m.style.transform = ''; }  // re-center + restore entrance animation
+    el.classList.add('active');
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active');
+    const m = el.querySelector('.modal');
+    if (m) { _modalPos.delete(m); m.style.transform = ''; }
+}
+
+// ── Movable windows: drag any modal/window by its title bar ──
+const _modalPos = new WeakMap();
+function setModalPos(modalEl, x, y) {
+    _modalPos.set(modalEl, { x, y });
+    modalEl.style.transform = `translate(${x}px, ${y}px)`;
+}
+(function initModalDrag() {
+    let drag = null;
+    document.addEventListener('mousedown', (e) => {
+        const header = e.target.closest('.modal-header');
+        if (!header) return;
+        if (e.target.closest('button, a, input, select, textarea')) return;  // let the close button etc. work
+        const modalEl = header.closest('.modal');
+        if (!modalEl) return;
+        const pos = _modalPos.get(modalEl) || { x: 0, y: 0 };
+        drag = { modalEl, sx: e.clientX, sy: e.clientY, bx: pos.x, by: pos.y };
+        modalEl.classList.add('dragging');
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!drag) return;
+        setModalPos(drag.modalEl, drag.bx + (e.clientX - drag.sx), drag.by + (e.clientY - drag.sy));
+    });
+    document.addEventListener('mouseup', () => {
+        if (drag) { drag.modalEl.classList.remove('dragging'); drag = null; }
+    });
+})();
 
 // Map of sub-modals reachable from the Settings modal → which tab to restore.
 // Used by closeSubModal() so users land back on Settings when they X-out / Cancel.
 const SETTINGS_SUB_MODALS = {
-    woListsModal: 'admin',
+    woListsModal: 'modules',
     smtpModal: 'admin',
     turnstileModal: 'admin',
+    apiKeysModal: 'admin',
     adminModal: 'admin',
-    catManagerModal: 'admin',
+    catManagerModal: 'modules',
+    kbCatManagerModal: 'modules',
     importModal: 'data',
     pwModal: 'general',
 };

@@ -6,6 +6,8 @@ A self-hosted web-based inventory management system built for automotive parts �
 
 ## Features
 
+- **Modular feature areas** — Inventory, Work Orders, and Knowledge Base can each be turned on or off app-wide from Settings → Modules (admin only). A disabled module disappears from the sidebar and its settings tab; its data is preserved and reappears when re-enabled
+- **Knowledge Base** — Store product instruction sheets, diagrams, and documents under a flat, admin-defined category tree (separate from parts categories). Upload PDFs, Office docs, text, and images; viewers browse and download, editors and up manage. Files keep their original names on download
 - **Dynamic categories** — Engines, Cylinder Heads, and Transmissions included out of the box. Create unlimited custom categories with your own field sets, field types, colors, and ordering
 - **Drag-to-reorder fields** — Define fields per category (text, textarea, toggle, radio) and drag them into the order you want
 - **Multi-image gallery** — Upload multiple photos per part with thumbnail strip and full-screen lightbox viewer

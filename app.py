@@ -1,14 +1,17 @@
 import os
 import re
 import uuid
+import base64
 import secrets
+import hashlib
+import hmac
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.6.14'
+APP_VERSION = '1.7.0'
 
 
 def _compute_build_fingerprint():
@@ -78,6 +81,12 @@ ALLOWED_ATTACHMENT_EXTS = {
     'pdf', 'doc', 'docx',
 }
 IMAGE_EXTS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+# Knowledge Base documents accept images, common office/doc formats, plain
+# text, and SVG. KB files are served as downloads (never rendered inline),
+# so SVG carries no XSS risk here.
+ALLOWED_KB_EXTS = ALLOWED_ATTACHMENT_EXTS | {
+    'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'svg', 'rtf', 'odt',
+}
 
 # Account-lockout policy: lock after N consecutive failures for LOCKOUT_MINUTES.
 LOGIN_FAIL_LIMIT = 5
@@ -1061,6 +1070,179 @@ def migrate_v32(conn):
     )
 
 
+def migrate_v35(conn):
+    """Knowledge Base module + app-wide module toggles.
+
+    (a) modules_enabled app setting — gates the Inventory, Work Orders, and
+        Knowledge Base feature areas app-wide. Defaults all three ON so the
+        upgrade is invisible; admins can disable any from Settings → Modules.
+        Seeded only if absent so re-runs don't clobber an admin's choices.
+
+    (b) kb_categories / kb_documents — the Knowledge Base stores instruction
+        sheets, diagrams, and documents under a flat, admin-defined category
+        tree that's completely independent of the parts `categories` table.
+        Documents reference an uploaded file (UUID name in UPLOAD_DIR, same as
+        work-order attachments); category_id is nullable so a deleted category
+        leaves its docs as uncategorized rather than orphaning files."""
+    import json as json_mod
+    existing = conn.execute(
+        "SELECT key FROM app_settings WHERE key = 'modules_enabled'"
+    ).fetchone()
+    if not existing:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('modules_enabled', ?)",
+            (json_mod.dumps({'inventory': True, 'work_orders': True, 'knowledge_base': True}),)
+        )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER,
+            title TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            mime_type TEXT DEFAULT '',
+            file_size INTEGER DEFAULT 0,
+            uploaded_by TEXT DEFAULT '',
+            uploaded_by_user_id INTEGER,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (category_id) REFERENCES kb_categories(id) ON DELETE SET NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_docs_cat ON kb_documents(category_id)")
+
+
+def migrate_v36(conn):
+    """Knowledge Base entries gain two optional fields:
+
+    (a) vehicle_fitment — a comma-separated list of fitments (e.g.
+        "Camaro 2010-2015, Firebird"), stored as a normalized string.
+    (b) associated_parts — a repeatable list of {number, url} pairs stored as
+        a JSON array, so an entry can link out to the parts it documents."""
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN vehicle_fitment TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN associated_parts TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+
+
+def migrate_v37(conn):
+    """Knowledge Base documents record the source URL they were imported from
+    (e.g. a WordPress post permalink). This lets the WordPress importer skip
+    entries it already created, so a re-run after a partial/timed-out import is
+    idempotent and resumable rather than producing duplicates."""
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN source_url TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_docs_source ON kb_documents(source_url)")
+    except Exception:
+        pass
+
+
+def migrate_v38(conn):
+    """Special KB document types + a glossary terms store.
+
+    `kb_documents.doc_type` distinguishes a normal 'document' from a special
+    'glossary' entry (a single, searchable glossary of terms) and the
+    'glossary_source' posts it was built from (kept, but hidden from the normal
+    KB listing so the glossary can be rebuilt). `kb_glossary_terms` holds the
+    parsed term/definition pairs that the glossary modal searches."""
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN doc_type TEXT DEFAULT 'document'")
+    except Exception:
+        pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_glossary_terms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term TEXT NOT NULL,
+            definition TEXT DEFAULT '',
+            letter TEXT DEFAULT '',
+            sort_key TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_glossary_sort ON kb_glossary_terms(sort_key)")
+
+
+def migrate_v39(conn):
+    """KB categories get an optional icon key (from the shared icon library) so
+    each category can show a chosen icon in the sidebar."""
+    try:
+        conn.execute("ALTER TABLE kb_categories ADD COLUMN icon TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+
+def migrate_v40(conn):
+    """KB documents get an optional featured image (a stored image filename),
+    kept separate from the attached document file — shown as the card thumbnail
+    and a banner in the detail view."""
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN featured_image TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+
+def migrate_v41(conn):
+    """API keys for the read-only external KB API (consumed by the public-facing
+    Knowledge Base frontend). Keys are stored as a SHA-256 hash; only the prefix
+    is kept in clear for display. A key is shown in full exactly once, at
+    creation. Revoking sets active=0 (the row is kept for the audit trail)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_api_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL DEFAULT '',
+            key_prefix TEXT NOT NULL DEFAULT '',
+            key_hash TEXT NOT NULL UNIQUE,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used_at TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_api_keys_prefix ON kb_api_keys(key_prefix)")
+
+
+def migrate_v42(conn):
+    """KB documents carry a SHA-256 of the stored file so an external consumer
+    (the KB frontend) can detect content changes exactly and re-download only
+    what actually changed. Empty for pre-existing rows; consumers fall back to
+    file_size when the hash is absent."""
+    try:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN file_sha256 TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+
+def migrate_v43(conn):
+    """KB documents and categories get a `public` flag (default on) that gates
+    whether they're exposed through the external API to the public companion
+    frontend. Admins toggle it from the WM interface; default 1 keeps all
+    existing content public so the publish behaviour is unchanged on upgrade.
+    A category that's switched off acts as a master gate — it and all of its
+    documents are withheld from the public site regardless of each document's
+    own flag."""
+    for tbl in ('kb_documents', 'kb_categories'):
+        try:
+            conn.execute(f"ALTER TABLE {tbl} ADD COLUMN public INTEGER NOT NULL DEFAULT 1")
+        except Exception:
+            pass
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -1099,6 +1281,15 @@ MIGRATIONS = [
     (32, migrate_v32),
     (33, migrate_v33),
     (34, migrate_v34),
+    (35, migrate_v35),
+    (36, migrate_v36),
+    (37, migrate_v37),
+    (38, migrate_v38),
+    (39, migrate_v39),
+    (40, migrate_v40),
+    (41, migrate_v41),
+    (42, migrate_v42),
+    (43, migrate_v43),
 ]
 
 
@@ -1272,6 +1463,52 @@ def save_work_order_attachment(file_field):
     size = os.path.getsize(path) if os.path.exists(path) else 0
     mime = file_field.mimetype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
     return (stored, original, mime, size)
+
+
+def _file_sha256(path):
+    """Hex SHA-256 of a file's bytes, or '' if it can't be read. Used to give
+    each KB document a content fingerprint the external API exposes."""
+    try:
+        h = hashlib.sha256()
+        with open(path, 'rb') as fh:
+            for chunk in iter(lambda: fh.read(65536), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return ''
+
+
+def save_kb_document(file_field):
+    """Persist a Knowledge Base document. Images are run through
+    save_image_resized (web-sized JPEG, like part photos and WO attachments);
+    everything else (PDF, Office docs, text, SVG…) is saved byte-for-byte
+    under a UUID name. Returns (stored_filename, original_name, mime_type,
+    size_bytes, sha256) or None if the extension isn't allowed or the save
+    fails."""
+    if not (file_field and file_field.filename):
+        return None
+    fname = file_field.filename
+    if '.' not in fname or fname.rsplit('.', 1)[1].lower() not in ALLOWED_KB_EXTS:
+        return None
+    import mimetypes
+    original = os.path.basename(fname)
+    ext = original.rsplit('.', 1)[1].lower()
+    if ext in IMAGE_EXTS:
+        stored = save_image_resized(file_field)
+        if not stored:
+            return None
+        path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
+        size = os.path.getsize(path) if os.path.exists(path) else 0
+        return (stored, original, 'image/jpeg', size, _file_sha256(path))
+    stored = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
+    try:
+        file_field.save(path)
+    except Exception:
+        return None
+    size = os.path.getsize(path) if os.path.exists(path) else 0
+    mime = file_field.mimetype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
+    return (stored, original, mime, size, _file_sha256(path))
 
 
 def get_part_images(conn, part_id):
@@ -1503,6 +1740,7 @@ def auth_me():
     conn = get_db()
     tz = _get_setting(conn, 'display_timezone', 'UTC')
     time_fmt = _get_setting(conn, 'display_time_format', '12h')
+    modules = _modules_enabled(conn)
     conn.close()
     return jsonify({
         'id': current_user.id,
@@ -1515,7 +1753,81 @@ def auth_me():
         'build': BUILD_FINGERPRINT,
         'timezone': tz,
         'time_format': time_fmt if time_fmt in ('12h', '24h') else '12h',
+        'modules': modules,
     })
+
+
+@app.route('/api/search')
+@login_required
+def global_search():
+    """Unified live search across every enabled module — powers the ⌘K command
+    palette. Returns a small capped set of matches per module."""
+    q = (request.args.get('q') or '').strip()
+    out = {'q': q, 'parts': [], 'work_orders': [], 'kb': [], 'glossary': []}
+    if len(q) < 2:
+        return jsonify(out)
+    like = f"%{q}%"
+    LIMIT = 8
+    conn = get_db()
+    modules = _modules_enabled(conn)
+    try:
+        if modules.get('inventory'):
+            cols = ['sku', 'location', 'fitment_vehicle', 'notes', 'product_number', 'custom_data']
+            where = " OR ".join(f"{c} LIKE ?" for c in cols)
+            rows = conn.execute(
+                f"SELECT id, category, sku, product_number, fitment_vehicle, sold "
+                f"FROM parts WHERE {where} ORDER BY updated_at DESC LIMIT ?",
+                [like] * len(cols) + [LIMIT]
+            ).fetchall()
+            for r in rows:
+                sub = ' · '.join([x for x in (r['product_number'], r['fitment_vehicle']) if x])
+                out['parts'].append({
+                    'id': r['id'],
+                    'label': r['sku'] or r['product_number'] or f"Part #{r['id']}",
+                    'sub': sub, 'category': r['category'], 'sold': bool(r['sold']),
+                })
+        if modules.get('work_orders'):
+            cols = ['wo_number', 'customer_name', 'quote_invoice', 'sales_person', 'vehicle', 'vin', 'notes', 'parts_json']
+            where = " OR ".join(f"{c} LIKE ?" for c in cols)
+            rows = conn.execute(
+                f"SELECT id, wo_number, customer_name, quote_invoice, status "
+                f"FROM work_orders WHERE {where} ORDER BY id DESC LIMIT ?",
+                [like] * len(cols) + [LIMIT]
+            ).fetchall()
+            for r in rows:
+                sub = ' · '.join([x for x in (r['customer_name'], r['quote_invoice']) if x])
+                out['work_orders'].append({
+                    'id': r['id'], 'wo_number': r['wo_number'],
+                    'label': r['wo_number'] or f"WO #{r['id']}",
+                    'sub': sub, 'status': r['status'],
+                })
+        if modules.get('knowledge_base'):
+            cats = {c['id']: c['name'] for c in conn.execute("SELECT id, name FROM kb_categories").fetchall()}
+            cols = ['title', 'description', 'original_name', 'vehicle_fitment', 'associated_parts']
+            where = " OR ".join(f"{c} LIKE ?" for c in cols)
+            rows = conn.execute(
+                f"SELECT id, title, category_id, vehicle_fitment, original_name "
+                f"FROM kb_documents WHERE ({where}) AND doc_type != 'glossary_source' ORDER BY id DESC LIMIT ?",
+                [like] * len(cols) + [LIMIT]
+            ).fetchall()
+            for r in rows:
+                sub = cats.get(r['category_id']) or r['vehicle_fitment'] or r['original_name'] or ''
+                out['kb'].append({'id': r['id'], 'label': r['title'] or f"Document #{r['id']}", 'sub': sub})
+            # Glossary terms (open the glossary modal filtered to the term)
+            if modules.get('glossary'):
+                try:
+                    trows = conn.execute(
+                        "SELECT term, definition FROM kb_glossary_terms "
+                        "WHERE term LIKE ? OR definition LIKE ? ORDER BY sort_key LIMIT ?",
+                        [like, like, LIMIT]
+                    ).fetchall()
+                    for t in trows:
+                        out['glossary'].append({'term': t['term'], 'sub': (t['definition'] or '')[:70]})
+                except Exception:
+                    pass
+    finally:
+        conn.close()
+    return jsonify(out)
 
 
 @app.route('/api/settings/display', methods=['GET'])
@@ -2162,6 +2474,8 @@ def _is_setup_complete():
 @app.route('/workorders/<wo_number>')
 @app.route('/parts')
 @app.route('/parts/<slug>')
+@app.route('/kb')
+@app.route('/kb/<slug>')
 @login_required
 def index(slug=None, wid=None, wo_number=None):
     # Fresh install: bounce admins into the setup wizard before they see
@@ -2624,6 +2938,1645 @@ def delete_category(slug):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════
+#  KNOWLEDGE BASE API
+#  Documents (instruction sheets, diagrams, files) under a flat,
+#  admin-defined category tree independent of parts categories.
+# ══════════════════════════════════════════
+
+def _kb_guard():
+    """Return a (response, status) tuple if the Knowledge Base module is
+    disabled, else None. KB routes call this first so a disabled module is a
+    hard 403 rather than silently serving data."""
+    conn = get_db()
+    enabled = _module_enabled(conn, 'knowledge_base')
+    conn.close()
+    if not enabled:
+        return (jsonify({'error': 'Knowledge Base module is disabled'}), 403)
+    return None
+
+
+def _kb_slugify(name):
+    return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+
+
+def _normalize_fitment(raw):
+    """Comma-separated fitment string → cleaned comma-separated string
+    (each value trimmed, empties dropped)."""
+    return ', '.join([p.strip() for p in str(raw or '').split(',') if p.strip()])
+
+
+def _normalize_kb_parts(raw):
+    """Accept a list of {number,url} dicts (or a JSON string of one) and return
+    a cleaned list, dropping rows where both fields are empty."""
+    import json as json_mod
+    if isinstance(raw, str):
+        try:
+            raw = json_mod.loads(raw)
+        except Exception:
+            raw = []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        num = str(item.get('number', '') or '').strip()
+        url = str(item.get('url', '') or '').strip()
+        if num or url:
+            out.append({'number': num, 'url': url})
+    return out
+
+
+def _kb_doc_to_dict(row):
+    import json as json_mod
+    d = dict(row)
+    ext = (d.get('original_name', '').rsplit('.', 1)[-1] or '').lower()
+    d['ext'] = ext
+    d['is_image'] = ext in IMAGE_EXTS
+    d['has_file'] = bool(d.get('filename'))
+    d['featured_image'] = d.get('featured_image') or ''
+    d['has_featured'] = bool(d['featured_image'])
+    d['file_sha256'] = d.get('file_sha256') or ''
+    d['source_url'] = d.get('source_url') or ''
+    # Public visibility on the companion frontend (default on for legacy rows).
+    d['public'] = bool(d.get('public', 1) if d.get('public') is not None else 1)
+    d['doc_type'] = d.get('doc_type') or 'document'
+    d['vehicle_fitment'] = d.get('vehicle_fitment') or ''
+    try:
+        d['associated_parts'] = json_mod.loads(d.get('associated_parts') or '[]')
+    except Exception:
+        d['associated_parts'] = []
+    return d
+
+
+def _kb_categories_payload(conn, public_only=False):
+    """Build the {categories, uncategorized_count} payload. Shared by the
+    internal (login) and external (api-key) category endpoints so the two never
+    drift. When public_only is set (the external/companion API), private
+    categories are omitted entirely and doc counts only tally public documents
+    — so the count the public site shows matches what it can actually open."""
+    doc_filter = "d.doc_type != 'glossary_source'"
+    cat_where = ""
+    if public_only:
+        doc_filter += " AND d.public = 1"
+        cat_where = "WHERE c.public = 1"
+    rows = conn.execute(
+        "SELECT c.id, c.name, c.slug, c.sort_order, c.icon, c.public, "
+        f"  (SELECT COUNT(*) FROM kb_documents d WHERE d.category_id = c.id AND {doc_filter}) AS doc_count "
+        f"FROM kb_categories c {cat_where} ORDER BY c.sort_order, c.name COLLATE NOCASE"
+    ).fetchall()
+    # Count of uncategorized docs (category_id IS NULL) so the UI can surface them.
+    unc_filter = "category_id IS NULL AND doc_type != 'glossary_source'"
+    if public_only:
+        unc_filter += " AND public = 1"
+    uncategorized = conn.execute(
+        f"SELECT COUNT(*) AS n FROM kb_documents WHERE {unc_filter}"
+    ).fetchone()['n']
+    cats = []
+    for r in rows:
+        d = dict(r)
+        d['public'] = bool(d.get('public', 1))
+        cats.append(d)
+    return {
+        'categories': cats,
+        'uncategorized_count': uncategorized,
+    }
+
+
+@app.route('/api/kb/categories', methods=['GET'])
+@login_required
+def kb_get_categories():
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    payload = _kb_categories_payload(conn)
+    conn.close()
+    return jsonify(payload)
+
+
+@app.route('/api/kb/categories', methods=['POST'])
+@admin_required
+def kb_create_category():
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    name = str(data.get('name', '') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    slug = _kb_slugify(name)
+    if not slug:
+        return jsonify({'error': 'Invalid name'}), 400
+    conn = get_db()
+    if conn.execute("SELECT id FROM kb_categories WHERE slug = ?", (slug,)).fetchone():
+        conn.close()
+        return jsonify({'error': 'A category with this name already exists'}), 409
+    icon = str(data.get('icon', '') or '').strip()[:40]
+    max_order = conn.execute("SELECT COALESCE(MAX(sort_order), 0) FROM kb_categories").fetchone()[0]
+    cur = conn.execute(
+        "INSERT INTO kb_categories (name, slug, sort_order, icon) VALUES (?, ?, ?, ?)",
+        (name, slug, max_order + 1, icon)
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return jsonify({'success': True, 'id': new_id, 'slug': slug}), 201
+
+
+@app.route('/api/kb/categories/<int:cid>', methods=['PUT'])
+@admin_required
+def kb_update_category(cid):
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM kb_categories WHERE id = ?", (cid,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Category not found'}), 404
+    name = str(data.get('name', existing['name']) or '').strip()
+    if not name:
+        conn.close()
+        return jsonify({'error': 'Name is required'}), 400
+    slug = _kb_slugify(name)
+    clash = conn.execute(
+        "SELECT id FROM kb_categories WHERE slug = ? AND id != ?", (slug, cid)
+    ).fetchone()
+    if clash:
+        conn.close()
+        return jsonify({'error': 'A category with this name already exists'}), 409
+    conn.execute("UPDATE kb_categories SET name = ?, slug = ? WHERE id = ?", (name, slug, cid))
+    if 'icon' in data:
+        conn.execute("UPDATE kb_categories SET icon = ? WHERE id = ?",
+                     (str(data.get('icon') or '').strip()[:40], cid))
+    if 'sort_order' in data:
+        try:
+            conn.execute("UPDATE kb_categories SET sort_order = ? WHERE id = ?",
+                         (int(data['sort_order']), cid))
+        except (TypeError, ValueError):
+            pass
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'slug': slug})
+
+
+@app.route('/api/kb/categories/<int:cid>', methods=['DELETE'])
+@admin_required
+def kb_delete_category(cid):
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM kb_categories WHERE id = ?", (cid,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Category not found'}), 404
+    # Only visible documents block deletion. Hidden glossary-source posts (an
+    # internal artifact of the glossary build) shouldn't stop a category that
+    # looks empty from being deleted — they're cleaned up below.
+    count = conn.execute(
+        "SELECT COUNT(*) AS n FROM kb_documents WHERE category_id = ? AND doc_type != 'glossary_source'", (cid,)
+    ).fetchone()['n']
+    if count > 0:
+        conn.close()
+        return jsonify({'error': f'Cannot delete: {count} document(s) are in this category. Move or remove them first.'}), 400
+    # Remove the hidden glossary-source posts (and any files) in this category.
+    for row in conn.execute(
+        "SELECT filename FROM kb_documents WHERE category_id = ? AND doc_type = 'glossary_source'", (cid,)
+    ).fetchall():
+        delete_image(row['filename'])
+    conn.execute("DELETE FROM kb_documents WHERE category_id = ? AND doc_type = 'glossary_source'", (cid,))
+    conn.execute("DELETE FROM kb_categories WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/kb/categories/<int:cid>/public', methods=['PUT'])
+@admin_required
+def kb_set_cat_public(cid):
+    """Admin-only: toggle a category's public visibility. Acts as a master gate
+    — when off, the category and every document in it are withheld from the
+    public companion frontend, regardless of each document's own flag."""
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    pub = 1 if data.get('public') else 0
+    conn = get_db()
+    row = conn.execute("SELECT id FROM kb_categories WHERE id = ?", (cid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Category not found'}), 404
+    conn.execute("UPDATE kb_categories SET public = ? WHERE id = ?", (pub, cid))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'public': bool(pub)})
+
+
+@app.route('/api/kb/documents', methods=['GET'])
+@login_required
+def kb_get_documents():
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    where = []
+    params = []
+    cat = request.args.get('category_id')
+    if cat == 'null':
+        where.append("category_id IS NULL")
+    elif cat not in (None, '', 'all'):
+        try:
+            where.append("category_id = ?")
+            params.append(int(cat))
+        except ValueError:
+            pass
+    q = (request.args.get('q') or '').strip()
+    if q:
+        where.append("(title LIKE ? OR description LIKE ? OR original_name LIKE ? "
+                     "OR vehicle_fitment LIKE ? OR associated_parts LIKE ?)")
+        like = f"%{q}%"
+        params += [like, like, like, like, like]
+    # Hide the raw glossary source posts from the normal listing.
+    where.append("doc_type != 'glossary_source'")
+    # Hide the glossary aggregate entry when the glossary sub-module is off.
+    if not _module_enabled(conn, 'glossary'):
+        where.append("doc_type != 'glossary'")
+    sql = "SELECT * FROM kb_documents"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY sort_order, title COLLATE NOCASE, id"
+    rows = conn.execute(sql, params).fetchall()
+    docs = [_kb_doc_to_dict(r) for r in rows]
+    # Attach the term count to any glossary aggregate doc.
+    if any(d['doc_type'] == 'glossary' for d in docs):
+        tcount = conn.execute("SELECT COUNT(*) AS n FROM kb_glossary_terms").fetchone()['n']
+        for d in docs:
+            if d['doc_type'] == 'glossary':
+                d['term_count'] = tcount
+    conn.close()
+    return jsonify({'documents': docs})
+
+
+# ── Glossary: parse "Term = Definition" posts into a searchable term store ──
+def _parse_glossary_terms(text):
+    """Pull `Term = Definition` pairs out of a glossary post's plain text,
+    one per line. Lines without '=' (attribution headers, blanks) are skipped."""
+    out = []
+    for raw in (text or '').split('\n'):
+        line = raw.strip()
+        if '=' not in line:
+            continue
+        term, definition = line.split('=', 1)
+        term = term.strip()
+        definition = definition.strip()
+        if term and definition and len(term) <= 80:
+            out.append((term, definition))
+    return out
+
+
+@app.route('/api/kb/glossary/build', methods=['POST'])
+@admin_required
+def kb_glossary_build():
+    """Parse the glossary posts in a category into individual searchable terms,
+    create/refresh the single special 'glossary' document, and hide the source
+    posts (kept as 'glossary_source' so the glossary can be rebuilt)."""
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    conn = get_db()
+    cat_id = data.get('category_id')
+    if not cat_id:
+        row = conn.execute(
+            "SELECT id FROM kb_categories WHERE slug = 'glossary' OR name LIKE 'Glossar%' ORDER BY id LIMIT 1"
+        ).fetchone()
+        cat_id = row['id'] if row else None
+    if not cat_id:
+        conn.close()
+        return jsonify({'error': 'No Glossary category found'}), 400
+    srcs = conn.execute(
+        "SELECT id, description FROM kb_documents "
+        "WHERE category_id = ? AND doc_type IN ('document', 'glossary_source')",
+        (cat_id,)
+    ).fetchall()
+    # Parse + de-duplicate (case-insensitive, first wins)
+    seen, terms = set(), []
+    for s in srcs:
+        for term, definition in _parse_glossary_terms(s['description']):
+            k = term.lower()
+            if k in seen:
+                continue
+            seen.add(k)
+            terms.append((term, definition))
+    conn.execute("DELETE FROM kb_glossary_terms")
+    for term, definition in terms:
+        letter = term[0].upper() if term[:1].isalpha() else '#'
+        conn.execute(
+            "INSERT INTO kb_glossary_terms (term, definition, letter, sort_key) VALUES (?, ?, ?, ?)",
+            (term, definition, letter, term.lower())
+        )
+    # Hide the raw source posts (retained for future rebuilds)
+    conn.execute(
+        "UPDATE kb_documents SET doc_type = 'glossary_source' WHERE category_id = ? AND doc_type = 'document'",
+        (cat_id,)
+    )
+    # Ensure exactly one aggregate glossary document
+    gdoc = conn.execute(
+        "SELECT id FROM kb_documents WHERE doc_type = 'glossary' AND category_id = ? LIMIT 1", (cat_id,)
+    ).fetchone()
+    if not gdoc:
+        author = current_user.display_name or current_user.username
+        max_order = conn.execute("SELECT COALESCE(MAX(sort_order), -1) FROM kb_documents").fetchone()[0]
+        conn.execute(
+            "INSERT INTO kb_documents "
+            "(category_id, title, description, filename, original_name, mime_type, file_size, "
+            " uploaded_by, uploaded_by_user_id, sort_order, vehicle_fitment, associated_parts, source_url, doc_type) "
+            "VALUES (?, ?, ?, '', '', '', 0, ?, ?, ?, '', '[]', '', 'glossary')",
+            (cat_id, 'Glossary of Terms',
+             'A searchable glossary of abbreviations, acronyms and terms.',
+             author, current_user.id, max_order + 1)
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'terms': len(terms)})
+
+
+@app.route('/api/kb/glossary/terms', methods=['GET'])
+@login_required
+def kb_glossary_terms():
+    g = _kb_guard()
+    if g:
+        return g
+    q = (request.args.get('q') or '').strip()
+    conn = get_db()
+    if q:
+        like = f"%{q}%"
+        rows = conn.execute(
+            "SELECT term, definition, letter FROM kb_glossary_terms "
+            "WHERE term LIKE ? OR definition LIKE ? ORDER BY sort_key", (like, like)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT term, definition, letter FROM kb_glossary_terms ORDER BY sort_key"
+        ).fetchall()
+    conn.close()
+    return jsonify({'terms': [dict(r) for r in rows]})
+
+
+@app.route('/api/kb/glossary/export', methods=['GET'])
+@login_required
+def kb_glossary_export():
+    """Download all glossary terms as CSV (term, definition) — for moving the
+    structured glossary to another install via the import below."""
+    g = _kb_guard()
+    if g:
+        return g
+    import csv, io
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT term, definition FROM kb_glossary_terms ORDER BY sort_key"
+    ).fetchall()
+    conn.close()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(['term', 'definition'])
+    for r in rows:
+        w.writerow([r['term'], r['definition']])
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="glossary.csv"'},
+    )
+
+
+@app.route('/api/kb/glossary/import', methods=['POST'])
+@admin_required
+def kb_glossary_import():
+    """Replace the glossary terms from an uploaded CSV with `term`,`definition`
+    columns, and ensure a Glossary category + aggregate document exist. Lets a
+    structured glossary be moved to prod without the original source posts."""
+    g = _kb_guard()
+    if g:
+        return g
+    import csv, io
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'No CSV file provided'}), 400
+    try:
+        text = f.read().decode('utf-8-sig')
+    except Exception:
+        return jsonify({'error': 'Could not read file as UTF-8 text'}), 400
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return jsonify({'error': 'CSV is empty'}), 400
+    # Locate term/definition columns from the header (fall back to first two cols).
+    header = [h.strip().lower() for h in rows[0]]
+    try:
+        ti = header.index('term')
+        di = header.index('definition')
+        data_rows = rows[1:]
+    except ValueError:
+        ti, di = 0, 1
+        data_rows = rows  # no recognizable header → treat every row as data
+    seen, terms = set(), []
+    for r in data_rows:
+        if len(r) <= max(ti, di):
+            continue
+        term = (r[ti] or '').strip()
+        definition = (r[di] or '').strip()
+        if not term:
+            continue
+        k = term.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        terms.append((term, definition))
+    if not terms:
+        return jsonify({'error': 'No term rows found in the CSV'}), 400
+    conn = get_db()
+    conn.execute("DELETE FROM kb_glossary_terms")
+    for term, definition in terms:
+        letter = term[0].upper() if term[:1].isalpha() else '#'
+        conn.execute(
+            "INSERT INTO kb_glossary_terms (term, definition, letter, sort_key) VALUES (?, ?, ?, ?)",
+            (term, definition, letter, term.lower())
+        )
+    # Ensure a Glossary category exists
+    cat = conn.execute(
+        "SELECT id FROM kb_categories WHERE slug = 'glossary' OR name LIKE 'Glossar%' ORDER BY id LIMIT 1"
+    ).fetchone()
+    if cat:
+        cat_id = cat['id']
+    else:
+        mo = conn.execute("SELECT COALESCE(MAX(sort_order), 0) FROM kb_categories").fetchone()[0]
+        cur = conn.execute(
+            "INSERT INTO kb_categories (name, slug, sort_order) VALUES ('Glossary', 'glossary', ?)", (mo + 1,))
+        cat_id = cur.lastrowid
+    # Ensure the aggregate glossary document
+    if not conn.execute("SELECT id FROM kb_documents WHERE doc_type = 'glossary' LIMIT 1").fetchone():
+        author = current_user.display_name or current_user.username
+        mo = conn.execute("SELECT COALESCE(MAX(sort_order), -1) FROM kb_documents").fetchone()[0]
+        conn.execute(
+            "INSERT INTO kb_documents "
+            "(category_id, title, description, filename, original_name, mime_type, file_size, "
+            " uploaded_by, uploaded_by_user_id, sort_order, vehicle_fitment, associated_parts, source_url, doc_type) "
+            "VALUES (?, ?, ?, '', '', '', 0, ?, ?, ?, '', '[]', '', 'glossary')",
+            (cat_id, 'Glossary of Terms',
+             'A searchable glossary of abbreviations, acronyms and terms.',
+             author, current_user.id, mo + 1)
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'terms': len(terms)})
+
+
+@app.route('/api/kb/documents', methods=['POST'])
+@editor_required
+def kb_create_documents():
+    g = _kb_guard()
+    if g:
+        return g
+    f = request.form
+    files = request.files.getlist('file') or request.files.getlist('files')
+    if not files or not any(x and x.filename for x in files):
+        return jsonify({'error': 'No file provided'}), 400
+    import json as json_mod
+    category_id = None
+    raw_cat = (f.get('category_id') or '').strip()
+    title = (f.get('title') or '').strip()
+    description = (f.get('description') or '').strip()
+    vehicle_fitment = _normalize_fitment(f.get('vehicle_fitment'))
+    associated_parts = json_mod.dumps(_normalize_kb_parts(f.get('associated_parts')))
+    # Optional featured image (separate from the document file).
+    featimg = request.files.get('featured_image')
+    featured_stored = save_image_resized(featimg) if (featimg and featimg.filename) else ''
+    author = current_user.display_name or current_user.username
+    conn = get_db()
+    if raw_cat and raw_cat != 'null':
+        try:
+            cid = int(raw_cat)
+        except ValueError:
+            conn.close()
+            return jsonify({'error': 'Invalid category'}), 400
+        if not conn.execute("SELECT id FROM kb_categories WHERE id = ?", (cid,)).fetchone():
+            conn.close()
+            return jsonify({'error': 'Category not found'}), 404
+        category_id = cid
+    max_order = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) FROM kb_documents"
+    ).fetchone()[0]
+    created = []
+    for x in files:
+        if not (x and x.filename):
+            continue
+        result = save_kb_document(x)
+        if not result:
+            continue
+        stored, original, mime, size, sha = result
+        # When multiple files are uploaded at once, a shared title only makes
+        # sense for the first; the rest fall back to their own filename.
+        doc_title = title if (title and len(created) == 0) else (title or original)
+        if not doc_title:
+            doc_title = original
+        # The featured image applies to the first/primary document in the batch.
+        feat_for_doc = featured_stored if not created else ''
+        max_order += 1
+        cur = conn.execute(
+            "INSERT INTO kb_documents "
+            "(category_id, title, description, filename, original_name, mime_type, "
+            " file_size, uploaded_by, uploaded_by_user_id, sort_order, "
+            " vehicle_fitment, associated_parts, featured_image, file_sha256) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (category_id, doc_title, description, stored, original, mime, size,
+             author, current_user.id, max_order, vehicle_fitment, associated_parts, feat_for_doc, sha)
+        )
+        created.append(cur.lastrowid)
+    if not created:
+        conn.close()
+        return jsonify({'error': 'No valid files were uploaded (check the file type)'}), 400
+    conn.commit()
+    rows = conn.execute(
+        f"SELECT * FROM kb_documents WHERE id IN ({','.join(['?']*len(created))})",
+        created
+    ).fetchall()
+    conn.close()
+    return jsonify({'success': True, 'documents': [_kb_doc_to_dict(r) for r in rows]}), 201
+
+
+@app.route('/api/kb/documents/<int:did>', methods=['GET'])
+@login_required
+def kb_get_document(did):
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    row = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(_kb_doc_to_dict(row))
+
+
+@app.route('/api/kb/documents/<int:did>', methods=['PUT'])
+@editor_required
+def kb_update_document(did):
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({'error': 'Document not found'}), 404
+    title = existing['title']
+    if 'title' in data:
+        t = str(data.get('title') or '').strip()
+        title = t or existing['title']
+    description = existing['description']
+    if 'description' in data:
+        description = str(data.get('description') or '').strip()
+    category_id = existing['category_id']
+    if 'category_id' in data:
+        raw = data.get('category_id')
+        if raw in (None, '', 'null'):
+            category_id = None
+        else:
+            try:
+                cid = int(raw)
+            except (TypeError, ValueError):
+                conn.close()
+                return jsonify({'error': 'Invalid category'}), 400
+            if not conn.execute("SELECT id FROM kb_categories WHERE id = ?", (cid,)).fetchone():
+                conn.close()
+                return jsonify({'error': 'Category not found'}), 404
+            category_id = cid
+    vehicle_fitment = existing['vehicle_fitment'] or ''
+    if 'vehicle_fitment' in data:
+        vehicle_fitment = _normalize_fitment(data.get('vehicle_fitment'))
+    associated_parts = existing['associated_parts'] or '[]'
+    if 'associated_parts' in data:
+        import json as json_mod
+        associated_parts = json_mod.dumps(_normalize_kb_parts(data.get('associated_parts')))
+    conn.execute(
+        "UPDATE kb_documents SET title = ?, description = ?, category_id = ?, "
+        "vehicle_fitment = ?, associated_parts = ? WHERE id = ?",
+        (title, description, category_id, vehicle_fitment, associated_parts, did)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    conn.close()
+    return jsonify({'success': True, 'document': _kb_doc_to_dict(row)})
+
+
+@app.route('/api/kb/documents/<int:did>', methods=['DELETE'])
+@editor_required
+def kb_delete_document(did):
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    row = conn.execute(
+        "SELECT filename, featured_image FROM kb_documents WHERE id = ?", (did,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Document not found'}), 404
+    delete_image(row['filename'])
+    if row['featured_image']:
+        delete_image(row['featured_image'])
+    conn.execute("DELETE FROM kb_documents WHERE id = ?", (did,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/kb/documents/<int:did>/featured', methods=['POST'])
+@editor_required
+def kb_set_featured(did):
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    row = conn.execute(
+        "SELECT featured_image FROM kb_documents WHERE id = ?", (did,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Document not found'}), 404
+    f = request.files.get('featured_image')
+    if not (f and f.filename):
+        conn.close()
+        return jsonify({'error': 'No image provided'}), 400
+    stored = save_image_resized(f)
+    if not stored:
+        conn.close()
+        return jsonify({'error': 'Invalid image (check the file type)'}), 400
+    if row['featured_image']:
+        delete_image(row['featured_image'])
+    conn.execute("UPDATE kb_documents SET featured_image = ? WHERE id = ?", (stored, did))
+    conn.commit()
+    out = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    conn.close()
+    return jsonify({'success': True, 'document': _kb_doc_to_dict(out)})
+
+
+@app.route('/api/kb/documents/<int:did>/featured', methods=['DELETE'])
+@editor_required
+def kb_clear_featured(did):
+    g = _kb_guard()
+    if g:
+        return g
+    conn = get_db()
+    row = conn.execute(
+        "SELECT featured_image FROM kb_documents WHERE id = ?", (did,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Document not found'}), 404
+    if row['featured_image']:
+        delete_image(row['featured_image'])
+    conn.execute("UPDATE kb_documents SET featured_image = '' WHERE id = ?", (did,))
+    conn.commit()
+    out = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    conn.close()
+    return jsonify({'success': True, 'document': _kb_doc_to_dict(out)})
+
+
+@app.route('/api/kb/documents/<int:did>/public', methods=['PUT'])
+@admin_required
+def kb_set_doc_public(did):
+    """Admin-only: toggle whether this document is published to the public
+    companion frontend. Default is public; switching off withholds it from the
+    external API."""
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    pub = 1 if data.get('public') else 0
+    conn = get_db()
+    row = conn.execute("SELECT id FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Document not found'}), 404
+    conn.execute("UPDATE kb_documents SET public = ? WHERE id = ?", (pub, did))
+    conn.commit()
+    out = conn.execute("SELECT * FROM kb_documents WHERE id = ?", (did,)).fetchone()
+    conn.close()
+    return jsonify({'success': True, 'document': _kb_doc_to_dict(out)})
+
+
+def _kb_send_document_file(did, allow_same_origin_frame=False):
+    """Send a KB document's stored file with its original name preserved, or a
+    bare 404 if the row/file is missing. Shared by the internal (login) and
+    external (api-key) download routes. `allow_same_origin_frame` relaxes the
+    global X-Frame-Options: DENY to SAMEORIGIN so WM's own PDF-preview iframe
+    works — the external consumer is a different origin and never needs it."""
+    from flask import send_file
+    conn = get_db()
+    row = conn.execute(
+        "SELECT filename, original_name, mime_type FROM kb_documents WHERE id = ?", (did,)
+    ).fetchone()
+    conn.close()
+    if not row or not row['filename']:
+        return '', 404
+    path = os.path.join(app.config['UPLOAD_FOLDER'], row['filename'])
+    if not os.path.exists(path):
+        return '', 404
+    resp = send_file(
+        path,
+        mimetype=row['mime_type'] or 'application/octet-stream',
+        as_attachment=False,
+        download_name=row['original_name'],
+    )
+    if allow_same_origin_frame:
+        resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
+
+
+def _kb_send_featured_image(did):
+    """Send a KB document's featured image bytes, or a bare 404 if absent.
+    Featured images are always re-encoded JPEG (save_image_resized)."""
+    from flask import send_file
+    conn = get_db()
+    row = conn.execute(
+        "SELECT featured_image FROM kb_documents WHERE id = ?", (did,)
+    ).fetchone()
+    conn.close()
+    if not row or not row['featured_image']:
+        return '', 404
+    path = os.path.join(app.config['UPLOAD_FOLDER'], row['featured_image'])
+    if not os.path.exists(path):
+        return '', 404
+    return send_file(path, mimetype='image/jpeg', as_attachment=False)
+
+
+@app.route('/api/kb/documents/<int:did>/download', methods=['GET'])
+@login_required
+def kb_download_document(did):
+    """Serve a KB document with its original filename preserved. KB files can
+    be arbitrary types (the restrictive /uploads route only allows images),
+    so they get this dedicated send_file route like WO attachments."""
+    g = _kb_guard()
+    if g:
+        return g
+    return _kb_send_document_file(did, allow_same_origin_frame=True)
+
+
+# ══════════════════════════════════════════
+#  EXTERNAL KB API  (api-key authenticated, read-only)
+#  Consumed server-to-server by the public-facing Knowledge Base frontend.
+#  No login session; auth is a SHA-256-hashed API key in the X-API-Key header.
+# ══════════════════════════════════════════
+
+KB_API_KEY_PREFIX = 'wmkb_'
+
+
+def _kb_api_key_hash(raw):
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def _kb_generate_api_key():
+    """Return (full_key, prefix, hash). The full key is shown to the admin once
+    and never stored; only the prefix (for display) and the hash are kept."""
+    full = KB_API_KEY_PREFIX + secrets.token_hex(20)
+    return full, full[:12], _kb_api_key_hash(full)
+
+
+def kb_api_key_required(f):
+    """Gate a route on a valid, active KB API key supplied in the X-API-Key
+    header. The KB module must also be enabled (a disabled module 403s api-key
+    callers too). The key is never accepted from the query string (it would
+    leak into access logs / Referer / proxy caches)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.args.get('api_key'):
+            return jsonify({'error': 'API key must be sent in the X-API-Key header, not the URL'}), 400
+        presented = request.headers.get('X-API-Key', '')
+        if not presented:
+            return jsonify({'error': 'Missing API key'}), 401
+        conn = get_db()
+        try:
+            if not _module_enabled(conn, 'knowledge_base'):
+                return jsonify({'error': 'Knowledge Base module is disabled'}), 403
+            prefix = presented[:12]
+            row = conn.execute(
+                "SELECT id, key_hash FROM kb_api_keys WHERE key_prefix = ? AND active = 1",
+                (prefix,)
+            ).fetchone()
+            if not row or not hmac.compare_digest(row['key_hash'], _kb_api_key_hash(presented)):
+                return jsonify({'error': 'Invalid API key'}), 401
+            conn.execute(
+                "UPDATE kb_api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (row['id'],)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return f(*args, **kwargs)
+    return decorated
+
+
+# A document is visible to the public companion site only when it isn't a
+# glossary construct, its own `public` flag is on, AND its category is public
+# (or it's uncategorized). The category gate is a master switch — turning a
+# category off hides every document in it regardless of each doc's flag.
+_EXT_DOC_VISIBLE_SQL = (
+    "doc_type NOT IN ('glossary_source','glossary') AND public = 1 "
+    "AND (category_id IS NULL OR category_id IN "
+    "     (SELECT id FROM kb_categories WHERE public = 1))"
+)
+
+
+def _kb_ext_doc_visible(conn, did):
+    """True if document `did` is currently exposable through the external API."""
+    row = conn.execute(
+        f"SELECT 1 FROM kb_documents WHERE id = ? AND {_EXT_DOC_VISIBLE_SQL}", (did,)
+    ).fetchone()
+    return row is not None
+
+
+def _kb_doc_to_public_dict(row):
+    """Public-safe shape of a KB document. Strips internal/identifying fields
+    (uploaded_by, uploaded_by_user_id, the stored UUID filename) and the private
+    source/part URLs (which point at the internal WM/WordPress domain). Keeps
+    the metadata a public site needs; files are fetched by id via the external
+    download / featured routes."""
+    d = _kb_doc_to_dict(row)
+    # Strip internal/identifying fields and the WordPress origin URL. The
+    # associated-part numbers AND their admin-entered URLs are intentional,
+    # public-facing content, so they are kept.
+    for k in ('uploaded_by', 'uploaded_by_user_id', 'filename', 'featured_image',
+              'source_url', 'public'):
+        d.pop(k, None)
+    d['associated_parts'] = [{'number': p.get('number', ''), 'url': p.get('url', '')}
+                             for p in d.get('associated_parts', []) if p.get('number') or p.get('url')]
+    return d
+
+
+@app.route('/api/external/kb/categories', methods=['GET'])
+@kb_api_key_required
+def ext_kb_categories():
+    conn = get_db()
+    # Only public categories, counting only public documents.
+    payload = _kb_categories_payload(conn, public_only=True)
+    conn.close()
+    return jsonify(payload)
+
+
+@app.route('/api/external/kb/documents', methods=['GET'])
+@kb_api_key_required
+def ext_kb_documents():
+    conn = get_db()
+    # Glossary constructs are never exposed, private docs are withheld, and a
+    # private category withholds all of its docs (master gate).
+    sql = ("SELECT * FROM kb_documents WHERE " + _EXT_DOC_VISIBLE_SQL +
+           " ORDER BY sort_order, title COLLATE NOCASE, id")
+    rows = conn.execute(sql).fetchall()
+    conn.close()
+    return jsonify({'documents': [_kb_doc_to_public_dict(r) for r in rows]})
+
+
+@app.route('/api/external/kb/documents/<int:did>', methods=['GET'])
+@kb_api_key_required
+def ext_kb_document(did):
+    conn = get_db()
+    row = conn.execute(
+        f"SELECT * FROM kb_documents WHERE id = ? AND {_EXT_DOC_VISIBLE_SQL}",
+        (did,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(_kb_doc_to_public_dict(row))
+
+
+@app.route('/api/external/kb/documents/<int:did>/download', methods=['GET'])
+@kb_api_key_required
+def ext_kb_download(did):
+    # A private (or privately-categorized) document's file is not downloadable
+    # through the external API even if its id is known.
+    conn = get_db()
+    visible = _kb_ext_doc_visible(conn, did)
+    conn.close()
+    if not visible:
+        return '', 404
+    return _kb_send_document_file(did)
+
+
+@app.route('/api/external/kb/documents/<int:did>/featured', methods=['GET'])
+@kb_api_key_required
+def ext_kb_featured(did):
+    conn = get_db()
+    visible = _kb_ext_doc_visible(conn, did)
+    conn.close()
+    if not visible:
+        return '', 404
+    return _kb_send_featured_image(did)
+
+
+# ── API key management (admin) — drives the Settings → Options → API Keys UI ──
+@app.route('/api/settings/api-keys', methods=['GET'])
+@admin_required
+def list_api_keys():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, name, key_prefix, active, created_at, last_used_at "
+        "FROM kb_api_keys ORDER BY active DESC, created_at DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify({'keys': [dict(r) for r in rows]})
+
+
+@app.route('/api/settings/api-keys', methods=['POST'])
+@admin_required
+def create_api_key():
+    data = request.get_json() or {}
+    name = str(data.get('name', '') or '').strip()[:80] or 'Untitled key'
+    full, prefix, key_hash = _kb_generate_api_key()
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO kb_api_keys (name, key_prefix, key_hash) VALUES (?, ?, ?)",
+        (name, prefix, key_hash)
+    )
+    conn.commit()
+    conn.close()
+    # The full key is returned exactly once; it is never stored or shown again.
+    return jsonify({'success': True, 'key': full, 'name': name, 'key_prefix': prefix}), 201
+
+
+@app.route('/api/settings/api-keys/<int:kid>', methods=['DELETE'])
+@admin_required
+def revoke_api_key(kid):
+    conn = get_db()
+    row = conn.execute("SELECT id FROM kb_api_keys WHERE id = ?", (kid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    # Revoke (keep the row for the audit trail / last_used history).
+    conn.execute("UPDATE kb_api_keys SET active = 0 WHERE id = ?", (kid,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════
+#  KNOWLEDGE BASE — WORDPRESS IMPORT
+#  Pull posts from a WordPress install over its REST API and turn them into
+#  Knowledge Base entries. Admin-only. Field discovery is generic (it flattens
+#  a sample post to dotted paths) so ACF fields exposed in REST map the same
+#  way as core fields. Outbound HTTP uses urllib (no new dependency).
+# ══════════════════════════════════════════
+
+_WP_DL_MAX = 25 * 1024 * 1024   # cap a single downloaded file at 25 MB
+_WP_MAX_POSTS = 5000            # hard ceiling so a huge site can't run away
+
+
+def _wp_normalize_base(url):
+    url = (url or '').strip().rstrip('/')
+    if not url:
+        return ''
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    # Tolerate the user pasting the wp-json root itself.
+    if url.endswith('/wp-json'):
+        url = url[:-len('/wp-json')]
+    return url
+
+
+def _wp_auth_header(username, app_password):
+    if username and app_password:
+        token = base64.b64encode(f"{username}:{app_password}".encode()).decode()
+        return {'Authorization': 'Basic ' + token}
+    return {}
+
+
+def _wp_get(base, path, params=None, auth=None, timeout=25):
+    """GET {base}/wp-json{path} → (json, response_headers)."""
+    import urllib.request, urllib.parse, json as json_mod
+    qs = ('?' + urllib.parse.urlencode(params)) if params else ''
+    url = f"{base}/wp-json{path}{qs}"
+    headers = {'User-Agent': 'WarehouseManager-KBImport'}
+    headers.update(auth or {})
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read()
+        return json_mod.loads(body.decode('utf-8')), dict(resp.headers)
+
+
+def _wp_collect_paths(obj, prefix='', out=None, depth=0):
+    """Flatten a sample post into dotted leaf paths. Arrays of objects get a
+    '[]' marker so the UI can offer them as repeater sources."""
+    if out is None:
+        out = set()
+    if depth > 6:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            p = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, (dict, list)):
+                _wp_collect_paths(v, p, out, depth + 1)
+            else:
+                out.add(p)
+    elif isinstance(obj, list):
+        if obj and isinstance(obj[0], dict):
+            _wp_collect_paths(obj[0], prefix + '[]', out, depth + 1)
+        elif prefix:
+            out.add(prefix)
+    return out
+
+
+def _wp_get_path(obj, path):
+    """Resolve a dotted path (the '[]' repeater marker is ignored here — the
+    caller handles list values)."""
+    if not path:
+        return None
+    cur = obj
+    for seg in path.replace('[]', '').split('.'):
+        if seg == '':
+            continue
+        if isinstance(cur, dict):
+            cur = cur.get(seg)
+        else:
+            return None
+        if cur is None:
+            return None
+    return cur
+
+
+def _wp_strip_html(s):
+    import html as html_mod
+    if not isinstance(s, str):
+        s = '' if s is None else str(s)
+    s = re.sub(r'(?is)<(script|style)[^>]*>.*?</\1>', '', s)
+    s = re.sub(r'(?i)<br\s*/?>', '\n', s)
+    s = re.sub(r'(?i)</p>', '\n\n', s)
+    s = re.sub(r'<[^>]+>', '', s)
+    return html_mod.unescape(s).strip()
+
+
+def _wp_fitment_value(val):
+    if isinstance(val, list):
+        return _normalize_fitment(', '.join(_wp_strip_html(x) for x in val))
+    return _normalize_fitment(_wp_strip_html(val))
+
+
+def _wp_extract_parts(post, mapping):
+    """Build the associated_parts list from either an ACF repeater path
+    (+ number/url subkeys) or a single comma/array part-numbers path."""
+    parts = []
+    rep = (mapping.get('parts_repeater_path') or '').strip()
+    if rep:
+        lst = _wp_get_path(post, rep)
+        if isinstance(lst, list):
+            nk = (mapping.get('part_number_key') or '').strip()
+            uk = (mapping.get('part_url_key') or '').strip()
+            for it in lst:
+                if isinstance(it, dict):
+                    num = _wp_strip_html(it.get(nk)) if nk else ''
+                    url = it.get(uk) if uk else ''
+                    if isinstance(url, dict):
+                        url = url.get('url') or url.get('link') or ''
+                    url = str(url or '').strip()
+                    if num or url:
+                        parts.append({'number': num, 'url': url})
+                else:
+                    s = _wp_strip_html(it)
+                    if s:
+                        parts.append({'number': s, 'url': ''})
+        return _normalize_kb_parts(parts)
+    nums_path = (mapping.get('part_numbers_path') or '').strip()
+    if nums_path:
+        v = _wp_get_path(post, nums_path)
+        if isinstance(v, list):
+            for x in v:
+                s = _wp_strip_html(x)
+                if s:
+                    parts.append({'number': s, 'url': ''})
+        else:
+            for s in str(_wp_strip_html(v)).split(','):
+                s = s.strip()
+                if s:
+                    parts.append({'number': s, 'url': ''})
+    return _normalize_kb_parts(parts)
+
+
+def _wp_featured_url(post):
+    emb = post.get('_embedded') or {}
+    media = emb.get('wp:featuredmedia') or []
+    for m in media:
+        if isinstance(m, dict) and m.get('source_url'):
+            return m['source_url']
+    return ''
+
+
+def _wp_post_category_name(post):
+    emb = post.get('_embedded') or {}
+    for group in (emb.get('wp:term') or []):
+        if not isinstance(group, list):
+            continue
+        for t in group:
+            if isinstance(t, dict) and t.get('taxonomy') == 'category' and t.get('name'):
+                import html as html_mod
+                return html_mod.unescape(t['name']).strip()
+    return ''
+
+
+def _wp_map_post(post, mapping):
+    """Apply the field mapping to one post → the metadata for a KB entry."""
+    title = _wp_strip_html(_wp_get_path(post, mapping.get('title_path') or 'title.rendered')) \
+        or _wp_strip_html(_wp_get_path(post, 'title.rendered')) or 'Untitled'
+    desc = ''
+    if mapping.get('description_path'):
+        desc = _wp_strip_html(_wp_get_path(post, mapping['description_path']))
+    fitment = ''
+    if mapping.get('fitment_path'):
+        fitment = _wp_fitment_value(_wp_get_path(post, mapping['fitment_path']))
+    parts = _wp_extract_parts(post, mapping)
+    return {'title': title[:300], 'description': desc, 'vehicle_fitment': fitment,
+            'associated_parts': parts}
+
+
+def _wp_download_file(url, auth):
+    """Download a remote file → (stored, original, mime, size) or None."""
+    import urllib.request, urllib.parse, mimetypes
+    try:
+        headers = {'User-Agent': 'WarehouseManager-KBImport'}
+        headers.update(auth or {})
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read(_WP_DL_MAX + 1)
+            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].strip()
+    except Exception:
+        return None
+    if not data or len(data) > _WP_DL_MAX:
+        return None
+    path_part = urllib.parse.urlparse(url).path
+    original = os.path.basename(path_part) or 'download'
+    ext = original.rsplit('.', 1)[1].lower() if '.' in original else ''
+    if ext not in ALLOWED_KB_EXTS:
+        guessed = mimetypes.guess_extension(ctype) if ctype else None
+        ext = (guessed or '').lstrip('.').lower()
+        if ext == 'jpe':
+            ext = 'jpg'
+        if ext not in ALLOWED_KB_EXTS:
+            return None
+        original = f"{original}.{ext}"
+    stored = f"{uuid.uuid4().hex}.{ext}"
+    try:
+        with open(os.path.join(app.config['UPLOAD_FOLDER'], stored), 'wb') as fh:
+            fh.write(data)
+    except Exception:
+        return None
+    mime = ctype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
+    return (stored, original, mime, len(data))
+
+
+def _wp_save_text(title, body_html):
+    """Fallback document body: post content flattened to plain text and saved
+    as a .txt (served inline as text/plain — no script-execution risk that an
+    .html file would carry)."""
+    text = _wp_strip_html(body_html)
+    slug = _kb_slugify(title) or 'document'
+    original = f"{slug}.txt"
+    stored = f"{uuid.uuid4().hex}.txt"
+    payload = (f"{title}\n\n{text}").encode('utf-8')
+    try:
+        with open(os.path.join(app.config['UPLOAD_FOLDER'], stored), 'wb') as fh:
+            fh.write(payload)
+    except Exception:
+        return None
+    return (stored, original, 'text/plain', len(payload))
+
+
+def _wp_resolve_path(obj, path):
+    """Like _wp_get_path but follows '[]' segments by taking the first element
+    of the array, so an ACF repeater file field (e.g.
+    'acf.file_attachment[].file') resolves to its first item's value."""
+    if not path:
+        return None
+    cur = obj
+    for seg in path.split('.'):
+        is_arr = seg.endswith('[]')
+        key = seg[:-2] if is_arr else seg
+        if key:
+            if isinstance(cur, dict):
+                cur = cur.get(key)
+            else:
+                return None
+        if is_arr:
+            cur = cur[0] if isinstance(cur, list) and cur else None
+        if cur is None:
+            return None
+    return cur
+
+
+def _wp_media_url(base, auth, media_id):
+    """Resolve a WordPress media attachment ID to its source_url."""
+    try:
+        m, _ = _wp_get(base, f'/wp/v2/media/{int(media_id)}', auth=auth)
+    except Exception:
+        return ''
+    return m.get('source_url') or '' if isinstance(m, dict) else ''
+
+
+def _wp_value_to_url(base, auth, val, _depth=0):
+    """Coerce whatever an ACF file/image field returns — a URL string, a media
+    ID, or an object (ACF 'array' return format), possibly wrapped in a list —
+    into a downloadable URL (resolving media IDs against the media endpoint)."""
+    if val is None or _depth > 4:
+        return ''
+    if isinstance(val, list):
+        return _wp_value_to_url(base, auth, val[0], _depth + 1) if val else ''
+    if isinstance(val, bool):
+        return ''
+    if isinstance(val, (int, float)):
+        return _wp_media_url(base, auth, int(val))
+    if isinstance(val, str):
+        v = val.strip()
+        if v.startswith(('http://', 'https://')):
+            return v
+        if v.isdigit():
+            return _wp_media_url(base, auth, int(v))
+        return ''
+    if isinstance(val, dict):
+        for k in ('url', 'source_url', 'link', 'guid'):
+            u = val.get(k)
+            if isinstance(u, str) and u.startswith(('http://', 'https://')):
+                return u
+        for k in ('file', 'id', 'ID', 'media', 'attachment'):
+            if k in val:
+                u = _wp_value_to_url(base, auth, val[k], _depth + 1)
+                if u:
+                    return u
+    return ''
+
+
+def _wp_img_basekey(url):
+    """Filename of an image URL with WordPress's '-WIDTHxHEIGHT' size suffix
+    stripped, so different resized variants of the same image compare equal.
+    Used to recognise (and skip) the featured image when it's also embedded in
+    the post body."""
+    import urllib.parse
+    name = os.path.basename(urllib.parse.urlparse(url or '').path)
+    name = re.sub(r'-\d+x\d+(?=\.[A-Za-z0-9]+$)', '', name)
+    return name.lower()
+
+
+def _wp_featured_stored(post, auth):
+    """Download a post's featured image into its own stored file (separate from
+    the attached document) and return the stored UUID filename, or '' if there's
+    no featured image or it isn't a web-displayable image type. The result is
+    served by the /uploads route, so the extension must satisfy _UPLOAD_NAME_RE."""
+    u = _wp_featured_url(post)
+    if not u:
+        return ''
+    r = _wp_download_file(u, auth)
+    if not r:
+        return ''
+    stored = r[0]
+    if not _UPLOAD_NAME_RE.match(stored or ''):
+        delete_image(stored)
+        return ''
+    return stored
+
+
+def _wp_file_from_content_image(base, auth, post, mapping):
+    """First image embedded in the post BODY — but never the featured image
+    (which is handled separately), so an attached document isn't lost to a
+    featured image that WordPress also rendered into the content."""
+    body = _wp_get_path(post, mapping.get('content_path') or 'content.rendered') or ''
+    exclude = set()
+    fu = _wp_featured_url(post)
+    if fu:
+        exclude.add(_wp_img_basekey(fu))
+    u = _wp_content_first_media_url(body, exclude)
+    return _wp_download_file(u, auth) if u else None
+
+
+def _wp_file_from_field(base, auth, post, mapping):
+    raw = _wp_resolve_path(post, mapping.get('file_field_path') or '')
+    u = _wp_value_to_url(base, auth, raw)
+    return _wp_download_file(u, auth) if u else None
+
+
+def _wp_file_from_featured(base, auth, post, mapping):
+    u = _wp_featured_url(post)
+    return _wp_download_file(u, auth) if u else None
+
+
+def _wp_resolve_file(base, auth, post, mapping, meta, allow_featured_fallback=True):
+    """Pick the KB entry's file per the chosen source. Sources other than
+    'post_text' create a file-less entry ('', '', '', 0) when nothing usable is
+    found rather than dumping an empty .txt. 'auto' tries each source in turn so
+    a mixed category (some posts embed an image, others use an ACF file field or
+    featured image) imports correctly in a single pass. When the featured image
+    is being imported into its own field, allow_featured_fallback is False so it
+    is never also consumed as the document file."""
+    src = mapping.get('file_source') or 'post_text'
+    if src == 'none':
+        return ('', '', '', 0)
+    if src == 'auto':
+        # Prefer the explicitly attached document (file field), then an image
+        # embedded in the body, and only fall back to the featured image last —
+        # so a post's featured image never masks its attached document.
+        chain = [_wp_file_from_field, _wp_file_from_content_image]
+        if allow_featured_fallback:
+            chain.append(_wp_file_from_featured)
+        for fn in chain:
+            r = fn(base, auth, post, mapping)
+            if r:
+                return r
+        return ('', '', '', 0)
+    if src == 'featured_image':
+        return _wp_file_from_featured(base, auth, post, mapping) or ('', '', '', 0)
+    if src == 'field_url':
+        return _wp_file_from_field(base, auth, post, mapping) or ('', '', '', 0)
+    if src == 'content_image':
+        return _wp_file_from_content_image(base, auth, post, mapping) or ('', '', '', 0)
+    # 'post_text' (legacy): render the post body to a .txt article.
+    body = _wp_get_path(post, mapping.get('content_path') or 'content.rendered') or ''
+    return _wp_save_text(meta['title'], body)
+
+
+def _wp_content_first_media_url(html_str, exclude_keys=()):
+    """Pull the first usable media URL out of a post's rendered HTML — the first
+    <img src>, else the first <a href> that points at an allowed file type.
+    Images whose base filename is in exclude_keys (e.g. the featured image) are
+    skipped so they aren't mistaken for the post's attached document."""
+    if not isinstance(html_str, str) or not html_str:
+        return ''
+    exclude_keys = set(exclude_keys or ())
+    for im in re.finditer(r'<img[^>]+src=["\']([^"\']+)["\']', html_str, re.I):
+        src = im.group(1)
+        if _wp_img_basekey(src) in exclude_keys:
+            continue
+        return src
+    for am in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\']', html_str, re.I):
+        href = am.group(1)
+        tail = href.split('?')[0].split('#')[0]
+        ext = tail.rsplit('.', 1)[-1].lower() if '.' in tail else ''
+        if ext in ALLOWED_KB_EXTS and _wp_img_basekey(href) not in exclude_keys:
+            return href
+    return ''
+
+
+def _wp_fetch_posts(base, rest_base, auth, category=None, per_page=100, page=1):
+    params = {'per_page': per_page, 'page': page, '_embed': 1}
+    if category:
+        params['categories'] = category
+    return _wp_get(base, f'/wp/v2/{rest_base}', params=params, auth=auth)
+
+
+@app.route('/api/kb/import/wp/connect', methods=['POST'])
+@admin_required
+def kb_wp_connect():
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    base = _wp_normalize_base(data.get('url'))
+    if not base:
+        return jsonify({'error': 'A WordPress URL is required'}), 400
+    auth = _wp_auth_header(data.get('username'), data.get('app_password'))
+    try:
+        types, _ = _wp_get(base, '/wp/v2/types', auth=auth)
+    except Exception as e:
+        return jsonify({'error': f'Could not reach the WordPress REST API at {base}/wp-json — {e}'}), 502
+    post_types = []
+    if isinstance(types, dict):
+        for slug, info in types.items():
+            if not isinstance(info, dict):
+                continue
+            # Skip attachments/media — not useful as KB articles.
+            if slug in ('attachment', 'wp_block', 'nav_menu_item'):
+                continue
+            post_types.append({
+                'slug': slug,
+                'name': (info.get('name') or slug),
+                'rest_base': info.get('rest_base') or slug,
+            })
+    categories = []
+    try:
+        cats, _ = _wp_get(base, '/wp/v2/categories', params={'per_page': 100}, auth=auth)
+        if isinstance(cats, list):
+            categories = [{'id': c.get('id'), 'name': c.get('name', ''), 'count': c.get('count', 0)}
+                          for c in cats if isinstance(c, dict)]
+    except Exception:
+        pass
+    return jsonify({'base': base, 'post_types': post_types, 'categories': categories})
+
+
+@app.route('/api/kb/import/wp/sample', methods=['POST'])
+@admin_required
+def kb_wp_sample():
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    base = _wp_normalize_base(data.get('url'))
+    rest_base = (data.get('rest_base') or 'posts').strip()
+    auth = _wp_auth_header(data.get('username'), data.get('app_password'))
+    category = data.get('category') or None
+    try:
+        posts, headers = _wp_fetch_posts(base, rest_base, auth, category=category, per_page=20, page=1)
+    except Exception as e:
+        return jsonify({'error': f'Could not load posts — {e}'}), 502
+    if not isinstance(posts, list):
+        return jsonify({'error': 'Unexpected response from WordPress'}), 502
+    # Discover fields from the UNION across many sample posts, not just the
+    # first — ACF returns an empty `acf: []` for posts that have no field
+    # values, so a single sample can miss every custom field.
+    all_paths = set()
+    for p in posts:
+        _wp_collect_paths(p, out=all_paths)
+    # Whether ACF appears to be exposed at all (a dict, not an empty list).
+    acf_present = any(isinstance(p.get('acf'), dict) and p.get('acf') for p in posts)
+    acf_key_present = any('acf' in p for p in posts)
+    return jsonify({
+        'paths': sorted(all_paths),
+        'sample': posts[:12],
+        'total': headers.get('X-WP-Total'),
+        'acf_present': acf_present,
+        'acf_key_present': acf_key_present,
+    })
+
+
+@app.route('/api/kb/import/wp/preview', methods=['POST'])
+@admin_required
+def kb_wp_preview():
+    g = _kb_guard()
+    if g:
+        return g
+    data = request.get_json() or {}
+    base = _wp_normalize_base(data.get('url'))
+    rest_base = (data.get('rest_base') or 'posts').strip()
+    auth = _wp_auth_header(data.get('username'), data.get('app_password'))
+    mapping = data.get('mapping') or {}
+    category = data.get('category') or None
+    try:
+        posts, headers = _wp_fetch_posts(base, rest_base, auth, category=category, per_page=8, page=1)
+    except Exception as e:
+        return jsonify({'error': f'Could not load posts — {e}'}), 502
+    rows = []
+    for p in (posts or [])[:8]:
+        meta = _wp_map_post(p, mapping)
+        rows.append({
+            'title': meta['title'],
+            'description': (meta['description'] or '')[:160],
+            'vehicle_fitment': meta['vehicle_fitment'],
+            'associated_parts': meta['associated_parts'],
+            'wp_category': _wp_post_category_name(p),
+        })
+    return jsonify({'rows': rows, 'total': headers.get('X-WP-Total')})
+
+
+def _wp_get_or_create_category(conn, name, cache):
+    """Resolve a WP category name to a KB category id, creating it on first
+    sight. cache maps slug → id for the duration of one import run."""
+    name = (name or '').strip()
+    if not name:
+        return None
+    slug = _kb_slugify(name)
+    if not slug:
+        return None
+    if slug in cache:
+        return cache[slug]
+    row = conn.execute("SELECT id FROM kb_categories WHERE slug = ?", (slug,)).fetchone()
+    if row:
+        cache[slug] = row['id']
+        return row['id']
+    max_order = conn.execute("SELECT COALESCE(MAX(sort_order), 0) FROM kb_categories").fetchone()[0]
+    cur = conn.execute(
+        "INSERT INTO kb_categories (name, slug, sort_order) VALUES (?, ?, ?)",
+        (name, slug, max_order + 1)
+    )
+    cache[slug] = cur.lastrowid
+    return cur.lastrowid
+
+
+@app.route('/api/kb/import/wp/run', methods=['POST'])
+@admin_required
+def kb_wp_run():
+    g = _kb_guard()
+    if g:
+        return g
+    import json as json_mod
+    data = request.get_json() or {}
+    base = _wp_normalize_base(data.get('url'))
+    rest_base = (data.get('rest_base') or 'posts').strip()
+    auth = _wp_auth_header(data.get('username'), data.get('app_password'))
+    mapping = data.get('mapping') or {}
+    category = data.get('category') or None
+    # Featured images import into their own field by default; opt out via mapping.
+    import_featured = mapping.get('import_featured', True)
+    cat_mode = mapping.get('category_mode') or 'fixed'   # 'fixed' | 'wp'
+    fixed_cid = None
+    conn = get_db()
+    if cat_mode == 'fixed':
+        raw = mapping.get('category_id')
+        if raw not in (None, '', 'null'):
+            try:
+                fixed_cid = int(raw)
+            except (TypeError, ValueError):
+                fixed_cid = None
+            if fixed_cid and not conn.execute(
+                    "SELECT id FROM kb_categories WHERE id = ?", (fixed_cid,)).fetchone():
+                fixed_cid = None
+    cat_cache = {}
+    author = current_user.display_name or current_user.username
+    max_order = conn.execute("SELECT COALESCE(MAX(sort_order), -1) FROM kb_documents").fetchone()[0]
+    # Already-imported source URLs → skip on re-run so a partial/timed-out import
+    # can simply be run again to finish, without creating duplicates.
+    seen = {r[0] for r in conn.execute(
+        "SELECT source_url FROM kb_documents WHERE source_url != ''").fetchall()}
+    imported, skipped, already = 0, 0, 0
+    errors = []
+    page = 1
+    try:
+        while imported + skipped + already < _WP_MAX_POSTS:
+            try:
+                posts, headers = _wp_fetch_posts(base, rest_base, auth, category=category,
+                                                 per_page=100, page=page)
+            except Exception as e:
+                errors.append(f'page {page}: {e}')
+                break
+            if not isinstance(posts, list) or not posts:
+                break
+            for p in posts:
+                try:
+                    src = str(p.get('link') or '').strip()
+                    if src and src in seen:
+                        already += 1
+                        continue
+                    meta = _wp_map_post(p, mapping)
+                    if cat_mode == 'wp':
+                        cid = _wp_get_or_create_category(conn, _wp_post_category_name(p), cat_cache)
+                    else:
+                        cid = fixed_cid
+                    fileinfo = _wp_resolve_file(base, auth, p, mapping, meta,
+                                                allow_featured_fallback=not import_featured)
+                    # The featured image is always stored in its own field,
+                    # never as the document file (default on).
+                    featured = _wp_featured_stored(p, auth) if import_featured else ''
+                    if not fileinfo:
+                        # A post with only a featured image still becomes an entry
+                        # (image-only KB post) rather than being skipped.
+                        if featured:
+                            fileinfo = ('', '', '', 0)
+                        else:
+                            skipped += 1
+                            errors.append(f"{meta['title']}: could not produce a file")
+                            continue
+                    stored, original, mime, size = fileinfo
+                    max_order += 1
+                    conn.execute(
+                        "INSERT INTO kb_documents "
+                        "(category_id, title, description, filename, original_name, mime_type, "
+                        " file_size, uploaded_by, uploaded_by_user_id, sort_order, "
+                        " vehicle_fitment, associated_parts, source_url, featured_image) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (cid, meta['title'], meta['description'], stored, original, mime, size,
+                         author, current_user.id, max_order, meta['vehicle_fitment'],
+                         json_mod.dumps(meta['associated_parts']), src, featured)
+                    )
+                    if src:
+                        seen.add(src)
+                    imported += 1
+                except Exception as e:
+                    skipped += 1
+                    errors.append(str(e))
+            # Commit after each page so progress is durable even if a later page
+            # times out — the run is resumable thanks to source_url dedup above.
+            conn.commit()
+            try:
+                total_pages = int(headers.get('X-WP-TotalPages') or 0)
+            except ValueError:
+                total_pages = 0
+            if total_pages and page >= total_pages:
+                break
+            if len(posts) < 100:
+                break
+            page += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({
+        'success': True,
+        'imported': imported,
+        'skipped': skipped,
+        'already_imported': already,
+        'errors': errors[:25],
+        'error_count': len(errors),
+    })
 
 
 # ══════════════════════════════════════════
@@ -3363,7 +5316,15 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled'}
+
+# App-wide feature modules. Each can be toggled on/off by an admin from
+# Settings → Modules; a disabled module is hidden from the sidebar and its
+# settings tab, and its API routes return 403. Defaults are all-on so the
+# feature is invisible until an admin opts to turn something off.
+# 'glossary' is a sub-module of knowledge_base — only meaningful when KB is on.
+MODULE_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'glossary')
+_MODULE_DEFAULTS = {'inventory': True, 'work_orders': True, 'knowledge_base': True, 'glossary': True}
 
 
 def _get_setting(conn, key, default):
@@ -3385,6 +5346,20 @@ def _set_setting(conn, key, value):
         conn.execute("UPDATE app_settings SET value = ? WHERE key = ?", (v, key))
     else:
         conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, v))
+
+
+def _modules_enabled(conn):
+    """Return the {module: bool} map, defaults merged in so a key that's
+    missing from stored settings (e.g. a module added in a later release)
+    defaults to enabled."""
+    stored = _get_setting(conn, 'modules_enabled', {})
+    if not isinstance(stored, dict):
+        stored = {}
+    return {k: bool(stored.get(k, _MODULE_DEFAULTS[k])) for k in MODULE_KEYS}
+
+
+def _module_enabled(conn, name):
+    return _modules_enabled(conn).get(name, True)
 
 
 _PRIORITY_DEFAULT_COLORS = {
@@ -3479,6 +5454,37 @@ def update_wo_settings():
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+@app.route('/api/settings/modules', methods=['GET'])
+@login_required
+def get_modules_setting():
+    """Return the app-wide module enablement map. Available to all logged-in
+    users because the frontend gates the sidebar on it."""
+    conn = get_db()
+    modules = _modules_enabled(conn)
+    conn.close()
+    return jsonify({'modules': modules})
+
+
+@app.route('/api/settings/modules', methods=['PUT'])
+@admin_required
+def update_modules_setting():
+    """Persist the module enablement map. Only known keys are accepted;
+    anything else is ignored so a stale client can't inject junk keys."""
+    data = request.get_json() or {}
+    incoming = data.get('modules', data)
+    if not isinstance(incoming, dict):
+        return jsonify({'error': 'Invalid payload'}), 400
+    conn = get_db()
+    current = _modules_enabled(conn)
+    for k in MODULE_KEYS:
+        if k in incoming:
+            current[k] = bool(incoming[k])
+    _set_setting(conn, 'modules_enabled', current)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'modules': current})
 
 
 @app.route('/api/settings/smtp', methods=['GET'])

@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Warehouse Manager — Setup</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 (function(){
     try {
@@ -20,6 +18,13 @@
 </script>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Inter — self-hosted (static/fonts), used in place of any monospace face. */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/static/fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('/static/fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('/static/fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('/static/fonts/inter-700.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap; src: url('/static/fonts/inter-800.woff2') format('woff2'); }
 :root {
     --bg-primary: #0f1114;
     --bg-panel: #181b20;
@@ -41,7 +46,7 @@
     --radius: 8px;
     --radius-lg: 14px;
     --radius-xl: 18px;
-    --font: 'DM Sans', -apple-system, sans-serif;
+    --font: 'Inter', -apple-system, sans-serif;
     /* Labels, tags, and the "monospace-ish" microcopy use Inter instead of a
        true monospace so the wizard feels more typographically unified. */
     --mono: 'Inter', -apple-system, sans-serif;

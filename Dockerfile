@@ -23,4 +23,7 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--timeout", "120", "app:app"]
+# --timeout 300: the WordPress importer runs synchronously and may download many
+# files in one request; the longer ceiling gives large imports headroom (and the
+# importer is resumable via source_url dedup if it ever does time out).
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--timeout", "300", "app:app"]
