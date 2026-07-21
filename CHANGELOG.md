@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.7.1
+- <strong>Knowledge Base card: smaller Public/Hidden switch</strong> — The admin visibility toggle's "Public" / "Hidden" label had no styling of its own, so it rendered at the page's default text size and towered over the rest of the card. It now uses the same small monospace treatment as the card's file-size/uploader meta line, and the switch itself was scaled down to match.
+
 ## v1.7.0
 - <strong>External Knowledge Base API</strong> — A read-only, API-key-authenticated API that lets a separate, public-facing companion site (the WMKB Frontend) pull Knowledge Base content over a secure connection. New endpoints under <code>/api/external/kb/</code> expose categories, documents, document downloads, and featured images; auth is a SHA-256-hashed API key sent in the <code>X-API-Key</code> header (never the URL), and the Knowledge Base module must be enabled. The public payload deliberately strips internal/identifying fields (uploader, the stored UUID filename) and the private source/part URLs so nothing internal leaks. Manage keys from <strong>Settings → Options → API Keys</strong>: generate a key (shown in full exactly once), see each key's prefix and last-used time, and revoke. New table <code>kb_api_keys</code> (migration v41).
 - <strong>KB document content hashing</strong> — Each KB document now stores a SHA-256 of its file (migration v42, surfaced on the API as <code>file_sha256</code>) so an external consumer can detect content changes exactly and re-download only what actually changed. Populated on upload; empty for pre-existing rows (consumers fall back to file size).

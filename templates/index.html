@@ -2193,6 +2193,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.85rem 0; border-bottom: 1px solid var(--border);
 }
+
 .settings-row:last-child { border-bottom: none; }
 .settings-label { font-size: 0.88rem; color: var(--text-primary); }
 .settings-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
@@ -2629,6 +2630,13 @@ body:has(.sidebar.open) .hamburger-icon {
 .kb-thumb-glossary { color: var(--accent); background: var(--accent-dim); }
 .kb-card-meta { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); margin-top: auto; }
 .kb-card-actions { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
+/* Admin public/hidden switch — label tracks the card meta line, not the page default. */
+.kb-card-visibility { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; }
+.kb-vis-toggle { width: 32px; height: 17px; }
+.kb-vis-toggle .toggle-track::before { width: 13px; height: 13px; top: 2px; left: 2px; }
+.kb-vis-toggle input:checked + .toggle-track::before { transform: translateX(15px); }
+.kb-vis-label { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); }
+.kb-vis-label.is-hidden { color: var(--text-muted); }
 .btn-xs { padding: 3px 8px; font-size: 0.72rem; }
 .kb-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.9rem; }
 /* KB table view (reuses .parts-table chrome) */
