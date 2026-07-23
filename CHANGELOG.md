@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.7.5
+- <strong>External glossary endpoint</strong> — The external Knowledge Base API gained <code>GET /api/external/kb/glossary</code>, returning all glossary terms (<code>term</code>, <code>definition</code>, <code>letter</code>) so the WMKB Frontend companion site can mirror the glossary. Authenticated with the same <code>X-API-Key</code> mechanism as the other external KB routes; when the glossary sub-module is toggled off, it returns an empty list so a consumer prunes its mirror.
+
 ## v1.7.4
 - <strong>Sidebar search and Dashboard at 0.8rem</strong> — The search trigger and the Dashboard link now sit at 0.8rem, the same tier as the module section headers. Both live above the module sections rather than inside one, so they no longer read at the smaller size used for a section's contents.
 

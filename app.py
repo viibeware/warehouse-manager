@@ -11,7 +11,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.7.4'
+APP_VERSION = '1.7.5'
 
 
 def _compute_build_fingerprint():
@@ -3881,6 +3881,22 @@ def ext_kb_featured(did):
     if not visible:
         return '', 404
     return _kb_send_featured_image(did)
+
+
+@app.route('/api/external/kb/glossary', methods=['GET'])
+@kb_api_key_required
+def ext_kb_glossary():
+    conn = get_db()
+    # The glossary sub-module toggle is the master switch: off means the
+    # companion site should mirror an empty glossary.
+    if not _module_enabled(conn, 'glossary'):
+        conn.close()
+        return jsonify({'terms': []})
+    rows = conn.execute(
+        "SELECT term, definition, letter FROM kb_glossary_terms ORDER BY sort_key"
+    ).fetchall()
+    conn.close()
+    return jsonify({'terms': [dict(r) for r in rows]})
 
 
 # ── API key management (admin) — drives the Settings → Options → API Keys UI ──
