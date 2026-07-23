@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.7.2
+- <strong>Larger sidebar navigation text</strong> — The sidebar's navigation labels are now 0.9rem instead of 0.85rem, which reads more comfortably at a glance without changing the sidebar's width or item spacing.
+
 ## v1.7.1
 - <strong>Knowledge Base card: smaller Public/Hidden switch</strong> — The admin visibility toggle's "Public" / "Hidden" label had no styling of its own, so it rendered at the page's default text size and towered over the rest of the card. It now uses the same small monospace treatment as the card's file-size/uploader meta line, and the switch itself was scaled down to match.
 
