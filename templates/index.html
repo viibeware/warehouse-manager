@@ -222,8 +222,9 @@ body {
     width: 100%; text-align: left; background: none; border: none;
     border-radius: var(--radius); cursor: pointer;
     transition: color var(--transition), background var(--transition);
-    /* Match the size/case of the nav items beneath each section. */
-    font-size: 0.85rem; text-transform: none; letter-spacing: 0;
+    /* Sits a step above the nav items beneath it (0.7rem), so the two tiers
+       read as a hierarchy rather than one flat list. Case matches the items. */
+    font-size: 0.8rem; text-transform: none; letter-spacing: 0;
 }
 .nav-section-header:hover { color: var(--text-secondary); background: var(--bg-card); }
 .nav-caret {
@@ -337,10 +338,13 @@ body {
 }
 .nav-item {
     display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem;
-    border-radius: var(--radius); color: var(--text-secondary); font-size: 0.9rem;
+    border-radius: var(--radius); color: var(--text-secondary); font-size: 0.7rem;
     font-weight: 500; cursor: pointer; transition: all var(--transition);
     border: none; background: none; width: 100%; text-align: left; font-family: var(--font);
 }
+/* Dashboard sits above the module sections rather than inside one, so it takes
+   the header tier's size (0.8rem) instead of the nav-item tier's 0.7rem. */
+.nav-item[data-view="dashboard"] { font-size: 0.8rem; }
 .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
 .nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 .nav-item svg { flex-shrink: 0; }
@@ -2760,7 +2764,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
     display: flex; align-items: center; gap: 0.55rem; width: 100%;
     padding: 0.5rem 0.7rem; margin-bottom: 0.5rem;
     background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text-muted); cursor: pointer; font-family: var(--font); font-size: 0.82rem;
+    color: var(--text-muted); cursor: pointer; font-family: var(--font); font-size: 0.8rem;
     transition: border-color var(--transition), color var(--transition);
 }
 .sidebar-search:hover { border-color: var(--accent); color: var(--text-secondary); }

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.4
+- <strong>Sidebar search and Dashboard at 0.8rem</strong> — The search trigger and the Dashboard link now sit at 0.8rem, the same tier as the module section headers. Both live above the module sections rather than inside one, so they no longer read at the smaller size used for a section's contents.
+
+## v1.7.3
+- <strong>Sidebar type hierarchy</strong> — The module section headers (Inventory, Work Orders, Knowledge Base) are now 0.8rem and the navigation items beneath them 0.7rem, so the sidebar reads as two tiers instead of one flat list. Previously the headers were pinned to the item size deliberately, which left nothing to distinguish a section from its contents. The narrower type also reclaims about 90px of vertical space, so more of the navigation fits without scrolling.
+
 ## v1.7.2
 - <strong>Larger sidebar navigation text</strong> — The sidebar's navigation labels are now 0.9rem instead of 0.85rem, which reads more comfortably at a glance without changing the sidebar's width or item spacing.
 
