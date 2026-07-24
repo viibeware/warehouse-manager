@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UPS Zone Chart · Warehouse Manager</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='zonechart/css/app.css') }}">
+<link rel="icon" href="/static/favicon.png">
+</head>
+<body>
+<div class="app">
+
+  <header class="masthead">
+    <div class="masthead-title">
+      <span class="eyebrow">UPS Zone Chart · time-in-transit</span>
+    </div>
+    <div class="masthead-right admin-nav">
+      <a class="ghost-btn" href="/">← Warehouse Manager</a>
+      {% if is_admin %}<a class="ghost-btn" href="/zonechart/admin">Admin</a>{% endif %}
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle dark mode" title="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <section class="map-panel" aria-label="Zone map">
+      <nav class="service-tabs" id="service-tabs" role="tablist" aria-label="UPS service"></nav>
+      <div class="map-stage">
+        <svg id="map" role="img" aria-label="Choropleth map of United States 3-digit ZIP zones"></svg>
+        <div id="tooltip" class="tooltip" role="status" hidden></div>
+        <div class="map-hint" id="map-hint">Scroll to zoom · drag to pan · click a region to pin it</div>
+        <button id="reset-view" class="ghost-btn reset-view" type="button" hidden>Reset view</button>
+      </div>
+      <footer class="legend-bar">
+        <div class="legend" id="legend" aria-label="Zone legend"></div>
+        <button id="table-toggle" class="ghost-btn" type="button" aria-expanded="false" aria-controls="table-drawer">View as table</button>
+      </footer>
+    </section>
+
+    <aside class="rail">
+
+      <div class="card origin-card">
+        <div class="origin-head">
+          <span class="eyebrow">Origin</span>
+          <button id="origin-edit" class="ghost-btn" type="button" aria-expanded="false" aria-controls="origin-editor">Change</button>
+        </div>
+        <div class="origin-zip mono" id="origin-zip">{{ default_origin }}xx</div>
+        <div class="origin-place" id="origin-place">&nbsp;</div>
+        <div class="origin-editor" id="origin-editor" hidden>
+          <div class="search-row">
+            <input id="origin-input" class="mono" type="text" inputmode="numeric" autocomplete="postal-code"
+                   maxlength="5" placeholder="ship from…" aria-label="Origin ZIP code" aria-describedby="origin-msg">
+            <button id="origin-go" class="solid-btn" type="button">Set</button>
+          </div>
+          <p id="origin-msg" class="search-msg" role="status"></p>
+        </div>
+      </div>
+
+      <div class="card search-card">
+        <label class="eyebrow" for="zip-search">Destination ZIP</label>
+        <div class="search-row">
+          <input id="zip-search" class="mono" type="text" inputmode="numeric" autocomplete="postal-code"
+                 maxlength="5" placeholder="e.g. 90210" aria-describedby="search-msg">
+          <button id="zip-go" class="solid-btn" type="button">Find</button>
+        </div>
+        <p id="search-msg" class="search-msg" role="status"></p>
+      </div>
+
+      <div class="card waybill" id="waybill" aria-live="polite">
+        <div class="waybill-head">
+          <span class="eyebrow">Destination</span>
+          <span class="waybill-route mono" id="wb-route">{{ default_origin }} → · · ·</span>
+        </div>
+        <div class="waybill-dest">
+          <div class="wb-zip mono" id="wb-zip">—</div>
+          <div class="wb-stamp" id="wb-stamp" data-empty="true">
+            <span class="wb-stamp-label">zone</span>
+            <span class="wb-stamp-num" id="wb-zone">·</span>
+          </div>
+        </div>
+        <ul class="wb-services" id="wb-services"></ul>
+        <p class="wb-note" id="wb-note">Hover the map, or search a ZIP, to fill in this waybill.</p>
+      </div>
+
+      <p class="fine-print">
+        Zones from the official UPS chart for the selected origin. Transit
+        times are typical business-day estimates — actual UPS time-in-transit
+        varies by exact ZIP and pickup day. Guam, USVI and other territories
+        follow the worldwide rate &amp; zone tables.
+      </p>
+
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-info">
+      <span>UPS Zone Chart · part of Warehouse Manager</span>
+      <span aria-hidden="true">·</span>
+      <span class="footer-version mono">v{{ version }}</span>
+    </div>
+  </footer>
+
+  <div class="table-drawer" id="table-drawer" hidden>
+    <div class="table-drawer-head">
+      <strong>Zone chart · full table</strong>
+      <input id="table-filter" class="mono" type="text" placeholder="Filter prefix…" aria-label="Filter by prefix">
+      <button id="table-close" class="icon-btn" type="button" aria-label="Close table">✕</button>
+    </div>
+    <div class="table-scroll">
+      <table id="zone-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='zonechart/vendor/d3.v7.min.js') }}"></script>
+<script src="{{ url_for('static', filename='zonechart/vendor/topojson-client.min.js') }}"></script>
+<script src="{{ url_for('static', filename='zonechart/js/app.js') }}"></script>
+</body>
+</html>

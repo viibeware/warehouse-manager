@@ -349,10 +349,10 @@ body {
     font-weight: 500; cursor: pointer; transition: all var(--transition);
     border: none; background: none; width: 100%; text-align: left; font-family: var(--font);
 }
-/* Dashboard and the Customers link sit above the module sections rather than
-   inside one, so they take the header tier's size (0.8rem) instead of the
-   nav-item tier's 0.7rem. */
-.nav-item[data-view="dashboard"], #navCustomersLink { font-size: 0.8rem; }
+/* Dashboard, Customers, and UPS Zone Chart sit above the module sections
+   rather than inside one, so they take the header tier's size (0.8rem)
+   instead of the nav-item tier's 0.7rem. */
+.nav-item[data-view="dashboard"], #navCustomersLink, #navZoneChartLink { font-size: 0.8rem; }
 /* Admin-defined external links: top-level tier like Dashboard. The trailing
    arrow marks them as leaving the app. */
 .nav-custom-link { font-size: 0.8rem; text-decoration: none; }
@@ -2905,6 +2905,10 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Customers
         </button>
+        <button class="nav-item" id="navZoneChartLink" onclick="window.location.href='/zonechart'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            UPS Zone Chart
+        </button>
     </div>
     <nav class="sidebar-nav">
         <div id="navSectionInventory" class="nav-section">
@@ -3328,6 +3332,19 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                         <button class="btn btn-ghost btn-sm" id="moduleCustomersManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openCustomersConfigModal();">Manage</button>
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleCustomersToggle" onchange="saveModule('customers', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">UPS Zone Chart</div>
+                        <div class="settings-desc">Interactive UPS zone map and time-in-transit lookup by origin/destination ZIP. Opens as its own page from the sidebar.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleZoneChartManageBtn" style="display:none;" onclick="window.location.href='/zonechart/admin'">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleZoneChartToggle" onchange="saveModule('zone_chart', this.checked)">
                             <span class="toggle-track"></span>
                         </label>
                     </div>
@@ -4709,6 +4726,7 @@ function refreshModuleToggles() {
     set('moduleKnowledgeBaseToggle', m.knowledge_base);
     set('moduleGlossaryToggle', m.glossary);
     set('moduleCustomersToggle', m.customers);
+    set('moduleZoneChartToggle', m.zone_chart);
     // The Glossary sub-toggle is only meaningful while KB is on.
     const gt = document.getElementById('moduleGlossaryToggle');
     if (gt) gt.disabled = !m.knowledge_base;
@@ -4744,7 +4762,7 @@ async function saveModule(name, enabled) {
         }
         // Keep the glossary toggle's disabled state in sync after a KB change.
         refreshModuleToggles();
-        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary', customers: 'Customers' }[name] || name;
+        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary', customers: 'Customers', zone_chart: 'UPS Zone Chart' }[name] || name;
         showToast(`${label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch {
         showToast('Connection error', 'error');
@@ -5282,6 +5300,7 @@ function getModules() {
         knowledge_base: m.knowledge_base !== false,
         glossary: m.glossary !== false,
         customers: m.customers !== false,
+        zone_chart: m.zone_chart !== false,
     };
 }
 function applyModuleVisibility() {
@@ -5291,11 +5310,13 @@ function applyModuleVisibility() {
     setDisp('navSectionWorkOrders', m.work_orders);
     setDisp('navSectionKnowledgeBase', m.knowledge_base);
     setDisp('navCustomersLink', m.customers);
+    setDisp('navZoneChartLink', m.zone_chart);
     // Manage buttons in the Modules tab: shown only when the module is enabled.
     setDisp('moduleInventoryManageBtn', m.inventory);
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
     setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
     setDisp('moduleCustomersManageBtn', m.customers);
+    setDisp('moduleZoneChartManageBtn', m.zone_chart);
     // WordPress → KB importer (Data tab) only makes sense when KB is enabled.
     setDisp('settingsKbWpImport', m.knowledge_base);
     // Glossary sub-module: sidebar item + its Data-tab tools, gated on KB AND glossary.

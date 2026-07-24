@@ -2,6 +2,7 @@ flask
 flask-login
 gunicorn
 openpyxl
+xlrd
 Pillow
 qrcode[pil]
 reportlab

@@ -5,13 +5,13 @@ import base64
 import secrets
 import hashlib
 import hmac
-from functools import wraps
+from functools import wraps, lru_cache
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.9.0'
+APP_VERSION = '1.10.0'
 
 
 def _compute_build_fingerprint():
@@ -5356,15 +5356,15 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled', 'customers_config'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled', 'customers_config', 'zonechart_config'}
 
 # App-wide feature modules. Each can be toggled on/off by an admin from
 # Settings → Modules; a disabled module is hidden from the sidebar and its
 # settings tab, and its API routes return 403. Defaults are all-on so the
 # feature is invisible until an admin opts to turn something off.
 # 'glossary' is a sub-module of knowledge_base — only meaningful when KB is on.
-MODULE_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'glossary', 'customers')
-_MODULE_DEFAULTS = {'inventory': True, 'work_orders': True, 'knowledge_base': True, 'glossary': True, 'customers': True}
+MODULE_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'glossary', 'customers', 'zone_chart')
+_MODULE_DEFAULTS = {'inventory': True, 'work_orders': True, 'knowledge_base': True, 'glossary': True, 'customers': True, 'zone_chart': True}
 
 
 def _get_setting(conn, key, default):
@@ -5855,6 +5855,556 @@ def customers_detail(cust_id):
             'zip': _ims_attr(fields, 93),
         },
     })
+
+
+# ══════════════════════════════════════════
+#  UPS ZONE CHART MODULE
+#  Interactive UPS zone map (ported from the standalone ZoneChart project).
+#  One chart workbook per origin 3-digit ZIP prefix; the frontend is its own
+#  page (/zonechart) with a D3 choropleth, gated by app login + the module
+#  toggle. Charts live in {DATA_DIR}/zonechart/charts, refreshed from
+#  ups.com by a background thread (stdlib HTTP — no Playwright/Chromium).
+# ══════════════════════════════════════════
+
+_ZC_SERVICES = [
+    {"id": "ground",     "name": "UPS Ground",            "short": "Ground"},
+    {"id": "three_day",  "name": "UPS 3 Day Select",      "short": "3 Day Select"},
+    {"id": "two_day",    "name": "UPS 2nd Day Air",       "short": "2nd Day Air"},
+    {"id": "two_day_am", "name": "UPS 2nd Day Air A.M.",  "short": "2nd Day A.M."},
+    {"id": "nda_saver",  "name": "UPS Next Day Air Saver", "short": "NDA Saver"},
+    {"id": "nda",        "name": "UPS Next Day Air",      "short": "Next Day Air"},
+]
+# Typical business days in transit, by service and (for Ground) zone.
+_ZC_GROUND_DAYS = {2: "1 day", 3: "2 days", 4: "2–3 days", 5: "3 days",
+                   6: "3–4 days", 7: "4 days", 8: "4–5 days"}
+_ZC_FLAT_DAYS = {"three_day": "3 days", "two_day": "2 days", "two_day_am": "2 days (a.m.)",
+                 "nda_saver": "next day (eve)", "nda": "next day"}
+_ZC_HEADER_ALIASES = {
+    "ground": "ground",
+    "3 day select": "three_day",
+    "2nd day air": "two_day",
+    "2nd day air a.m.": "two_day_am",
+    "next day air saver": "nda_saver",
+    "next day air": "nda",
+}
+
+_ZC_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+ZC_CHARTS_DIR = os.path.join(DATA_DIR, 'zonechart', 'charts')
+ZC_STATUS_PATH = os.path.join(DATA_DIR, 'zonechart', 'refresh_status.json')
+ZC_CANCEL_PATH = ZC_STATUS_PATH + '.cancel'
+ZC_SEED_PATH = os.path.join(_ZC_APP_DIR, 'static', 'zonechart', 'seed', '439.xls')
+ZC_PREFIX_STATES_PATH = os.path.join(_ZC_APP_DIR, 'static', 'zonechart', 'prefix_states.json')
+ZC_GEO_PATH = os.path.join(_ZC_APP_DIR, 'static', 'zonechart', 'geo', 'zip3.geojson')
+
+_ZC_EXCEL_MAGICS = (b"PK\x03\x04", b"\xd0\xcf\x11\xe0")  # xlsx zip / legacy BIFF
+# Tried in order per prefix; first URL that returns a real Excel file wins.
+_ZC_URL_PATTERNS = [
+    "https://www.ups.com/media/us/currentrates/zone-csv/{p}.xls",
+    "https://www.ups.com/media/us/currentrates/zone-excel/{p}.xls",
+]
+_ZC_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+          "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+
+
+# ── Chart workbook parser (pure; ported verbatim from zonechart.py) ──
+# Zone codes encode service + zone: Ground 002-008 (zone 2-8), 3 Day Select
+# 302-308, 2nd Day Air 202-208, 2nd Day Air A.M. 242-248, NDA Saver 132-138,
+# NDA 102-108. Codes outside those runs are "extended" zones. "-" means the
+# service is not offered to that destination.
+
+def _zc_load_rows(path=None, blob=None):
+    """Return all sheet rows as tuples. Sniffs the real format by magic bytes
+    (UPS serves xlsx content with a .xls name)."""
+    import io
+    if blob is None:
+        with open(path, "rb") as f:
+            blob = f.read()
+    if blob[:4] == b"PK\x03\x04":  # OOXML zip container -> xlsx
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(blob), read_only=True, data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        return [tuple(c for c in row) for row in ws.iter_rows(values_only=True)]
+    if blob[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":  # legacy BIFF .xls
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=blob)
+        sh = wb.sheet_by_index(0)
+        return [tuple(sh.cell_value(r, c) or None for c in range(sh.ncols))
+                for r in range(sh.nrows)]
+    raise ValueError("Not a recognizable Excel file (.xls or .xlsx)")
+
+
+def _zc_tier(code):
+    """Map a raw zone code to a display tier: 2-8, 'ext', or None."""
+    if code is None or code == "-":
+        return None
+    n = int(code)
+    last = n % 10
+    base = n - last
+    if last in range(2, 9) and base in (0, 100, 130, 200, 240, 300):
+        return last
+    return "ext"
+
+
+def _zc_parse_chart(path=None, blob=None):
+    rows = _zc_load_rows(path=path, blob=blob)
+
+    origin = None
+    col_map = None  # column index -> service id
+    zones = {}
+    notes = []
+
+    for i, row in enumerate(rows):
+        c0 = row[0]
+        text = str(c0).strip() if c0 is not None else ""
+
+        if origin is None:
+            m = re.search(r"originating in ZIP Codes?\s+(\d{3})", text)
+            if m:
+                origin = m.group(1)
+
+        if col_map is None and text.lower().startswith("dest"):
+            col_map = {}
+            for j, cell in enumerate(row[1:], start=1):
+                if cell is None:
+                    continue
+                key = str(cell).strip().lower()
+                if key in _ZC_HEADER_ALIASES:
+                    col_map[j] = _ZC_HEADER_ALIASES[key]
+            continue
+
+        if col_map and re.fullmatch(r"\d{3}", text):
+            entry = {}
+            for j, svc in col_map.items():
+                raw = row[j] if j < len(row) else None
+                raw = str(raw).strip() if raw is not None else "-"
+                entry[svc] = {"code": raw if raw != "-" else None, "tier": _zc_tier(raw)}
+            zones[text] = entry
+
+    if not zones or origin is None:
+        raise ValueError("Workbook does not look like a UPS zone chart")
+
+    exceptions = _zc_parse_footnotes(rows)
+
+    # AK/HI prefixes are absent from the main table; derive prefix-level rows
+    # from the footnote ZIPs so the map can shade them as extended.
+    for z5 in exceptions:
+        prefix = z5[:3]
+        if prefix not in zones:
+            zones[prefix] = {
+                svc["id"]: {"code": None,
+                            "tier": "ext" if svc["id"] in ("ground", "two_day", "nda") else None}
+                for svc in _ZC_SERVICES
+            }
+
+    return {
+        "origin": {"prefix": origin},
+        "services": [
+            {**svc,
+             "days": _ZC_GROUND_DAYS if svc["id"] == "ground" else None,
+             "flat_days": _ZC_FLAT_DAYS.get(svc["id"])}
+            for svc in _ZC_SERVICES
+        ],
+        "zones": zones,
+        "exceptions": exceptions,
+        "notes": notes,
+    }
+
+
+def _zc_parse_footnotes(rows):
+    """Collect 5-digit AK/HI exception ZIPs -> {'ground': 44, 'nda': 124, 'two_day': 224}."""
+    exceptions = {}
+    current = None
+    for row in rows:
+        cells = [c for c in row if c is not None]
+        if not cells:
+            continue
+        first = str(cells[0]).strip()
+        m = re.search(r"Zone\s+(\d+)\s+for Ground,?\s+Zone\s+(\d+)\s+for Next Day Air"
+                      r"\s+and Zone\s+(\d+)\s+for 2nd Day Air", first)
+        if m:
+            current = {"ground": int(m.group(1)), "nda": int(m.group(2)),
+                       "two_day": int(m.group(3))}
+            continue
+        if current is not None:
+            zips = [str(int(c)) for c in cells
+                    if isinstance(c, (int, float)) or str(c).strip().isdigit()]
+            if zips:
+                for z in zips:
+                    exceptions[z] = current
+            elif not re.match(r"^\d", first):
+                if "Zone" not in first:
+                    current = None
+    return exceptions
+
+
+# ── Chart registry ──
+# Discovery runs per request (a listdir over ≤900 files) so all Gunicorn
+# workers see newly refreshed charts immediately; parses are cached per
+# (path, mtime) so a re-downloaded chart re-parses exactly once.
+
+_ZC_PREFIX_STATES = None
+
+
+def _zc_prefix_states():
+    global _ZC_PREFIX_STATES
+    if _ZC_PREFIX_STATES is None:
+        import json as json_mod
+        try:
+            with open(ZC_PREFIX_STATES_PATH) as f:
+                _ZC_PREFIX_STATES = json_mod.load(f)
+        except (OSError, ValueError):
+            _ZC_PREFIX_STATES = {}
+    return _ZC_PREFIX_STATES
+
+
+def _zc_discover_charts():
+    """Map origin prefix -> workbook path. {DATA_DIR}/zonechart/charts plus
+    the bundled seed chart so a fresh install boots with a working origin."""
+    charts = {}
+    if os.path.isdir(ZC_CHARTS_DIR):
+        for fn in sorted(os.listdir(ZC_CHARTS_DIR)):
+            m = re.fullmatch(r"(\d{3})\.(xlsx?|XLSX?)", fn)
+            if m:
+                charts[m.group(1)] = os.path.join(ZC_CHARTS_DIR, fn)
+    if os.path.isfile(ZC_SEED_PATH):
+        charts.setdefault('439', ZC_SEED_PATH)
+    return charts
+
+
+@lru_cache(maxsize=256)
+def _zc_parse_cached(path, mtime):
+    return _zc_parse_chart(path=path)
+
+
+def _zc_chart_for(prefix, charts):
+    path = charts[prefix]
+    return _zc_parse_cached(path, os.path.getmtime(path))
+
+
+def _zc_normalize_origin(raw):
+    raw = (raw or "").strip()
+    if not re.fullmatch(r"\d{3}(\d{2})?", raw):
+        return None, None
+    return raw[:3], raw if len(raw) == 5 else None
+
+
+def _zc_config():
+    conn = get_db()
+    cfg = _get_setting(conn, 'zonechart_config', {})
+    conn.close()
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return {
+        'default_origin': (str(cfg.get('default_origin') or '439').strip() or '439')[:5],
+        'origin_locked': bool(cfg.get('origin_locked')),
+    }
+
+
+def _zonechart_guard():
+    """Return a (response, status) tuple if the Zone Chart module is disabled,
+    else None. Mirrors _kb_guard."""
+    conn = get_db()
+    enabled = _module_enabled(conn, 'zone_chart')
+    conn.close()
+    if not enabled:
+        return (jsonify({'error': 'Zone Chart module is disabled'}), 403)
+    return None
+
+
+# ── Pages ──
+
+@app.route('/zonechart')
+@login_required
+def zonechart_page():
+    conn = get_db()
+    enabled = _module_enabled(conn, 'zone_chart')
+    conn.close()
+    if not enabled:
+        return redirect('/')
+    return render_template('zonechart.html',
+                           default_origin=_zc_config()['default_origin'][:3],
+                           version=APP_VERSION,
+                           is_admin=current_user.is_admin)
+
+
+@app.route('/zonechart/admin')
+@admin_required
+def zonechart_admin_page():
+    conn = get_db()
+    enabled = _module_enabled(conn, 'zone_chart')
+    conn.close()
+    if not enabled:
+        return redirect('/')
+    return render_template('zonechart_admin.html')
+
+
+# ── Read API ──
+
+@app.route('/api/zonechart/origins', methods=['GET'])
+@login_required
+def zc_api_origins():
+    g = _zonechart_guard()
+    if g:
+        return g
+    charts = _zc_discover_charts()
+    cfg = _zc_config()
+    d = cfg['default_origin'][:3]
+    states = _zc_prefix_states()
+    return jsonify({
+        'default': d if d in charts else (sorted(charts)[0] if charts else None),
+        'locked': cfg['origin_locked'],
+        'available': [{'prefix': p, 'state': states.get(p)} for p in sorted(charts)],
+        'total_mapped': len(states),
+    })
+
+
+@app.route('/api/zonechart/chart', methods=['GET'])
+@login_required
+def zc_api_chart():
+    g = _zonechart_guard()
+    if g:
+        return g
+    cfg = _zc_config()
+    prefix, zip5 = _zc_normalize_origin(request.args.get('origin', cfg['default_origin']))
+    if prefix is None:
+        return jsonify({'error': 'origin must be a 3- or 5-digit ZIP'}), 400
+    if cfg['origin_locked'] and prefix != cfg['default_origin'][:3]:
+        return jsonify({'error': 'the origin is locked by the administrator'}), 403
+    charts = _zc_discover_charts()
+    if prefix not in charts:
+        return jsonify({'error': f'no zone chart on file for origin prefix {prefix}'}), 404
+    try:
+        data = dict(_zc_chart_for(prefix, charts))
+    except Exception as e:
+        return jsonify({'error': f'chart for {prefix} could not be parsed — {e}'}), 500
+    data['origin'] = {'prefix': prefix, 'zip5': zip5,
+                      'state': _zc_prefix_states().get(prefix)}
+    resp = jsonify(data)
+    resp.headers['Cache-Control'] = 'private, max-age=300'
+    return resp
+
+
+# ── Refresh job (admin) ──
+# A daemon thread in the worker that received the POST; progress is written
+# to a status file after every prefix so any worker (and the admin UI poll)
+# sees it. Cancellation is a sentinel file. The pid in the status file lets
+# a stale "running" state from a dead worker be detected.
+
+def _zc_write_status(status):
+    import json as json_mod
+    os.makedirs(os.path.dirname(ZC_STATUS_PATH), exist_ok=True)
+    tmp = ZC_STATUS_PATH + '.tmp'
+    with open(tmp, 'w') as f:
+        json_mod.dump(status, f)
+    os.replace(tmp, ZC_STATUS_PATH)
+
+
+def _zc_read_status():
+    import json as json_mod
+    try:
+        with open(ZC_STATUS_PATH) as f:
+            status = json_mod.load(f)
+    except (OSError, ValueError):
+        return {'state': 'idle'}
+    if status.get('state') in ('starting', 'running'):
+        pid = status.get('pid')
+        try:
+            os.kill(pid, 0)
+        except (TypeError, ProcessLookupError, PermissionError):
+            status['state'] = 'error'
+            status['error'] = 'refresh process died unexpectedly'
+    return status
+
+
+def _zc_refresh_running():
+    return _zc_read_status().get('state') in ('starting', 'running')
+
+
+def _zc_all_prefixes():
+    """Every prefix that exists on the map — same universe the app renders."""
+    import json as json_mod
+    with open(ZC_GEO_PATH) as f:
+        geo = json_mod.load(f)
+    return sorted(feat['properties']['z'] for feat in geo['features'])
+
+
+def _zc_is_valid_chart(path):
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(8)
+        return any(head.startswith(m) for m in _ZC_EXCEL_MAGICS)
+    except OSError:
+        return False
+
+
+def _zc_fetch_one(prefix, dest, retries=3):
+    import time
+    import urllib.request
+    import urllib.error
+    if _zc_is_valid_chart(dest):
+        return 'cached'
+    for url in _ZC_URL_PATTERNS:
+        u = url.format(p=prefix)
+        for attempt in range(retries):
+            try:
+                req = urllib.request.Request(u, headers={'User-Agent': _ZC_UA})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    blob = r.read()
+                if any(blob.startswith(m) for m in _ZC_EXCEL_MAGICS):
+                    with open(dest, 'wb') as f:
+                        f.write(blob)
+                    return 'downloaded'
+                break  # got HTML/error page — try next pattern, not a retry
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    break  # prefix not offered at this pattern
+                time.sleep(2 ** attempt * 2)
+            except (urllib.error.URLError, TimeoutError, OSError):
+                time.sleep(2 ** attempt * 2)
+    return 'missing'
+
+
+def _zc_refresh_worker(force, prefixes):
+    import time
+    os.makedirs(ZC_CHARTS_DIR, exist_ok=True)
+    counts = {'downloaded': 0, 'cached': 0, 'missing': 0}
+    results = {p: 'pending' for p in prefixes}
+    started = time.time()
+
+    def write(state, current=None, error=None):
+        st = {'state': state, 'pid': os.getpid(), 'started_at': started,
+              'total': len(prefixes), 'counts': counts, 'results': results,
+              'current': current}
+        if state in ('done', 'cancelled', 'error'):
+            st['finished_at'] = time.time()
+        if error:
+            st['error'] = error
+        _zc_write_status(st)
+
+    try:
+        write('running')
+        for p in prefixes:
+            if os.path.exists(ZC_CANCEL_PATH):
+                try:
+                    os.remove(ZC_CANCEL_PATH)
+                except OSError:
+                    pass
+                write('cancelled')
+                return
+            dest = os.path.join(ZC_CHARTS_DIR, f'{p}.xls')
+            if force:
+                try:
+                    os.remove(dest)
+                except OSError:
+                    pass
+            write('running', current=p)
+            result = _zc_fetch_one(p, dest)
+            counts[result] += 1
+            results[p] = result
+            if result == 'downloaded':
+                time.sleep(2.0)  # pace requests — be a polite client
+        write('done')
+    except Exception as e:
+        write('error', error=str(e))
+
+
+@app.route('/api/zonechart/admin/info', methods=['GET'])
+@admin_required
+def zc_admin_info():
+    g = _zonechart_guard()
+    if g:
+        return g
+    mtimes = []
+    if os.path.isdir(ZC_CHARTS_DIR):
+        mtimes = [os.path.getmtime(os.path.join(ZC_CHARTS_DIR, fn))
+                  for fn in os.listdir(ZC_CHARTS_DIR)
+                  if re.fullmatch(r'\d{3}\.xlsx?', fn, re.I)]
+    return jsonify({
+        'charts': len(_zc_discover_charts()),
+        'mapped_prefixes': len(_zc_prefix_states()),
+        'newest': max(mtimes) if mtimes else None,
+        'oldest': min(mtimes) if mtimes else None,
+    })
+
+
+@app.route('/api/zonechart/refresh/status', methods=['GET'])
+@admin_required
+def zc_refresh_status():
+    g = _zonechart_guard()
+    if g:
+        return g
+    return jsonify(_zc_read_status())
+
+
+@app.route('/api/zonechart/refresh', methods=['POST'])
+@admin_required
+def zc_refresh_start():
+    g = _zonechart_guard()
+    if g:
+        return g
+    if _zc_refresh_running():
+        return jsonify({'error': 'a refresh is already running'}), 409
+    import threading
+    force = bool((request.get_json(silent=True) or {}).get('force'))
+    try:
+        os.remove(ZC_CANCEL_PATH)
+    except OSError:
+        pass
+    prefixes = _zc_all_prefixes()
+    import time as time_mod
+    _zc_write_status({'state': 'starting', 'pid': os.getpid(),
+                      'started_at': time_mod.time(), 'total': len(prefixes),
+                      'counts': {'downloaded': 0, 'cached': 0, 'missing': 0},
+                      'results': {p: 'pending' for p in prefixes},
+                      'current': None})
+    threading.Thread(target=_zc_refresh_worker, args=(force, prefixes),
+                     daemon=True).start()
+    return jsonify({'started': True}), 202
+
+
+@app.route('/api/zonechart/refresh/cancel', methods=['POST'])
+@admin_required
+def zc_refresh_cancel():
+    g = _zonechart_guard()
+    if g:
+        return g
+    if not _zc_refresh_running():
+        return jsonify({'error': 'no refresh is running'}), 409
+    open(ZC_CANCEL_PATH, 'w').close()
+    return jsonify({'cancelling': True})
+
+
+@app.route('/api/zonechart/settings', methods=['GET'])
+@admin_required
+def zc_get_settings():
+    cfg = _zc_config()
+    return jsonify(cfg)
+
+
+@app.route('/api/zonechart/settings/frontend', methods=['POST'])
+@admin_required
+def zc_save_settings():
+    body = request.get_json(silent=True) or {}
+    locked = bool(body.get('origin_locked'))
+    origin = (body.get('default_origin') or '').strip()
+    conn = get_db()
+    cfg = _get_setting(conn, 'zonechart_config', {})
+    if not isinstance(cfg, dict):
+        cfg = {}
+    cfg['origin_locked'] = locked
+    if origin:
+        prefix, _zip5 = _zc_normalize_origin(origin)
+        if prefix is None:
+            conn.close()
+            return jsonify({'error': 'origin must be a 3- or 5-digit ZIP'}), 400
+        if prefix not in _zc_discover_charts():
+            conn.close()
+            return jsonify({'error': f'no chart on file for prefix {prefix} — download it first'}), 400
+        cfg['default_origin'] = origin
+    _set_setting(conn, 'zonechart_config', cfg)
+    conn.commit()
+    conn.close()
+    return jsonify({'saved': True})
 
 
 # ── Cloudflare Turnstile ──
