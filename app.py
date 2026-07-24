@@ -5688,7 +5688,9 @@ def _ims_get(base, path, params=None, timeout=15):
 def _ims_contacts(phones, ptypes, pdescs):
     """Zip the parallel PHONES/PTYPE/PDESC multivalues into a list of
     {value, kind, desc} dicts. Emails live inside the PHONES field on the
-    IMS side, marked by the parallel PTYPE value being 'E'."""
+    IMS side, marked by the parallel PTYPE value being 'E' — but legacy
+    records often mis-type emails (e.g. PTYPE 'O'), so any value containing
+    '@' is treated as an email too."""
     vals = (phones or '').split(_IMS_MV_DELIM)
     kinds = (ptypes or '').split(_IMS_MV_DELIM)
     descs = (pdescs or '').split(_IMS_MV_DELIM)
@@ -5700,10 +5702,23 @@ def _ims_contacts(phones, ptypes, pdescs):
         kind = kinds[i].strip().upper() if i < len(kinds) else ''
         out.append({
             'value': v,
-            'kind': 'email' if kind == 'E' else 'phone',
+            'kind': 'email' if (kind == 'E' or '@' in v) else 'phone',
             'desc': descs[i].strip() if i < len(descs) else '',
         })
     return out
+
+
+def _ims_date(val):
+    """jBase internal dates are day-numbers since 1967-12-31. Convert a
+    numeric value to ISO YYYY-MM-DD; anything non-numeric passes through."""
+    s = str(val or '').strip()
+    if not s.isdigit():
+        return s
+    from datetime import date, timedelta
+    try:
+        return (date(1967, 12, 31) + timedelta(days=int(s))).isoformat()
+    except (OverflowError, ValueError):
+        return s
 
 
 def _ims_attr(fields, n):
@@ -5819,7 +5834,7 @@ def customers_detail(cust_id):
         'state': _ims_attr(fields, 6),
         'zip': _ims_attr(fields, 7),
         'contacts': _ims_contacts(_ims_attr(fields, 9), _ims_attr(fields, 10), _ims_attr(fields, 11)),
-        'entry_date': _ims_attr(fields, 12),
+        'entry_date': _ims_date(_ims_attr(fields, 12)),
         'type': _ims_attr(fields, 14),
         'resale': _ims_attr(fields, 25),
         'ship_code': _ims_attr(fields, 60),
@@ -5853,10 +5868,17 @@ def customers_invoices(cust_id):
         return jsonify({'error': f'IMS customer API error (HTTP {e.code})'}), 502
     except Exception as e:
         return jsonify({'error': f'Could not reach the IMS customer API — {e}'}), 502
+    invoices = []
+    for inv in data.get('openInvoices', []) or []:
+        if isinstance(inv, dict):
+            inv = dict(inv)
+            inv['invDate'] = _ims_date(inv.get('invDate'))
+            inv['orderDate'] = _ims_date(inv.get('orderDate'))
+        invoices.append(inv)
     return jsonify({
         'customer': data.get('customer', cust_id),
-        'count': data.get('count', 0),
-        'openInvoices': data.get('openInvoices', []) or [],
+        'count': len(invoices),
+        'openInvoices': invoices,
     })
 
 
