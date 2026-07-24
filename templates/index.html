@@ -349,9 +349,10 @@ body {
     font-weight: 500; cursor: pointer; transition: all var(--transition);
     border: none; background: none; width: 100%; text-align: left; font-family: var(--font);
 }
-/* Dashboard sits above the module sections rather than inside one, so it takes
-   the header tier's size (0.8rem) instead of the nav-item tier's 0.7rem. */
-.nav-item[data-view="dashboard"] { font-size: 0.8rem; }
+/* Dashboard and the Customers link sit above the module sections rather than
+   inside one, so they take the header tier's size (0.8rem) instead of the
+   nav-item tier's 0.7rem. */
+.nav-item[data-view="dashboard"], #navCustomersLink { font-size: 0.8rem; }
 /* Admin-defined external links: top-level tier like Dashboard. The trailing
    arrow marks them as leaving the app. */
 .nav-custom-link { font-size: 0.8rem; text-decoration: none; }
