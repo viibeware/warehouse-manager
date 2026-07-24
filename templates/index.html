@@ -353,11 +353,107 @@ body {
    rather than inside one, so they take the header tier's size (0.8rem)
    instead of the nav-item tier's 0.7rem. */
 .nav-item[data-view="dashboard"], #navCustomersLink, #navZoneChartLink { font-size: 0.8rem; }
-/* Zone Chart view: the map app renders in an iframe filling the content area
-   (its own CSS/DOM would collide with the SPA if inlined). */
-#zonechartContainer iframe {
-    width: 100%; height: calc(100vh - 4.5rem); border: none; display: block;
-    border-radius: var(--radius); background: transparent;
+/* ── UPS Zone Chart view ──
+   Ported from the standalone ZoneChart app; all selectors are zc-prefixed and
+   colors come from the app's theme variables so every WM theme applies. */
+#zonechartContainer { --zc-stamp: var(--text-muted); }
+.zc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+.zc-map-panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    display: flex; flex-direction: column;
+}
+.zc-tabs { display: flex; gap: 2px; padding: 0.5rem 0.75rem 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.zc-tabs::-webkit-scrollbar { display: none; }
+.zc-tab {
+    appearance: none; border: 0; background: none; font-family: var(--font);
+    font-weight: 500; font-size: 0.78rem; color: var(--text-secondary);
+    padding: 0.45rem 0.65rem 0.55rem; border-bottom: 2px solid transparent;
+    border-radius: var(--radius) var(--radius) 0 0; cursor: pointer; white-space: nowrap;
+    transition: all var(--transition);
+}
+.zc-tab:hover { background: var(--nav-hover); color: var(--text-primary); }
+.zc-tab[aria-selected="true"] { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--accent); }
+.zc-stage { position: relative; }
+#zcMap { display: block; width: 100%; height: auto; }
+#zcMap .zip3 { stroke: var(--bg-card); stroke-width: 0.35; cursor: crosshair; vector-effect: non-scaling-stroke; }
+#zcMap .zip3.hovered { stroke: var(--text-primary); stroke-width: 1.1; }
+#zcMap .zip3.pinned { stroke: var(--text-primary); stroke-width: 1.4; }
+#zcMap .state-line { fill: none; stroke: var(--bg-card); stroke-width: 1.1; pointer-events: none; vector-effect: non-scaling-stroke; }
+#zcMap .origin-marker { pointer-events: none; color: var(--text-primary); }
+#zcMap .inset-frame { fill: none; stroke: var(--border); stroke-dasharray: 3 3; }
+#zcMap .inset-label { font-family: var(--font); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; fill: var(--text-muted); }
+.zc-hint {
+    position: absolute; top: 10px; right: 12px; font-size: 0.66rem; color: var(--text-muted);
+    background: var(--bg-card); opacity: 0.92; padding: 4px 9px; border-radius: 20px;
+    border: 1px solid var(--border); pointer-events: none; transition: opacity 0.5s;
+}
+.zc-reset { position: absolute; top: 10px; left: 12px; }
+.zc-reset[hidden] { display: none; }
+.zc-tooltip {
+    position: absolute; pointer-events: none; background: var(--text-primary); color: var(--bg-card);
+    border-radius: var(--radius); padding: 8px 11px; font-size: 0.72rem; line-height: 1.35;
+    max-width: 230px; z-index: 5;
+}
+.zc-tooltip[hidden] { display: none; }
+.zc-tooltip .tt-zip { font-weight: 700; font-size: 0.76rem; }
+.zc-tooltip .tt-zone { opacity: 0.85; }
+.zc-legend-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0.6rem 0.85rem 0.7rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.zc-legend { display: flex; gap: 4px; flex-wrap: wrap; }
+.zc-legend-item { display: flex; flex-direction: column; align-items: center; min-width: 50px; font-size: 0.6rem; color: var(--text-secondary); gap: 3px; }
+.zc-legend-item .swatch { width: 100%; height: 11px; border-radius: 3px; border: 1px solid var(--border); }
+.zc-legend-item .lg-zone { font-weight: 600; color: var(--text-primary); font-size: 0.64rem; }
+.zc-legend-item .lg-days { color: var(--text-muted); }
+.zc-rail { display: flex; flex-direction: column; gap: 0.85rem; }
+.zc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0.85rem 1rem; }
+.zc-eyebrow { display: block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.zc-origin-head { display: flex; align-items: center; justify-content: space-between; }
+.zc-origin-zip { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.06em; margin-top: 2px; color: var(--text-primary); }
+.zc-origin-place { color: var(--text-secondary); font-size: 0.72rem; }
+.zc-origin-editor { margin-top: 0.6rem; padding-top: 0.35rem; border-top: 1px dashed var(--border); }
+.zc-origin-editor[hidden] { display: none; }
+.zc-search-row { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+.zc-search-row .form-input { flex: 1; min-width: 0; }
+.zc-msg { margin: 0.45rem 0 0; font-size: 0.7rem; color: var(--text-secondary); min-height: 1em; }
+.zc-msg.error { color: var(--danger); }
+.zc-waybill { border-style: dashed; }
+.zc-waybill-head { display: flex; justify-content: space-between; align-items: baseline; }
+.zc-wb-route { font-size: 0.66rem; color: var(--text-muted); letter-spacing: 0.08em; }
+.zc-wb-dest { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0.5rem 0 0.25rem; }
+.zc-wb-zip { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-primary); }
+.zc-wb-stamp {
+    border: 2.5px solid var(--zc-stamp); color: var(--zc-stamp); border-radius: var(--radius);
+    min-width: 60px; padding: 3px 9px 5px; text-align: center; transform: rotate(-3deg);
+    transition: transform 0.15s;
+}
+.zc-wb-stamp[data-empty="true"] { opacity: 0.35; }
+.zc-wb-stamp-label { display: block; font-size: 0.52rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.zc-wb-stamp-num { font-weight: 700; font-size: 1.7rem; line-height: 0.95; }
+.zc-wb-services { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.zc-wb-services li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0.4rem 0; border-top: 1px solid var(--border); font-size: 0.74rem; }
+.zc-wb-services .svc { color: var(--text-secondary); }
+.zc-wb-services li.active .svc { color: var(--text-primary); font-weight: 600; }
+.zc-wb-services .eta { font-weight: 600; white-space: nowrap; color: var(--text-primary); }
+.zc-wb-services .eta .zn { display: inline-block; min-width: 20px; text-align: center; border-radius: 5px; padding: 0 5px; font-size: 0.64rem; font-weight: 700; margin-left: 7px; }
+.zc-wb-services .eta.na { color: var(--text-muted); font-weight: 400; }
+.zc-wb-note { margin: 0.6rem 0 0; font-size: 0.66rem; color: var(--text-muted); }
+.zc-fine-print { font-size: 0.64rem; color: var(--text-muted); margin: 0 0.25rem; }
+.zc-drawer {
+    position: fixed; inset: auto 0 0 var(--sidebar-w); height: min(62vh, 560px);
+    background: var(--bg-card); border-top: 1px solid var(--border);
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.18); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    z-index: 60; display: flex; flex-direction: column;
+}
+.zc-drawer[hidden] { display: none; }
+.zc-drawer-head { display: flex; align-items: center; gap: 12px; padding: 0.7rem 1.1rem; border-bottom: 1px solid var(--border); }
+.zc-drawer-head strong { font-size: 0.85rem; flex: 1; color: var(--text-primary); }
+.zc-table-scroll { overflow: auto; flex: 1; }
+/* Zone chart admin (Settings → Modules) */
+.zc-progress-track { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.zc-progress-fill { height: 100%; width: 0; border-radius: 5px; background: var(--accent); transition: width 0.6s ease; }
+@media (max-width: 980px) {
+    .zc-layout { grid-template-columns: 1fr; }
+    .zc-drawer { left: 0; }
 }
 /* Admin-defined external links: top-level tier like Dashboard. The trailing
    arrow marks them as leaving the app. */
@@ -3094,7 +3190,87 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div id="customersEmptyState" class="kb-empty" style="display:none;"></div>
         </div>
         <div id="zonechartContainer" style="display:none;">
-            <iframe id="zonechartFrame" title="UPS Zone Chart"></iframe>
+            <div class="kb-header">
+                <div>
+                    <h2 class="kb-title">UPS Zone Chart</h2>
+                    <div class="kb-subtitle">UPS zones and typical time-in-transit by origin and destination ZIP</div>
+                </div>
+            </div>
+            <div id="zcEmptyState" class="kb-empty" style="display:none;"></div>
+            <div class="zc-layout" id="zcLayout" style="display:none;">
+                <section class="zc-map-panel" aria-label="Zone map">
+                    <nav class="zc-tabs" id="zcServiceTabs" role="tablist" aria-label="UPS service"></nav>
+                    <div class="zc-stage" id="zcStage">
+                        <svg id="zcMap" role="img" aria-label="Choropleth map of United States 3-digit ZIP zones"></svg>
+                        <div id="zcTooltip" class="zc-tooltip" role="status" hidden></div>
+                        <div class="zc-hint" id="zcHint">Scroll to zoom · drag to pan · click a region to pin it</div>
+                        <button id="zcResetView" class="btn btn-ghost btn-sm zc-reset" type="button" hidden>Reset view</button>
+                    </div>
+                    <footer class="zc-legend-bar">
+                        <div class="zc-legend" id="zcLegend" aria-label="Zone legend"></div>
+                        <button id="zcTableToggle" class="btn btn-ghost btn-sm" type="button" aria-expanded="false">View as table</button>
+                    </footer>
+                </section>
+                <aside class="zc-rail">
+                    <div class="zc-card">
+                        <div class="zc-origin-head">
+                            <span class="zc-eyebrow">Origin</span>
+                            <button id="zcOriginEdit" class="btn btn-ghost btn-sm" type="button" aria-expanded="false">Change</button>
+                        </div>
+                        <div class="zc-origin-zip" id="zcOriginZip">—</div>
+                        <div class="zc-origin-place" id="zcOriginPlace">&nbsp;</div>
+                        <div class="zc-origin-editor" id="zcOriginEditor" hidden>
+                            <div class="zc-search-row">
+                                <input id="zcOriginInput" class="form-input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="ship from…" aria-label="Origin ZIP code">
+                                <button id="zcOriginGo" class="btn btn-primary btn-sm" type="button">Set</button>
+                            </div>
+                            <p id="zcOriginMsg" class="zc-msg" role="status"></p>
+                        </div>
+                    </div>
+                    <div class="zc-card">
+                        <label class="zc-eyebrow" for="zcZipSearch">Destination ZIP</label>
+                        <div class="zc-search-row">
+                            <input id="zcZipSearch" class="form-input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="e.g. 90210">
+                            <button id="zcZipGo" class="btn btn-primary btn-sm" type="button">Find</button>
+                        </div>
+                        <p id="zcSearchMsg" class="zc-msg" role="status"></p>
+                    </div>
+                    <div class="zc-card zc-waybill" id="zcWaybill" aria-live="polite">
+                        <div class="zc-waybill-head">
+                            <span class="zc-eyebrow">Destination</span>
+                            <span class="zc-wb-route" id="zcWbRoute">— → · · ·</span>
+                        </div>
+                        <div class="zc-wb-dest">
+                            <div class="zc-wb-zip" id="zcWbZip">—</div>
+                            <div class="zc-wb-stamp" id="zcWbStamp" data-empty="true">
+                                <span class="zc-wb-stamp-label">zone</span>
+                                <span class="zc-wb-stamp-num" id="zcWbZone">·</span>
+                            </div>
+                        </div>
+                        <ul class="zc-wb-services" id="zcWbServices"></ul>
+                        <p class="zc-wb-note" id="zcWbNote">Hover the map, or search a ZIP, to fill in this waybill.</p>
+                    </div>
+                    <p class="zc-fine-print">
+                        Zones from the official UPS chart for the selected origin. Transit
+                        times are typical business-day estimates — actual UPS time-in-transit
+                        varies by exact ZIP and pickup day. Guam, USVI and other territories
+                        follow the worldwide rate &amp; zone tables.
+                    </p>
+                </aside>
+            </div>
+            <div class="zc-drawer" id="zcDrawer" hidden>
+                <div class="zc-drawer-head">
+                    <strong>Zone chart · full table</strong>
+                    <input id="zcTableFilter" class="form-input" type="text" placeholder="Filter prefix…" aria-label="Filter by prefix" style="max-width:140px;">
+                    <button id="zcTableClose" class="modal-close" type="button" aria-label="Close table">&times;</button>
+                </div>
+                <div class="zc-table-scroll">
+                    <table id="zcZoneTable" class="parts-table" style="min-width:0;">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -3345,17 +3521,45 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                         </label>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row module-row-parent">
                     <div>
                         <div class="settings-label">UPS Zone Chart</div>
-                        <div class="settings-desc">Interactive UPS zone map and time-in-transit lookup by origin/destination ZIP. Opens as its own page from the sidebar.</div>
+                        <div class="settings-desc">Interactive UPS zone map and time-in-transit lookup by origin/destination ZIP.</div>
                     </div>
                     <div class="module-row-controls">
-                        <button class="btn btn-ghost btn-sm" id="moduleZoneChartManageBtn" style="display:none;" onclick="closeModal('settingsModal'); showZoneChartView(true, '/zonechart/admin');">Manage</button>
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleZoneChartToggle" onchange="saveModule('zone_chart', this.checked)">
                             <span class="toggle-track"></span>
                         </label>
+                    </div>
+                </div>
+                <div class="settings-row module-sub-row" id="zcAdminRow" style="flex-direction:column;align-items:stretch;gap:0.6rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                        <div>
+                            <div class="settings-label">Chart Data</div>
+                            <div class="settings-desc" id="zcAdminStats">—</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                            <label style="display:flex;gap:5px;align-items:center;font-size:0.72rem;color:var(--text-secondary);cursor:pointer;">
+                                <input type="checkbox" id="zcForceBox"> Force full re-download
+                            </label>
+                            <button class="btn btn-ghost btn-sm" id="zcRefreshBtn" onclick="zcStartRefresh()">Refresh charts</button>
+                            <button class="btn btn-ghost btn-sm" id="zcCancelBtn" style="display:none;" onclick="zcCancelRefresh()">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="zcProgressWrap" style="display:none;">
+                        <div class="zc-progress-track"><div class="zc-progress-fill" id="zcProgressFill"></div></div>
+                        <div class="settings-desc" id="zcProgressLabel" style="margin-top:0.3rem;"></div>
+                    </div>
+                    <div class="settings-desc" id="zcRunSummary"></div>
+                    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                        <div class="settings-label" style="font-size:0.78rem;">Default origin</div>
+                        <input class="form-input" id="zcDefaultOrigin" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 43952" style="max-width:110px;">
+                        <label style="display:flex;gap:5px;align-items:center;font-size:0.72rem;color:var(--text-secondary);cursor:pointer;">
+                            <input type="checkbox" id="zcLockBox"> Lock to this origin
+                        </label>
+                        <button class="btn btn-ghost btn-sm" onclick="zcSaveAdminSettings()">Save</button>
+                        <span class="settings-desc" id="zcSettingsMsg"></span>
                     </div>
                 </div>
             </div>
@@ -4643,6 +4847,8 @@ function setTheme(theme) {
     if (!VALID_THEMES.includes(theme)) theme = 'light';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('wm-theme', theme);
+    // Re-tint the zone chart map (its ramp flips between light/dark themes).
+    if (typeof _zcRepaintHook === 'function') _zcRepaintHook();
     const dark = DARK_THEMES.includes(theme);
     const sun = document.getElementById('themeIconSun');
     const moon = document.getElementById('themeIconMoon');
@@ -4823,7 +5029,7 @@ function switchSettingsTab(tab, btn) {
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
     if (tab === 'access') renderYourAccessCard();
-    if (tab === 'modules') refreshModuleToggles();
+    if (tab === 'modules') { refreshModuleToggles(); zcRefreshAdminPanel(); }
     if (tab === 'admin') refreshBrandingPreview();
     if (tab === 'about') loadAboutChangelog();
 }
@@ -5326,7 +5532,8 @@ function applyModuleVisibility() {
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
     setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
     setDisp('moduleCustomersManageBtn', m.customers);
-    setDisp('moduleZoneChartManageBtn', m.zone_chart);
+    // Zone chart admin controls live inline under its module row.
+    setDisp('zcAdminRow', m.zone_chart);
     // WordPress → KB importer (Data tab) only makes sense when KB is enabled.
     setDisp('settingsKbWpImport', m.knowledge_base);
     // Glossary sub-module: sidebar item + its Data-tab tools, gated on KB AND glossary.
@@ -8919,15 +9126,21 @@ async function saveCustomersConfig() {
 }
 
 // ══════════════════════════════════════════
-//  UPS ZONE CHART (embedded)
-//  The map app is served at /zonechart/embed and shown here in an iframe so
-//  the SPA chrome (sidebar, header) stays intact around it.
+//  UPS ZONE CHART (native SPA view)
+//  Ported from the standalone ZoneChart app. D3 + topojson are lazy-loaded
+//  on first open (the geo data is ~2.6 MB); state persists across view
+//  switches. Zone colors follow the app theme (dark themes flip the ramp).
 // ══════════════════════════════════════════
+let _zcInitPromise = null;
+let _zcRepaintHook = null;   // set by initZoneChart; called on theme change
+
 function exitZoneChartView() {
     document.getElementById('zonechartContainer').style.display = 'none';
+    const drawer = document.getElementById('zcDrawer');
+    if (drawer) drawer.hidden = true;
 }
 
-function showZoneChartView(push=true, src='/zonechart/embed') {
+function showZoneChartView(push=true) {
     if (!getModules().zone_chart) { showDashboard(); return; }
     exitWorkOrdersView();
     exitDashboard();
@@ -8942,10 +9155,6 @@ function showZoneChartView(push=true, src='/zonechart/embed') {
     document.getElementById('bulkBar').style.display = 'none';
     document.getElementById('loadingSpinner').style.display = 'none';
     document.getElementById('zonechartContainer').style.display = '';
-    // The frame loads lazily on first open (the geo data is ~2.6 MB) and is
-    // kept loaded afterwards so revisiting doesn't re-fetch or lose state.
-    const frame = document.getElementById('zonechartFrame');
-    if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
     // Nav active state
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
@@ -8954,6 +9163,574 @@ function showZoneChartView(push=true, src='/zonechart/embed') {
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'zonechart'));
     document.getElementById('sidebar').classList.remove('open');
     if (push) history.pushState({ view: 'zonechart' }, '', '/zonechart');
+    if (!_zcInitPromise) _zcInitPromise = initZoneChart().catch(err => {
+        console.error('Zone chart init failed', err);
+        zcShowEmpty('The zone chart failed to load — check the browser console and reload.');
+    });
+}
+
+function zcShowEmpty(html) {
+    const empty = document.getElementById('zcEmptyState');
+    document.getElementById('zcLayout').style.display = 'none';
+    empty.style.display = '';
+    empty.innerHTML = html;
+}
+
+function _zcLoadScript(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error(`failed to load ${src}`));
+        document.head.appendChild(s);
+    });
+}
+
+function zcTheme() {
+    const t = document.documentElement.getAttribute('data-theme') || 'light';
+    return DARK_THEMES.includes(t) ? 'dark' : 'light';
+}
+
+async function initZoneChart() {
+    await _zcLoadScript('/static/zonechart/vendor/d3.v7.min.js');
+    await _zcLoadScript('/static/zonechart/vendor/topojson-client.min.js');
+
+    const RAMP = {
+        light: ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
+        dark:  ["#0d366b", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4", "#cde2fb"],
+    };
+    // ink that clears each ramp step, for zone chips and the stamp
+    const RAMP_INK = {
+        light: ["#0b2f5c", "#0b2f5c", "#0b2f5c", "#ffffff", "#ffffff", "#ffffff", "#ffffff"],
+        dark:  ["#ffffff", "#ffffff", "#ffffff", "#ffffff", "#0b2f5c", "#0b2f5c", "#0b2f5c"],
+    };
+    const EXT_COLOR = { light: "#eb6834", dark: "#d95926" };
+    const EXT_DAYS = { ground: "3–7 days", two_day: "2 days", nda: "1–2 days" };
+    // "no data" fill follows the theme's border color — a neutral hairline tone
+    const noData = () => getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+
+    const [origins, chartResp, zip3, statesTopo] = await Promise.all([
+        fetch("/api/zonechart/origins").then(r => r.json()),
+        fetch("/api/zonechart/chart"),
+        fetch("/static/zonechart/geo/zip3.geojson").then(r => r.json()),
+        fetch("/static/zonechart/geo/states-10m.json").then(r => r.json()),
+    ]);
+    if (!chartResp.ok) {
+        zcShowEmpty(`<span style="font-weight:600;">No zone charts on file</span><br>
+            An admin can download the UPS zone chart dataset from Settings → Modules → UPS Zone Chart.`);
+        return;
+    }
+    document.getElementById('zcLayout').style.display = '';
+    const firstChart = await chartResp.json();
+
+    let chart = firstChart;
+    let zones = chart.zones;
+    let services = chart.services;
+    let activeService = "ground";
+    let pinned = null; // prefix currently pinned by click/search
+
+    /* ---------- geometry ---------- */
+    const W = 975, H = 620;
+    const svg = d3.select("#zcMap").attr("viewBox", `0 0 ${W} ${H}`);
+    const root = svg.append("g");
+
+    const isPR = f => ["006", "007", "008", "009"].includes(f.properties.z);
+    const conus = zip3.features.filter(f => !isPR(f));
+    const pr = zip3.features.filter(isPR);
+
+    const projection = d3.geoAlbersUsa().fitSize([W, H - 30], { type: "FeatureCollection", features: conus });
+    const path = d3.geoPath(projection);
+
+    // Puerto Rico inset, lower right
+    const prProj = d3.geoConicEqualArea().parallels([17.8, 18.5]).rotate([66.4, 0])
+        .fitExtent([[W - 150, H - 74], [W - 18, H - 14]], { type: "FeatureCollection", features: pr });
+    const prPath = d3.geoPath(prProj);
+
+    // nation underlay: ZCTA gaps (unpopulated land) read as neutral, not holes
+    const nation = topojson.feature(statesTopo, statesTopo.objects.nation);
+    const nationPath = root.append("path").attr("d", path(nation));
+
+    const regions = root.append("g");
+    regions.selectAll("path")
+        .data(zip3.features)
+        .join("path")
+        .attr("class", "zip3")
+        .attr("d", f => (isPR(f) ? prPath(f) : path(f)))
+        .on("pointerenter", onEnter)
+        .on("pointermove", onMove)
+        .on("pointerleave", onLeave)
+        .on("click", onClick);
+
+    root.append("path")
+        .attr("class", "state-line")
+        .attr("d", path(topojson.mesh(statesTopo, statesTopo.objects.states, (a, b) => a !== b)));
+
+    // PR inset frame + label
+    root.append("rect").attr("class", "inset-frame")
+        .attr("x", W - 155).attr("y", H - 79).attr("width", 142).attr("height", 70).attr("rx", 6);
+    root.append("text").attr("class", "inset-label")
+        .attr("x", W - 148).attr("y", H - 66).text("PUERTO RICO");
+
+    // origin marker
+    const marker = root.append("g").attr("class", "origin-marker");
+    marker.append("circle").attr("r", 9).attr("fill", "none")
+        .attr("stroke", "currentColor").attr("stroke-width", 1.2).attr("opacity", 0.55);
+    marker.append("circle").attr("r", 3.4).attr("fill", "currentColor");
+    marker.append("circle").attr("r", 5.6).attr("fill", "none")
+        .attr("stroke", "var(--bg-card)").attr("stroke-width", 1.4);
+
+    function placeMarker() {
+        const f = zip3.features.find(x => x.properties.z === chart.origin.prefix);
+        const xy = f && !isPR(f) ? projection(d3.geoCentroid(f)) : null;
+        marker.attr("display", xy ? null : "none");
+        if (xy) marker.attr("transform", `translate(${xy[0]},${xy[1]})`);
+    }
+
+    /* ---------- zoom ---------- */
+    const zoom = d3.zoom().scaleExtent([1, 9])
+        .translateExtent([[0, 0], [W, H]])
+        .on("zoom", ev => {
+            root.attr("transform", ev.transform);
+            hint.style.opacity = "0";
+            resetBtn.hidden = ev.transform.k < 1.05;
+        });
+    svg.call(zoom);
+    const hint = document.getElementById("zcHint");
+    setTimeout(() => { hint.style.opacity = "0"; }, 6000);
+    const resetBtn = document.getElementById("zcResetView");
+    resetBtn.addEventListener("click", () =>
+        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity));
+
+    /* ---------- coloring ---------- */
+    function fillFor(prefix, svcId, theme) {
+        const entry = zones[prefix];
+        if (!entry) return noData();
+        const t = entry[svcId] && entry[svcId].tier;
+        if (t === null || t === undefined) return noData();
+        if (t === "ext") return EXT_COLOR[theme];
+        return RAMP[theme][t - 2];
+    }
+
+    function repaint() {
+        const theme = zcTheme();
+        nationPath.attr("fill", noData());
+        regions.selectAll("path")
+            .attr("fill", f => fillFor(f.properties.z, activeService, theme));
+        renderLegend();
+        if (pinned) renderWaybill(pinned.prefix, pinned.zip5);
+    }
+    _zcRepaintHook = repaint;
+
+    /* ---------- service tabs ---------- */
+    const tabs = d3.select("#zcServiceTabs");
+    tabs.selectAll("button")
+        .data(services)
+        .join("button")
+        .attr("class", "zc-tab")
+        .attr("role", "tab")
+        .attr("aria-selected", d => String(d.id === activeService))
+        .text(d => d.short)
+        .on("click", (_, d) => {
+            activeService = d.id;
+            tabs.selectAll(".zc-tab").attr("aria-selected", t => String(t.id === activeService));
+            repaint();
+        });
+
+    /* ---------- legend ---------- */
+    function etaFor(svcId, tier) {
+        if (tier === null || tier === undefined) return null;
+        const svc = services.find(s => s.id === svcId);
+        if (tier === "ext") return EXT_DAYS[svcId] || svc.flat_days || "varies";
+        if (svcId === "ground") return svc.days[tier];
+        return svc.flat_days;
+    }
+
+    function renderLegend() {
+        const theme = zcTheme();
+        const items = [2, 3, 4, 5, 6, 7, 8].map(z => ({
+            label: `Zone ${z}`,
+            days: etaFor(activeService, z),
+            color: RAMP[theme][z - 2],
+        }));
+        items.push({ label: "Extended", days: "AK · HI · PR", color: EXT_COLOR[theme] });
+        if (activeService !== "ground")
+            items.push({ label: "N/A", days: "not offered", color: noData() });
+
+        d3.select("#zcLegend").selectAll("div")
+            .data(items)
+            .join("div")
+            .attr("class", "zc-legend-item")
+            .html(d => `<span class="swatch" style="background:${d.color}"></span>
+                        <span class="lg-zone">${d.label}</span>
+                        <span class="lg-days">${d.days ?? ""}</span>`);
+    }
+
+    /* ---------- tooltip ---------- */
+    const tt = document.getElementById("zcTooltip");
+    const stage = document.getElementById("zcStage");
+
+    function onEnter(ev, f) {
+        d3.select(this).classed("hovered", true).raise();
+        const prefix = f.properties.z;
+        renderTooltip(prefix);
+        tt.hidden = false;
+        onMove(ev);
+        if (!pinned) renderWaybill(prefix, null, true);
+    }
+    function onMove(ev) {
+        const r = stage.getBoundingClientRect();
+        const x = ev.clientX - r.left, y = ev.clientY - r.top;
+        tt.style.left = Math.min(x + 14, r.width - tt.offsetWidth - 8) + "px";
+        tt.style.top = Math.max(y - tt.offsetHeight - 10, 6) + "px";
+    }
+    function onLeave() {
+        d3.select(this).classed("hovered", false);
+        tt.hidden = true;
+    }
+    function onClick(ev, f) {
+        setPinned(f.properties.z, null);
+    }
+
+    function renderTooltip(prefix) {
+        const entry = zones[prefix];
+        const t = entry && entry[activeService] ? entry[activeService].tier : undefined;
+        const svc = services.find(s => s.id === activeService);
+        let zoneTxt, etaTxt;
+        if (!entry) { zoneTxt = "No zone data"; etaTxt = ""; }
+        else if (t === null || t === undefined) { zoneTxt = `${svc.short}: not offered`; etaTxt = ""; }
+        else if (t === "ext") { zoneTxt = "Extended zone"; etaTxt = etaFor(activeService, t); }
+        else { zoneTxt = `Zone ${t}`; etaTxt = etaFor(activeService, t); }
+        tt.innerHTML = `<div class="tt-zip">${prefix}xx</div>
+            <div class="tt-zone">${zoneTxt}${etaTxt ? " · ≈ " + etaTxt : ""}</div>`;
+    }
+
+    /* ---------- waybill ---------- */
+    const wbZip = document.getElementById("zcWbZip");
+    const wbZone = document.getElementById("zcWbZone");
+    const wbStamp = document.getElementById("zcWbStamp");
+    const wbRoute = document.getElementById("zcWbRoute");
+    const wbList = document.getElementById("zcWbServices");
+    const wbNote = document.getElementById("zcWbNote");
+
+    function exceptionTiers(zip5) {
+        // AK/HI 5-digit exceptions override ground/nda/two_day zone codes
+        return chart.exceptions[zip5] || null;
+    }
+
+    function renderWaybill(prefix, zip5, transient) {
+        const theme = zcTheme();
+        const entry = zones[prefix];
+        const exc = zip5 ? exceptionTiers(zip5) : null;
+
+        wbZip.textContent = zip5 ? zip5 : `${prefix}xx`;
+        wbRoute.textContent = `${chart.origin.prefix} → ${prefix}`;
+
+        const t = entry && entry[activeService] ? entry[activeService].tier : undefined;
+        if (t === undefined || t === null) {
+            wbStamp.dataset.empty = "true";
+            wbZone.textContent = "·";
+            wbStamp.style.setProperty("--zc-stamp", "var(--text-muted)");
+        } else {
+            wbStamp.dataset.empty = "false";
+            wbZone.textContent = t === "ext" ? (exc ? exc[activeService] ?? "EXT" : "EXT") : t;
+            wbStamp.style.setProperty("--zc-stamp",
+                t === "ext" ? EXT_COLOR[theme] : RAMP[theme][t - 2]);
+        }
+
+        const rows = services.map(svc => {
+            const st = entry && entry[svc.id] ? entry[svc.id].tier : undefined;
+            let eta = etaFor(svc.id, st);
+            let zoneChip = "";
+            if (st !== null && st !== undefined) {
+                const color = st === "ext" ? EXT_COLOR[theme] : RAMP[theme][st - 2];
+                const ink = st === "ext" ? "#fff" : RAMP_INK[theme][st - 2];
+                const zLabel = st === "ext" ? (exc && exc[svc.id] ? exc[svc.id] : "EXT") : st;
+                zoneChip = `<span class="zn" style="background:${color};color:${ink}">${zLabel}</span>`;
+            }
+            const cls = svc.id === activeService ? "active" : "";
+            const etaHtml = eta
+                ? `<span class="eta">≈ ${eta}${zoneChip}</span>`
+                : `<span class="eta na">Not available</span>`;
+            return `<li class="${cls}"><span class="svc">${svc.name}</span>${etaHtml}</li>`;
+        });
+        wbList.innerHTML = rows.join("");
+
+        wbNote.textContent = transient
+            ? "Click the region to pin it."
+            : (exc ? "Extended-zone ZIP — exact zones shown from the chart’s AK/HI table."
+                   : "Estimates are typical business days from pickup.");
+    }
+
+    function setPinned(prefix, zip5) {
+        pinned = { prefix, zip5 };
+        regions.selectAll("path").classed("pinned", f => f.properties.z === prefix);
+        renderWaybill(prefix, zip5);
+    }
+
+    /* ---------- origin ---------- */
+    const originZipEl = document.getElementById("zcOriginZip");
+    const originPlaceEl = document.getElementById("zcOriginPlace");
+    const originEditor = document.getElementById("zcOriginEditor");
+    const originEditBtn = document.getElementById("zcOriginEdit");
+    const originInput = document.getElementById("zcOriginInput");
+    const originMsg = document.getElementById("zcOriginMsg");
+
+    function updateOriginCard() {
+        const o = chart.origin;
+        originZipEl.textContent = o.zip5 || `${o.prefix}xx`;
+        if (origins.locked) {
+            originEditBtn.hidden = true;
+            originEditor.hidden = true;
+            originPlaceEl.textContent = `${o.state || "—"} · prefix ${o.prefix}`;
+            return;
+        }
+        originEditBtn.hidden = false;
+        const n = origins.available.length;
+        originPlaceEl.textContent =
+            `${o.state || "—"} · prefix ${o.prefix}` +
+            (n > 1 ? ` · ${n} origins on file` : "");
+    }
+
+    function resetWaybill() {
+        pinned = null;
+        regions.selectAll("path").classed("pinned", false);
+        wbZip.textContent = "—";
+        wbRoute.textContent = `${chart.origin.prefix} → · · ·`;
+        wbStamp.dataset.empty = "true";
+        wbZone.textContent = "·";
+        wbStamp.style.setProperty("--zc-stamp", "var(--text-muted)");
+        wbList.innerHTML = "";
+        wbNote.textContent = "Hover the map, or search a ZIP, to fill in this waybill.";
+    }
+
+    async function setOrigin(raw) {
+        originMsg.classList.remove("error");
+        if (!/^\d{3}(\d{2})?$/.test(raw)) {
+            originMsg.textContent = "Enter a 3- or 5-digit ZIP code.";
+            originMsg.classList.add("error");
+            return;
+        }
+        const r = await fetch(`/api/zonechart/chart?origin=${raw}`);
+        if (!r.ok) {
+            originMsg.textContent = r.status === 404
+                ? `No chart on file for prefix ${raw.slice(0, 3)} yet — an admin can download the full UPS set from Settings → Modules.`
+                : "Could not load that origin's chart.";
+            originMsg.classList.add("error");
+            return;
+        }
+        chart = await r.json();
+        zones = chart.zones;
+        services = chart.services;
+        originMsg.textContent = "";
+        originEditor.hidden = true;
+        originEditBtn.setAttribute("aria-expanded", "false");
+        tableBuilt = false;
+        if (!drawer.hidden) buildTable();
+        resetWaybill();
+        updateOriginCard();
+        placeMarker();
+        repaint();
+    }
+
+    originEditBtn.addEventListener("click", () => {
+        originEditor.hidden = !originEditor.hidden;
+        originEditBtn.setAttribute("aria-expanded", String(!originEditor.hidden));
+        if (!originEditor.hidden) originInput.focus();
+    });
+    document.getElementById("zcOriginGo").addEventListener("click", () => setOrigin(originInput.value.trim()));
+    originInput.addEventListener("keydown", ev => { if (ev.key === "Enter") setOrigin(originInput.value.trim()); });
+
+    /* ---------- search ---------- */
+    const input = document.getElementById("zcZipSearch");
+    const msg = document.getElementById("zcSearchMsg");
+
+    function doSearch() {
+        const raw = input.value.trim();
+        msg.classList.remove("error");
+        if (!/^\d{3,5}$/.test(raw)) {
+            msg.textContent = "Enter a 3- or 5-digit ZIP code.";
+            msg.classList.add("error");
+            return;
+        }
+        const prefix = raw.slice(0, 3);
+        const zip5 = raw.length === 5 ? raw : null;
+        if (!zones[prefix]) {
+            msg.textContent = `No zone data for prefix ${prefix} — likely a military or territory ZIP served by the worldwide tables.`;
+            msg.classList.add("error");
+            return;
+        }
+        msg.textContent = "";
+        setPinned(prefix, zip5);
+        const f = zip3.features.find(x => x.properties.z === prefix);
+        if (f && !isPR(f)) {
+            const [[x0, y0], [x1, y1]] = path.bounds(f);
+            const k = Math.min(8, 0.6 / Math.max((x1 - x0) / W, (y1 - y0) / H));
+            svg.transition().duration(650).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(W / 2, H / 2).scale(k)
+                    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+            );
+        }
+    }
+    document.getElementById("zcZipGo").addEventListener("click", doSearch);
+    input.addEventListener("keydown", ev => { if (ev.key === "Enter") doSearch(); });
+
+    /* ---------- table drawer ---------- */
+    const drawer = document.getElementById("zcDrawer");
+    const toggle = document.getElementById("zcTableToggle");
+    let tableBuilt = false;
+
+    function buildTable() {
+        const thead = drawer.querySelector("thead");
+        thead.innerHTML = `<tr><th>Prefix</th>${services.map(s => `<th>${s.short}</th>`).join("")}</tr>`;
+        const tbody = drawer.querySelector("tbody");
+        const rows = Object.keys(zones).sort().map(p => {
+            const cells = services.map(s => {
+                const t = zones[p][s.id].tier;
+                const txt = t === undefined || t === null ? "—" : (t === "ext" ? "Ext" : `Zone ${t}`);
+                return `<td>${txt}</td>`;
+            });
+            return `<tr data-p="${p}"><td>${p}</td>${cells.join("")}</tr>`;
+        });
+        tbody.innerHTML = rows.join("");
+        tableBuilt = true;
+    }
+    toggle.addEventListener("click", () => {
+        if (!tableBuilt) buildTable();
+        const open = drawer.hidden;
+        drawer.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+    });
+    document.getElementById("zcTableClose").addEventListener("click", () => {
+        drawer.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+    });
+    document.getElementById("zcTableFilter").addEventListener("input", ev => {
+        const q = ev.target.value.trim();
+        drawer.querySelectorAll("tbody tr").forEach(tr => {
+            tr.style.display = !q || tr.dataset.p.startsWith(q) ? "" : "none";
+        });
+    });
+    document.addEventListener("keydown", ev => {
+        if (ev.key === "Escape" && !drawer.hidden) {
+            drawer.hidden = true;
+            toggle.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    /* ---------- boot ---------- */
+    updateOriginCard();
+    placeMarker();
+    repaint();
+}
+
+/* ── Zone Chart admin (Settings → Modules) ── */
+let _zcPollTimer = null;
+
+async function zcRefreshAdminPanel() {
+    if (!currentUserData || currentUserData.role !== 'admin' || !getModules().zone_chart) return;
+    try {
+        const info = await (await fetch('/api/zonechart/admin/info')).json();
+        const days = info.newest ? Math.floor((Date.now() / 1000 - info.newest) / 86400) : null;
+        const age = info.newest ? (days === 0 ? 'updated today' : `updated ${days} day${days === 1 ? '' : 's'} ago`) : 'seed chart only';
+        document.getElementById('zcAdminStats').textContent =
+            `${info.charts} of ${info.mapped_prefixes} origin charts on file · ${age}`;
+    } catch {}
+    try {
+        const s = await (await fetch('/api/zonechart/settings')).json();
+        document.getElementById('zcDefaultOrigin').value = s.default_origin || '';
+        document.getElementById('zcLockBox').checked = !!s.origin_locked;
+    } catch {}
+    zcPollRefreshStatus();
+}
+
+function _zcPaintStatus(status) {
+    const running = status.state === 'starting' || status.state === 'running';
+    const btn = document.getElementById('zcRefreshBtn');
+    const cancel = document.getElementById('zcCancelBtn');
+    const wrap = document.getElementById('zcProgressWrap');
+    const summary = document.getElementById('zcRunSummary');
+    if (btn) btn.disabled = running;
+    if (cancel) cancel.style.display = running ? '' : 'none';
+    if (wrap) wrap.style.display = running ? '' : 'none';
+    if (running) {
+        const c = status.counts || {};
+        const done = (c.downloaded || 0) + (c.cached || 0) + (c.missing || 0);
+        const pct = status.total ? Math.round(100 * done / status.total) : 0;
+        document.getElementById('zcProgressFill').style.width = pct + '%';
+        document.getElementById('zcProgressLabel').textContent =
+            `${pct}% — ${c.downloaded || 0} downloaded · ${c.cached || 0} current · ${c.missing || 0} unavailable`
+            + (status.current ? ` · fetching ${status.current}…` : '');
+        if (summary) summary.textContent = '';
+    } else if (summary) {
+        const c = status.counts || {};
+        if (status.state === 'done') {
+            const took = status.finished_at && status.started_at
+                ? ` in ${Math.round((status.finished_at - status.started_at) / 60)} min` : '';
+            summary.textContent = `✓ Refresh complete${took}: ${c.downloaded || 0} downloaded, ${c.cached || 0} already current, ${c.missing || 0} unavailable.`;
+        } else if (status.state === 'cancelled') {
+            summary.textContent = 'Refresh cancelled — completed charts were kept; run again to resume.';
+        } else if (status.state === 'error') {
+            summary.textContent = `Refresh failed: ${status.error || 'unknown error'}. Re-running resumes where it stopped.`;
+        } else {
+            summary.textContent = '';
+        }
+    }
+    return running;
+}
+
+async function zcPollRefreshStatus() {
+    clearTimeout(_zcPollTimer);
+    let status;
+    try { status = await (await fetch('/api/zonechart/refresh/status')).json(); }
+    catch { return; }
+    const running = _zcPaintStatus(status);
+    if (running) _zcPollTimer = setTimeout(zcPollRefreshStatus, 1500);
+}
+
+async function zcStartRefresh() {
+    const force = document.getElementById('zcForceBox').checked;
+    if (force && !confirm('Force re-download of every chart? This can take a long time.')) return;
+    document.getElementById('zcRefreshBtn').disabled = true;
+    try {
+        const res = await fetch('/api/zonechart/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force }),
+        });
+        if (!res.ok && res.status !== 409) {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.error || 'Could not start the refresh', 'error');
+            document.getElementById('zcRefreshBtn').disabled = false;
+            return;
+        }
+    } catch {
+        showToast('Connection error', 'error');
+        document.getElementById('zcRefreshBtn').disabled = false;
+        return;
+    }
+    setTimeout(zcPollRefreshStatus, 800);
+}
+
+function zcCancelRefresh() {
+    fetch('/api/zonechart/refresh/cancel', { method: 'POST' }).catch(() => {});
+}
+
+async function zcSaveAdminSettings() {
+    const msg = document.getElementById('zcSettingsMsg');
+    try {
+        const res = await fetch('/api/zonechart/settings/frontend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                origin_locked: document.getElementById('zcLockBox').checked,
+                default_origin: document.getElementById('zcDefaultOrigin').value.trim(),
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        msg.textContent = res.ok ? 'Saved.' : (data.error || 'Could not save.');
+        if (res.ok) setTimeout(() => { msg.textContent = ''; }, 4000);
+    } catch { msg.textContent = 'Connection error.'; }
 }
 
 // ══════════════════════════════════════════

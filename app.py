@@ -6112,45 +6112,9 @@ def _zonechart_guard():
     return None
 
 
-# ── Pages ──
-
-@app.route('/zonechart/embed')
-@login_required
-def zonechart_embed():
-    """The map app itself. The SPA shows it inside the main content area via
-    an iframe (its D3 UI and theme CSS would collide with the SPA's DOM if
-    inlined), so the sidebar and app chrome stay intact. /zonechart is the
-    SPA route that hosts the frame."""
-    conn = get_db()
-    enabled = _module_enabled(conn, 'zone_chart')
-    conn.close()
-    if not enabled:
-        return redirect('/')
-    resp = Response(render_template('zonechart.html',
-                                    default_origin=_zc_config()['default_origin'][:3],
-                                    version=APP_VERSION,
-                                    is_admin=current_user.is_admin))
-    # Relax the global X-Frame-Options: DENY to SAMEORIGIN — this page renders
-    # inside the SPA's own iframe (same precedent as the KB PDF preview).
-    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    return resp
-
-
-@app.route('/zonechart/admin')
-@admin_required
-def zonechart_admin_page():
-    conn = get_db()
-    enabled = _module_enabled(conn, 'zone_chart')
-    conn.close()
-    if not enabled:
-        return redirect('/')
-    resp = Response(render_template('zonechart_admin.html'))
-    # Same-origin framing allowed — reached inside the SPA's zone chart frame.
-    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    return resp
-
-
 # ── Read API ──
+# The view itself is part of the SPA (index.html renders /zonechart); there
+# are no standalone zone chart pages.
 
 @app.route('/api/zonechart/origins', methods=['GET'])
 @login_required
