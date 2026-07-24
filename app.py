@@ -11,7 +11,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.8.0'
+APP_VERSION = '1.9.0'
 
 
 def _compute_build_fingerprint():
@@ -2478,6 +2478,7 @@ def _is_setup_complete():
 @app.route('/parts/<slug>')
 @app.route('/kb')
 @app.route('/kb/<slug>')
+@app.route('/customers')
 @login_required
 def index(slug=None, wid=None, wo_number=None):
     # Fresh install: bounce admins into the setup wizard before they see
@@ -5355,15 +5356,15 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled', 'customers_config'}
 
 # App-wide feature modules. Each can be toggled on/off by an admin from
 # Settings → Modules; a disabled module is hidden from the sidebar and its
 # settings tab, and its API routes return 403. Defaults are all-on so the
 # feature is invisible until an admin opts to turn something off.
 # 'glossary' is a sub-module of knowledge_base — only meaningful when KB is on.
-MODULE_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'glossary')
-_MODULE_DEFAULTS = {'inventory': True, 'work_orders': True, 'knowledge_base': True, 'glossary': True}
+MODULE_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'glossary', 'customers')
+_MODULE_DEFAULTS = {'inventory': True, 'work_orders': True, 'knowledge_base': True, 'glossary': True, 'customers': True}
 
 
 def _get_setting(conn, key, default):
@@ -5405,7 +5406,7 @@ def _module_enabled(conn, name):
 # Stored as one app_settings blob: {'links': [{id, label, url, icon}], 'order':
 # ['link:<id>' | section-key, ...]}. The order list mixes custom links and the
 # three module sections so an admin can interleave them freely.
-SIDEBAR_SECTION_KEYS = ('inventory', 'work_orders', 'knowledge_base')
+SIDEBAR_SECTION_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'customers')
 
 
 def _sidebar_config(conn):
@@ -5636,6 +5637,227 @@ def update_smtp_settings():
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════
+#  CUSTOMERS (IMS) API
+#  Read-only proxy to the external IMS customer bridge (ims-web project).
+#  The bridge has no auth of its own and lives on the LAN, so the browser
+#  never talks to it directly — these routes gate access behind app login +
+#  the module toggle, and normalize jBase multivalue fields into clean JSON.
+#  The bridge's card endpoints (full PANs) are deliberately NOT proxied.
+# ══════════════════════════════════════════
+
+# jBase multivalue delimiter as it arrives in the bridge's JSON (char 0xFD).
+_IMS_MV_DELIM = 'ý'
+
+
+def _customers_guard():
+    """Return a (response, status) tuple if the Customers module is disabled,
+    else None. Mirrors _kb_guard."""
+    conn = get_db()
+    enabled = _module_enabled(conn, 'customers')
+    conn.close()
+    if not enabled:
+        return (jsonify({'error': 'Customers module is disabled'}), 403)
+    return None
+
+
+def _customers_api_base():
+    conn = get_db()
+    cfg = _get_setting(conn, 'customers_config', {})
+    conn.close()
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return str(cfg.get('api_base') or '').strip().rstrip('/')
+
+
+def _ims_get(base, path, params=None, timeout=15):
+    """GET {base}{path} from the IMS bridge → parsed JSON. The bridge is a
+    single-threaded legacy process, so keep the timeout generous but bounded."""
+    import urllib.request
+    import urllib.parse
+    import json as json_mod
+    qs = ('?' + urllib.parse.urlencode(params)) if params else ''
+    url = f"{base}{path}{qs}"
+    req = urllib.request.Request(url, headers={'User-Agent': 'WarehouseManager-Customers'})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json_mod.loads(resp.read().decode('utf-8'))
+
+
+def _ims_contacts(phones, ptypes, pdescs):
+    """Zip the parallel PHONES/PTYPE/PDESC multivalues into a list of
+    {value, kind, desc} dicts. Emails live inside the PHONES field on the
+    IMS side, marked by the parallel PTYPE value being 'E'."""
+    vals = (phones or '').split(_IMS_MV_DELIM)
+    kinds = (ptypes or '').split(_IMS_MV_DELIM)
+    descs = (pdescs or '').split(_IMS_MV_DELIM)
+    out = []
+    for i, v in enumerate(vals):
+        v = v.strip()
+        if not v:
+            continue
+        kind = kinds[i].strip().upper() if i < len(kinds) else ''
+        out.append({
+            'value': v,
+            'kind': 'email' if kind == 'E' else 'phone',
+            'desc': descs[i].strip() if i < len(descs) else '',
+        })
+    return out
+
+
+def _ims_attr(fields, n):
+    """1-based jBase attribute access into the bridge's positional list."""
+    if 0 < n <= len(fields) and fields[n - 1] is not None:
+        return str(fields[n - 1]).strip()
+    return ''
+
+
+@app.route('/api/settings/customers', methods=['GET'])
+@admin_required
+def get_customers_settings():
+    conn = get_db()
+    cfg = _get_setting(conn, 'customers_config', {})
+    conn.close()
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return jsonify({'api_base': cfg.get('api_base', '')})
+
+
+@app.route('/api/settings/customers', methods=['PUT'])
+@admin_required
+def update_customers_settings():
+    data = request.get_json() or {}
+    raw = str(data.get('api_base') or '').strip().rstrip('/')
+    raw = raw.replace('\r', '').replace('\n', '')
+    if raw and not re.match(r'^https?://', raw, re.IGNORECASE):
+        return jsonify({'error': 'API URL must start with http:// or https://'}), 400
+    conn = get_db()
+    _set_setting(conn, 'customers_config', {'api_base': raw})
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'api_base': raw})
+
+
+@app.route('/api/settings/customers/test', methods=['POST'])
+@admin_required
+def test_customers_settings():
+    """Ping the bridge's /health endpoint with the saved (or supplied) URL so
+    an admin can verify connectivity before leaving the config modal."""
+    data = request.get_json() or {}
+    base = str(data.get('api_base') or '').strip().rstrip('/') or _customers_api_base()
+    if not base:
+        return jsonify({'error': 'No API URL configured'}), 400
+    try:
+        _ims_get(base, '/health', timeout=8)
+    except Exception as e:
+        return jsonify({'error': f'Could not reach the IMS API at {base} — {e}'}), 502
+    return jsonify({'success': True})
+
+
+@app.route('/api/customers/search')
+@login_required
+def customers_search():
+    g = _customers_guard()
+    if g:
+        return g
+    base = _customers_api_base()
+    if not base:
+        return jsonify({'error': 'Customers module is not configured yet — an admin can set the IMS API URL from Settings → Modules.'}), 400
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return jsonify({'query': '', 'count': 0, 'entries': []})
+    try:
+        limit = min(max(int(request.args.get('limit', 30)), 1), 100)
+    except ValueError:
+        limit = 30
+    try:
+        data = _ims_get(base, '/customers/search', {'q': q, 'limit': limit})
+    except Exception as e:
+        return jsonify({'error': f'Could not reach the IMS customer API — {e}'}), 502
+    entries = []
+    for ent in data.get('entries', []) or []:
+        entries.append({
+            'id': ent.get('id', ''),
+            'name': ent.get('name', ''),
+            'addr1': ent.get('addr1', ''),
+            'addr2': ent.get('addr2', ''),
+            'city': ent.get('city', ''),
+            'state': ent.get('state', ''),
+            'zip': ent.get('zip', ''),
+            'contacts': _ims_contacts(ent.get('phones'), ent.get('ptypes'), ent.get('pdescs')),
+        })
+    return jsonify({'query': q, 'count': len(entries), 'entries': entries})
+
+
+@app.route('/api/customers/<cust_id>')
+@login_required
+def customers_detail(cust_id):
+    g = _customers_guard()
+    if g:
+        return g
+    base = _customers_api_base()
+    if not base:
+        return jsonify({'error': 'Customers module is not configured yet — an admin can set the IMS API URL from Settings → Modules.'}), 400
+    import urllib.error
+    from urllib.parse import quote
+    try:
+        data = _ims_get(base, f'/customers/{quote(cust_id)}')
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return jsonify({'error': f'Customer {cust_id} not found'}), 404
+        return jsonify({'error': f'IMS customer API error (HTTP {e.code})'}), 502
+    except Exception as e:
+        return jsonify({'error': f'Could not reach the IMS customer API — {e}'}), 502
+    fields = data.get('fields') or []
+    return jsonify({
+        'id': data.get('id', cust_id),
+        'name': _ims_attr(fields, 2),
+        'addr1': _ims_attr(fields, 3),
+        'addr2': _ims_attr(fields, 4),
+        'city': _ims_attr(fields, 5),
+        'state': _ims_attr(fields, 6),
+        'zip': _ims_attr(fields, 7),
+        'contacts': _ims_contacts(_ims_attr(fields, 9), _ims_attr(fields, 10), _ims_attr(fields, 11)),
+        'entry_date': _ims_attr(fields, 12),
+        'type': _ims_attr(fields, 14),
+        'resale': _ims_attr(fields, 25),
+        'ship_code': _ims_attr(fields, 60),
+        'shipto': {
+            'name': _ims_attr(fields, 88),
+            'addr1': _ims_attr(fields, 89),
+            'addr2': _ims_attr(fields, 90),
+            'city': _ims_attr(fields, 91),
+            'state': _ims_attr(fields, 92),
+            'zip': _ims_attr(fields, 93),
+        },
+    })
+
+
+@app.route('/api/customers/<cust_id>/invoices')
+@login_required
+def customers_invoices(cust_id):
+    g = _customers_guard()
+    if g:
+        return g
+    base = _customers_api_base()
+    if not base:
+        return jsonify({'error': 'Customers module is not configured yet.'}), 400
+    import urllib.error
+    from urllib.parse import quote
+    try:
+        data = _ims_get(base, f'/customers/{quote(cust_id)}/invoices')
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return jsonify({'customer': cust_id, 'count': 0, 'openInvoices': []})
+        return jsonify({'error': f'IMS customer API error (HTTP {e.code})'}), 502
+    except Exception as e:
+        return jsonify({'error': f'Could not reach the IMS customer API — {e}'}), 502
+    return jsonify({
+        'customer': data.get('customer', cust_id),
+        'count': data.get('count', 0),
+        'openInvoices': data.get('openInvoices', []) or [],
+    })
 
 
 # ── Cloudflare Turnstile ──

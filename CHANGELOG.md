@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.9.0
+- <strong>Customers module</strong> — A new toggleable module (Settings → Modules) that looks up customer accounts from the IMS system via the ims-web bridge API. A Customers sidebar section opens a search view (name, phone, email, or account #); clicking a result shows full details — contact info with click-to-call/email links, billing and ship-to addresses, account type, entry date, resale #, ship method, and open invoices. Everything is read-only and proxied server-side through <code>/api/customers/*</code>, so browsers never contact the bridge directly and access is gated by app login. The bridge's stored-card endpoints are deliberately not exposed. Admins set the bridge URL under Settings → Modules → Customers → Manage (stored in <code>app_settings.customers_config</code>), with a Test Connection button that pings the bridge's <code>/health</code> endpoint. The section participates in sidebar ordering like the other modules.
+
 ## v1.8.0
 - <strong>Product URL for web-posted parts</strong> — When a part's "Posted to Web" toggle is on, the edit form reveals a Product URL field for pasting the product's page on your web shop (stored as <code>posted_to_web_url</code> in <code>custom_data</code>). On the part detail modal, the green "✓ Yes" pill becomes a clickable link that opens that page in a new tab. URLs are normalized on save (https:// assumed when no scheme is given; non-http(s) schemes rejected).
 - <strong>Custom sidebar links</strong> — Admins can add external links to the sidebar (Settings → Sidebar) with a label, URL, and an icon from the shared icon library. Links appear for all users under Dashboard, above the module sections, and open in a new tab.

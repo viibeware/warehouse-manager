@@ -2959,6 +2959,19 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             </div></div>
         </div>
 
+        <div id="navSectionCustomers" class="nav-section">
+            <button type="button" class="sidebar-section-label nav-section-header" onclick="toggleNavSection('navSectionCustomers')">
+                <svg class="nav-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                Customers
+            </button>
+            <div class="nav-section-body"><div class="nav-section-inner">
+                <button class="nav-item" data-customers-view="search" onclick="showCustomersView()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Search Customers
+                </button>
+            </div></div>
+        </div>
+
         <div id="sidebarNavSpacer" style="flex:1;"></div>
 
     </nav>
@@ -3053,6 +3066,20 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div id="kbDocsTable" class="parts-table-wrap" style="display:none;"></div>
             <div id="kbEmptyState" class="kb-empty" style="display:none;"></div>
         </div>
+        <div id="customersContainer" style="display:none;">
+            <div class="kb-header">
+                <div>
+                    <h2 class="kb-title">Customers</h2>
+                    <div class="kb-subtitle">Search IMS customer accounts by name, phone, email, or account #</div>
+                </div>
+            </div>
+            <div class="search-box" style="max-width:480px;margin-bottom:1rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="customersSearchInput" placeholder="Search customers…" autocomplete="off" oninput="onCustomersSearchInput()">
+            </div>
+            <div id="customersResults"></div>
+            <div id="customersEmptyState" class="kb-empty" style="display:none;"></div>
+        </div>
     </div>
 </div>
 
@@ -3079,6 +3106,41 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
         </div>
         <div class="modal-body" id="detailModalBody"></div>
+    </div>
+</div>
+
+<!-- ═══ CUSTOMER DETAIL MODAL ═══ -->
+<div class="modal-overlay" id="customerDetailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="customerDetailTitle">Customer</h2>
+            <button class="modal-close" onclick="closeModal('customerDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="customerDetailBody"></div>
+    </div>
+</div>
+
+<!-- ═══ CUSTOMERS CONFIG MODAL (admin) ═══ -->
+<div class="modal-overlay" id="customersConfigModal">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h2>Customers Module</h2>
+            <button class="modal-close" onclick="closeModal('customersConfigModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid" style="grid-template-columns:1fr;">
+                <div class="form-group">
+                    <label class="form-label">IMS API URL</label>
+                    <input class="form-input" type="text" id="customersApiBase" placeholder="http://172.16.128.1:8081/api" autocomplete="off">
+                    <span class="form-hint">Base URL of the IMS customer bridge, including the /api suffix. Lookups run server-side; the browser never contacts this address directly.</span>
+                </div>
+                <div id="customersConfigTestResult" style="display:none;"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="testCustomersConfig()">Test Connection</button>
+            <button class="btn btn-primary" onclick="saveCustomersConfig()">Save</button>
+        </div>
     </div>
 </div>
 
@@ -3250,6 +3312,19 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     <div class="module-row-controls">
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleGlossaryToggle" onchange="saveModule('glossary', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">Customers</div>
+                        <div class="settings-desc">Look up IMS customer accounts — contact info, addresses, and open invoices. Read-only; data stays in IMS.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleCustomersManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openCustomersConfigModal();">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleCustomersToggle" onchange="saveModule('customers', this.checked)">
                             <span class="toggle-track"></span>
                         </label>
                     </div>
@@ -4630,6 +4705,7 @@ function refreshModuleToggles() {
     set('moduleWorkOrdersToggle', m.work_orders);
     set('moduleKnowledgeBaseToggle', m.knowledge_base);
     set('moduleGlossaryToggle', m.glossary);
+    set('moduleCustomersToggle', m.customers);
     // The Glossary sub-toggle is only meaningful while KB is on.
     const gt = document.getElementById('moduleGlossaryToggle');
     if (gt) gt.disabled = !m.knowledge_base;
@@ -4659,12 +4735,13 @@ async function saveModule(name, enabled) {
         const showingKb = document.getElementById('kbContainer').style.display !== 'none';
         const showingWo = document.getElementById('workOrdersContainer').style.display !== 'none';
         const showingParts = document.getElementById('partsToolbar').style.display !== 'none';
-        if ((!m.knowledge_base && showingKb) || (!m.work_orders && showingWo) || (!m.inventory && showingParts)) {
+        const showingCustomers = document.getElementById('customersContainer').style.display !== 'none';
+        if ((!m.knowledge_base && showingKb) || (!m.work_orders && showingWo) || (!m.inventory && showingParts) || (!m.customers && showingCustomers)) {
             showDashboard();
         }
         // Keep the glossary toggle's disabled state in sync after a KB change.
         refreshModuleToggles();
-        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary' }[name] || name;
+        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary', customers: 'Customers' }[name] || name;
         showToast(`${label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch {
         showToast('Connection error', 'error');
@@ -5201,6 +5278,7 @@ function getModules() {
         work_orders: m.work_orders !== false,
         knowledge_base: m.knowledge_base !== false,
         glossary: m.glossary !== false,
+        customers: m.customers !== false,
     };
 }
 function applyModuleVisibility() {
@@ -5209,10 +5287,12 @@ function applyModuleVisibility() {
     setDisp('navSectionInventory', m.inventory);
     setDisp('navSectionWorkOrders', m.work_orders);
     setDisp('navSectionKnowledgeBase', m.knowledge_base);
+    setDisp('navSectionCustomers', m.customers);
     // Manage buttons in the Modules tab: shown only when the module is enabled.
     setDisp('moduleInventoryManageBtn', m.inventory);
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
     setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
+    setDisp('moduleCustomersManageBtn', m.customers);
     // WordPress → KB importer (Data tab) only makes sense when KB is enabled.
     setDisp('settingsKbWpImport', m.knowledge_base);
     // Glossary sub-module: sidebar item + its Data-tab tools, gated on KB AND glossary.
@@ -5229,7 +5309,7 @@ function getModulesGlossary() { return getModules().glossary; }
    every user; only admins can change it (Settings → Sidebar). Links open in a
    new tab. Ordering physically reorders .sidebar-nav children, so the
    first-child border rule keeps working out which divider to draw. */
-const SIDEBAR_SECTION_LABELS = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base' };
+const SIDEBAR_SECTION_LABELS = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', customers: 'Customers' };
 const SIDEBAR_LINK_DEFAULT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
 function getSidebarConfig() {
@@ -5247,6 +5327,7 @@ function applySidebarCustomization() {
         inventory: document.getElementById('navSectionInventory'),
         work_orders: document.getElementById('navSectionWorkOrders'),
         knowledge_base: document.getElementById('navSectionKnowledgeBase'),
+        customers: document.getElementById('navSectionCustomers'),
     };
     for (const l of cfg.links) {
         const a = document.createElement('a');
@@ -5850,12 +5931,14 @@ function setCategoryBySlug(slug, push) {
     exitWorkOrdersView();
     exitDashboard();
     exitKnowledgeBaseView();
+    exitCustomersView();
     currentCategory = slug || '';
     currentPage = 1;
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === currentCategory));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('partsToolbar').style.display = '';
     if (push) {
         const url = currentCategory ? `/parts/${currentCategory}` : '/parts';
@@ -6964,6 +7047,7 @@ async function showKnowledgeBaseView(slug='', push=true) {
     if (!getModules().knowledge_base) { showDashboard(); return; }
     exitWorkOrdersView();
     exitDashboard();
+    exitCustomersView();
     currentKbCategory = slug || '';
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
@@ -6978,6 +7062,7 @@ async function showKnowledgeBaseView(slug='', push=true) {
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => {
         if (b.dataset.kbView === 'all') b.classList.toggle('active', !currentKbCategory);
         else b.classList.toggle('active', b.dataset.kbSlug === currentKbCategory);
@@ -8138,6 +8223,7 @@ async function kbWpRun() {
 async function showWorkOrdersView(view, push=true) {
     exitDashboard();
     exitKnowledgeBaseView();
+    exitCustomersView();
     currentWoView = view;
     currentWoStatusFilter = 'all';
     // Archive-only sort options get reset when leaving the archive so the
@@ -8161,6 +8247,7 @@ async function showWorkOrdersView(view, push=true) {
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === view));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('sidebar').classList.remove('open');
     if (push) {
         const url = view === 'archive' ? '/workorders/archive' : '/workorders';
@@ -8181,6 +8268,7 @@ async function showWorkOrdersView(view, push=true) {
 async function showSingleWorkOrder(ident, push=true) {
     exitDashboard();
     exitKnowledgeBaseView();
+    exitCustomersView();
     // Reuse the list-view's container + status helpers so the layout matches
     currentWoView = 'active';
     currentWoStatusFilter = 'all';
@@ -8197,6 +8285,7 @@ async function showSingleWorkOrder(ident, push=true) {
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === 'active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('sidebar').classList.remove('open');
     await loadWoSettings();
     woc.innerHTML = `
@@ -8255,6 +8344,7 @@ async function showSingleWorkOrder(ident, push=true) {
 async function showDashboard(push=true) {
     exitWorkOrdersView();
     exitKnowledgeBaseView();
+    exitCustomersView();
     currentDashboard = true;
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
@@ -8270,6 +8360,7 @@ async function showDashboard(push=true) {
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'dashboard'));
     document.getElementById('sidebar').classList.remove('open');
     if (push) {
@@ -8559,6 +8650,230 @@ async function loadKbWidget() {
 }
 
 // ══════════════════════════════════════════
+//  CUSTOMERS (IMS lookup)
+//  Read-only search against the IMS customer bridge, proxied through the
+//  backend so the browser never talks to the bridge directly.
+// ══════════════════════════════════════════
+let _customersSearchTimer = null;
+let _customersLastQuery = '';
+
+function exitCustomersView() {
+    document.getElementById('customersContainer').style.display = 'none';
+}
+
+function showCustomersView(push=true) {
+    if (!getModules().customers) { showDashboard(); return; }
+    exitWorkOrdersView();
+    exitDashboard();
+    exitKnowledgeBaseView();
+    // Hide parts UI
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    document.getElementById('customersContainer').style.display = '';
+    // Nav active state
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.add('active'));
+    document.getElementById('sidebar').classList.remove('open');
+    if (push) history.pushState({ view: 'customers' }, '', '/customers');
+    const input = document.getElementById('customersSearchInput');
+    if (input) setTimeout(() => input.focus(), 50);
+}
+
+function onCustomersSearchInput() {
+    clearTimeout(_customersSearchTimer);
+    _customersSearchTimer = setTimeout(runCustomersSearch, 300);
+}
+
+async function runCustomersSearch() {
+    const q = (document.getElementById('customersSearchInput')?.value || '').trim();
+    const results = document.getElementById('customersResults');
+    const empty = document.getElementById('customersEmptyState');
+    _customersLastQuery = q;
+    if (!q) { results.innerHTML = ''; empty.style.display = 'none'; return; }
+    results.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    empty.style.display = 'none';
+    try {
+        const res = await fetch(`/api/customers/search?q=${encodeURIComponent(q)}&limit=50`);
+        const data = await res.json().catch(() => ({}));
+        if (q !== _customersLastQuery) return; // a newer search superseded this one
+        if (!res.ok) {
+            results.innerHTML = '';
+            empty.style.display = '';
+            empty.textContent = data.error || 'Search failed.';
+            return;
+        }
+        renderCustomersResults(data.entries || []);
+    } catch {
+        if (q !== _customersLastQuery) return;
+        results.innerHTML = '';
+        empty.style.display = '';
+        empty.textContent = 'Connection error — could not reach the server.';
+    }
+}
+
+function _custContact(entry, kind) {
+    const hit = (entry.contacts || []).find(c => c.kind === kind);
+    return hit ? hit.value : '';
+}
+
+function renderCustomersResults(entries) {
+    const results = document.getElementById('customersResults');
+    const empty = document.getElementById('customersEmptyState');
+    if (!entries.length) {
+        results.innerHTML = '';
+        empty.style.display = '';
+        empty.textContent = 'No customers matched that search.';
+        return;
+    }
+    empty.style.display = 'none';
+    let rows = '';
+    for (const e of entries) {
+        const loc = [e.city, e.state].filter(Boolean).join(', ');
+        rows += `<tr data-id="${esc(e.id)}" onclick="openCustomerDetail(this.dataset.id)">
+            <td>${esc(e.id)}</td>
+            <td>${esc(e.name)}</td>
+            <td>${esc(loc)}</td>
+            <td>${esc(_custContact(e, 'phone'))}</td>
+            <td>${esc(_custContact(e, 'email'))}</td>
+        </tr>`;
+    }
+    results.innerHTML = `<div class="parts-table-wrap"><table class="parts-table">
+        <thead><tr><th>Account #</th><th>Name</th><th>Location</th><th>Phone</th><th>Email</th></tr></thead>
+        <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+async function openCustomerDetail(id) {
+    const body = document.getElementById('customerDetailBody');
+    const title = document.getElementById('customerDetailTitle');
+    title.textContent = `Customer ${id}`;
+    body.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    openModal('customerDetailModal');
+    let c;
+    try {
+        const res = await fetch(`/api/customers/${encodeURIComponent(id)}`);
+        c = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            body.innerHTML = `<div class="kb-empty">${esc(c.error || 'Failed to load customer.')}</div>`;
+            return;
+        }
+    } catch {
+        body.innerHTML = '<div class="kb-empty">Connection error — could not reach the server.</div>';
+        return;
+    }
+    title.textContent = c.name ? `${c.name} — ${c.id}` : `Customer ${c.id}`;
+    const item = (label, html, full) => html
+        ? `<div class="detail-item"${full ? ' style="grid-column:1/-1"' : ''}><div class="detail-label">${label}</div><div class="detail-value">${html}</div></div>`
+        : '';
+    const contactsHtml = (c.contacts || []).map(ct => {
+        const link = ct.kind === 'email'
+            ? `<a href="mailto:${esc(ct.value)}">${esc(ct.value)}</a>`
+            : `<a href="tel:${esc(ct.value.replace(/[^0-9+]/g, ''))}">${esc(ct.value)}</a>`;
+        return `${link}${ct.desc ? ` <span style="color:var(--text-muted);font-size:0.78rem;">(${esc(ct.desc)})</span>` : ''}`;
+    }).join('<br>');
+    const addr = [c.addr1, c.addr2, [c.city, c.state].filter(Boolean).join(', ') + (c.zip ? ' ' + c.zip : '')]
+        .map(s => (s || '').trim()).filter(Boolean).map(esc).join('<br>');
+    const st = c.shipto || {};
+    const shipto = [st.name, st.addr1, st.addr2, [st.city, st.state].filter(Boolean).join(', ') + (st.zip ? ' ' + st.zip : '')]
+        .map(s => (s || '').trim()).filter(Boolean).map(esc).join('<br>');
+    let h = '<div class="detail-grid">';
+    h += item('Contact', contactsHtml, true);
+    h += item('Address', addr);
+    h += item('Ship To', shipto);
+    h += item('Type', esc(c.type));
+    h += item('Entry Date', esc(c.entry_date));
+    h += item('Resale #', esc(c.resale));
+    h += item('Ship Method', esc(c.ship_code));
+    h += '</div>';
+    h += `<div id="customerInvoices" style="margin-top:1rem;"></div>`;
+    body.innerHTML = h;
+    loadCustomerInvoices(c.id);
+}
+
+async function loadCustomerInvoices(id) {
+    const el = document.getElementById('customerInvoices');
+    if (!el) return;
+    try {
+        const res = await fetch(`/api/customers/${encodeURIComponent(id)}/invoices`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return; // invoices are supplementary — fail quietly
+        const invs = data.openInvoices || [];
+        if (!invs.length) {
+            el.innerHTML = '<div class="detail-label">Open Invoices</div><div style="color:var(--text-muted);font-size:0.82rem;">None</div>';
+            return;
+        }
+        let rows = '';
+        for (const inv of invs) {
+            rows += `<tr><td>${esc(inv.id || '')}</td><td>${esc(inv.invDate || '')}</td><td>${esc(inv.status || '')}</td><td>${esc(inv.po || '')}</td><td style="text-align:right;">${esc(inv.invTotal || '')}</td></tr>`;
+        }
+        el.innerHTML = `<div class="detail-label" style="margin-bottom:0.35rem;">Open Invoices (${invs.length})</div>
+            <div class="parts-table-wrap"><table class="parts-table" style="min-width:0;">
+            <thead><tr><th>Invoice</th><th>Date</th><th>Status</th><th>PO</th><th style="text-align:right;">Total</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`;
+    } catch { /* supplementary — ignore */ }
+}
+
+/* ── Settings → Modules → Customers config (admin) ── */
+async function openCustomersConfigModal() {
+    const input = document.getElementById('customersApiBase');
+    const result = document.getElementById('customersConfigTestResult');
+    if (result) { result.style.display = 'none'; result.textContent = ''; }
+    try {
+        const res = await fetch('/api/settings/customers');
+        const data = await res.json().catch(() => ({}));
+        if (input) input.value = (data && data.api_base) || '';
+    } catch { if (input) input.value = ''; }
+    openModal('customersConfigModal');
+}
+
+function _customersConfigShowResult(msg, ok) {
+    const result = document.getElementById('customersConfigTestResult');
+    if (!result) return;
+    result.style.display = '';
+    result.style.color = ok ? 'var(--success, #2e9e5b)' : 'var(--danger, #d64545)';
+    result.style.fontSize = '0.82rem';
+    result.textContent = msg;
+}
+
+async function testCustomersConfig() {
+    const base = (document.getElementById('customersApiBase')?.value || '').trim();
+    _customersConfigShowResult('Testing…', true);
+    try {
+        const res = await fetch('/api/settings/customers/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_base: base }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) _customersConfigShowResult('Connected — the IMS API is reachable.', true);
+        else _customersConfigShowResult(data.error || 'Connection failed.', false);
+    } catch { _customersConfigShowResult('Connection error — could not reach the server.', false); }
+}
+
+async function saveCustomersConfig() {
+    const base = (document.getElementById('customersApiBase')?.value || '').trim();
+    try {
+        const res = await fetch('/api/settings/customers', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_base: base }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast(data.error || 'Failed to save settings', 'error'); return; }
+        showToast('Customers settings saved', 'success');
+        closeModal('customersConfigModal');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ══════════════════════════════════════════
 //  URL ROUTING
 // ══════════════════════════════════════════
 function initViewFromUrl() {
@@ -8583,6 +8898,8 @@ function initViewFromUrl() {
     } else if (path.startsWith('/kb/')) {
         const slug = decodeURIComponent(path.replace('/kb/', '').split('/')[0]);
         showKnowledgeBaseView(slug, false);
+    } else if (path === '/customers') {
+        showCustomersView(false);
     } else {
         // '/', '/dashboard' or anything unknown → dashboard
         showDashboard(false);
