@@ -5406,7 +5406,7 @@ def _module_enabled(conn, name):
 # Stored as one app_settings blob: {'links': [{id, label, url, icon}], 'order':
 # ['link:<id>' | section-key, ...]}. The order list mixes custom links and the
 # three module sections so an admin can interleave them freely.
-SIDEBAR_SECTION_KEYS = ('inventory', 'work_orders', 'knowledge_base', 'customers')
+SIDEBAR_SECTION_KEYS = ('inventory', 'work_orders', 'knowledge_base')
 
 
 def _sidebar_config(conn):
@@ -5674,13 +5674,19 @@ def _customers_api_base():
 
 def _ims_get(base, path, params=None, timeout=15):
     """GET {base}{path} from the IMS bridge → parsed JSON. The bridge is a
-    single-threaded legacy process, so keep the timeout generous but bounded."""
+    single-threaded legacy process, so keep the timeout generous but bounded.
+
+    This is the ONLY function that talks to the bridge, and it is pinned to
+    GET with no request body — the bridge's write endpoints (customer
+    create/update) accept POST only, so nothing in this app can mutate IMS
+    data. Keep it that way: never add a data/method parameter here."""
     import urllib.request
     import urllib.parse
     import json as json_mod
     qs = ('?' + urllib.parse.urlencode(params)) if params else ''
     url = f"{base}{path}{qs}"
-    req = urllib.request.Request(url, headers={'User-Agent': 'WarehouseManager-Customers'})
+    req = urllib.request.Request(url, method='GET',
+                                 headers={'User-Agent': 'WarehouseManager-Customers'})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json_mod.loads(resp.read().decode('utf-8'))
 
@@ -5770,7 +5776,7 @@ def test_customers_settings():
     return jsonify({'success': True})
 
 
-@app.route('/api/customers/search')
+@app.route('/api/customers/search', methods=['GET'])
 @login_required
 def customers_search():
     g = _customers_guard()
@@ -5805,7 +5811,7 @@ def customers_search():
     return jsonify({'query': q, 'count': len(entries), 'entries': entries})
 
 
-@app.route('/api/customers/<cust_id>')
+@app.route('/api/customers/<cust_id>', methods=['GET'])
 @login_required
 def customers_detail(cust_id):
     g = _customers_guard()
@@ -5817,7 +5823,9 @@ def customers_detail(cust_id):
     import urllib.error
     from urllib.parse import quote
     try:
-        data = _ims_get(base, f'/customers/{quote(cust_id)}')
+        # safe='' so an id can never smuggle extra path segments (e.g.
+        # "123/cards") into the bridge URL — the id stays one segment.
+        data = _ims_get(base, f'/customers/{quote(cust_id, safe="")}')
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return jsonify({'error': f'Customer {cust_id} not found'}), 404
@@ -5849,7 +5857,7 @@ def customers_detail(cust_id):
     })
 
 
-@app.route('/api/customers/<cust_id>/invoices')
+@app.route('/api/customers/<cust_id>/invoices', methods=['GET'])
 @login_required
 def customers_invoices(cust_id):
     g = _customers_guard()
@@ -5861,7 +5869,7 @@ def customers_invoices(cust_id):
     import urllib.error
     from urllib.parse import quote
     try:
-        data = _ims_get(base, f'/customers/{quote(cust_id)}/invoices')
+        data = _ims_get(base, f'/customers/{quote(cust_id, safe="")}/invoices')
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return jsonify({'customer': cust_id, 'count': 0, 'openInvoices': []})

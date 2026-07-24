@@ -2889,6 +2889,10 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
             Dashboard
         </button>
+        <button class="nav-item" id="navCustomersLink" data-customers-view="search" onclick="showCustomersView()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Customers
+        </button>
     </div>
     <nav class="sidebar-nav">
         <div id="navSectionInventory" class="nav-section">
@@ -2955,19 +2959,6 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                 <button class="nav-item" id="navAddDocument" style="display:none;" onclick="openKbUploadModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Document
-                </button>
-            </div></div>
-        </div>
-
-        <div id="navSectionCustomers" class="nav-section">
-            <button type="button" class="sidebar-section-label nav-section-header" onclick="toggleNavSection('navSectionCustomers')">
-                <svg class="nav-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                Customers
-            </button>
-            <div class="nav-section-body"><div class="nav-section-inner">
-                <button class="nav-item" data-customers-view="search" onclick="showCustomersView()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Search Customers
                 </button>
             </div></div>
         </div>
@@ -5287,7 +5278,7 @@ function applyModuleVisibility() {
     setDisp('navSectionInventory', m.inventory);
     setDisp('navSectionWorkOrders', m.work_orders);
     setDisp('navSectionKnowledgeBase', m.knowledge_base);
-    setDisp('navSectionCustomers', m.customers);
+    setDisp('navCustomersLink', m.customers);
     // Manage buttons in the Modules tab: shown only when the module is enabled.
     setDisp('moduleInventoryManageBtn', m.inventory);
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
@@ -5309,7 +5300,7 @@ function getModulesGlossary() { return getModules().glossary; }
    every user; only admins can change it (Settings → Sidebar). Links open in a
    new tab. Ordering physically reorders .sidebar-nav children, so the
    first-child border rule keeps working out which divider to draw. */
-const SIDEBAR_SECTION_LABELS = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', customers: 'Customers' };
+const SIDEBAR_SECTION_LABELS = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base' };
 const SIDEBAR_LINK_DEFAULT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
 function getSidebarConfig() {
@@ -5327,7 +5318,6 @@ function applySidebarCustomization() {
         inventory: document.getElementById('navSectionInventory'),
         work_orders: document.getElementById('navSectionWorkOrders'),
         knowledge_base: document.getElementById('navSectionKnowledgeBase'),
-        customers: document.getElementById('navSectionCustomers'),
     };
     for (const l of cfg.links) {
         const a = document.createElement('a');
