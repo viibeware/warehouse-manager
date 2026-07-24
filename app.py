@@ -11,7 +11,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.7.8'
+APP_VERSION = '1.8.0'
 
 
 def _compute_build_fingerprint():
@@ -1741,6 +1741,7 @@ def auth_me():
     tz = _get_setting(conn, 'display_timezone', 'UTC')
     time_fmt = _get_setting(conn, 'display_time_format', '12h')
     modules = _modules_enabled(conn)
+    sidebar = _sidebar_config(conn)
     conn.close()
     return jsonify({
         'id': current_user.id,
@@ -1754,6 +1755,7 @@ def auth_me():
         'timezone': tz,
         'time_format': time_fmt if time_fmt in ('12h', '24h') else '12h',
         'modules': modules,
+        'sidebar': sidebar,
     })
 
 
@@ -2605,6 +2607,20 @@ def _valid_category(conn, slug):
     return conn.execute("SELECT id FROM categories WHERE slug = ?", (slug,)).fetchone() is not None
 
 
+def _normalize_web_url(url):
+    """Normalize a user-pasted URL for storage: trim, default to https:// when
+    no scheme is given, and refuse non-http(s) schemes (javascript:, data:, …)
+    since these values are rendered as clickable hrefs."""
+    url = (url or '').strip()
+    if not url:
+        return ''
+    if re.match(r'^https?://', url, re.IGNORECASE):
+        return url
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', url):
+        return ''  # some other scheme — reject rather than store something unsafe
+    return 'https://' + url
+
+
 
 @app.route('/api/parts', methods=['POST'])
 @editor_required
@@ -2638,6 +2654,10 @@ def create_part():
             custom_data[k] = f.get(f"custom_{k}", '')
         elif k in f:
             custom_data[k] = f.get(k, '')
+    # Companion key to the posted_to_web toggle (not a category field itself):
+    # the product's URL on the web shop, linked from the detail-modal pill.
+    if 'custom_posted_to_web_url' in f:
+        custom_data['posted_to_web_url'] = _normalize_web_url(f.get('custom_posted_to_web_url', ''))
 
     fields_with_cd = fields + ['image_filename', 'custom_data']
     vals_with_cd = vals[:-1] + ['', json_mod.dumps(custom_data)]
@@ -2715,6 +2735,9 @@ def update_part(pid):
             existing_cd[k] = f.get(f"custom_{k}", '')
         elif k in f:
             existing_cd[k] = f.get(k, '')
+    # Companion key to the posted_to_web toggle (see create_part).
+    if 'custom_posted_to_web_url' in f:
+        existing_cd['posted_to_web_url'] = _normalize_web_url(f.get('custom_posted_to_web_url', ''))
     sets += ",custom_data=?"
     vals.append(json_mod.dumps(existing_cd))
 
@@ -5376,6 +5399,67 @@ def _modules_enabled(conn):
 
 def _module_enabled(conn, name):
     return _modules_enabled(conn).get(name, True)
+
+
+# ── Sidebar customization: admin-defined external links + section ordering ──
+# Stored as one app_settings blob: {'links': [{id, label, url, icon}], 'order':
+# ['link:<id>' | section-key, ...]}. The order list mixes custom links and the
+# three module sections so an admin can interleave them freely.
+SIDEBAR_SECTION_KEYS = ('inventory', 'work_orders', 'knowledge_base')
+
+
+def _sidebar_config(conn):
+    """Return the sidebar config with the order list normalized: drop entries
+    that no longer exist, then prepend any unlisted links (new links land above
+    the sections, matching the default layout) and append unlisted sections."""
+    stored = _get_setting(conn, 'sidebar_config', {})
+    if not isinstance(stored, dict):
+        stored = {}
+    links = [l for l in stored.get('links', []) if isinstance(l, dict) and l.get('url')]
+    valid = ['link:%s' % l.get('id') for l in links] + list(SIDEBAR_SECTION_KEYS)
+    order = [e for e in stored.get('order', []) if e in valid]
+    missing = [e for e in valid if e not in order]
+    order = [e for e in missing if e.startswith('link:')] + order \
+        + [e for e in missing if not e.startswith('link:')]
+    return {'links': links, 'order': order}
+
+
+@app.route('/api/settings/sidebar', methods=['PUT'])
+@admin_required
+def update_sidebar_setting():
+    """Persist custom sidebar links + ordering. The client sends the whole
+    config; links are sanitized here (http/https URLs only — these render as
+    hrefs for every user) and new links get server-assigned ids."""
+    data = request.get_json() or {}
+    raw_links = data.get('links', [])
+    raw_order = data.get('order', [])
+    if not isinstance(raw_links, list) or not isinstance(raw_order, list):
+        return jsonify({'error': 'Invalid payload'}), 400
+    conn = get_db()
+    current = _get_setting(conn, 'sidebar_config', {})
+    next_id = current.get('next_id', 1) if isinstance(current, dict) else 1
+    links = []
+    for l in raw_links:
+        if not isinstance(l, dict):
+            continue
+        label = str(l.get('label') or '').strip()[:60]
+        url = _normalize_web_url(str(l.get('url') or ''))
+        if not label or not url:
+            continue
+        lid = l.get('id')
+        if not isinstance(lid, int):
+            lid, next_id = next_id, next_id + 1
+        links.append({'id': lid, 'label': label, 'url': url,
+                      'icon': str(l.get('icon') or '')[:40]})
+    _set_setting(conn, 'sidebar_config', {
+        'links': links,
+        'order': [str(e) for e in raw_order][:50],
+        'next_id': next_id,
+    })
+    conn.commit()
+    cfg = _sidebar_config(conn)
+    conn.close()
+    return jsonify({'success': True, 'sidebar': cfg})
 
 
 _PRIORITY_DEFAULT_COLORS = {

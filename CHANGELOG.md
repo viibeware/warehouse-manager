@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.0
+- <strong>Product URL for web-posted parts</strong> — When a part's "Posted to Web" toggle is on, the edit form reveals a Product URL field for pasting the product's page on your web shop (stored as <code>posted_to_web_url</code> in <code>custom_data</code>). On the part detail modal, the green "✓ Yes" pill becomes a clickable link that opens that page in a new tab. URLs are normalized on save (https:// assumed when no scheme is given; non-http(s) schemes rejected).
+- <strong>Custom sidebar links</strong> — Admins can add external links to the sidebar (Settings → Sidebar) with a label, URL, and an icon from the shared icon library. Links appear for all users under Dashboard, above the module sections, and open in a new tab.
+- <strong>Sidebar ordering</strong> — The same Settings → Sidebar tab lets admins reorder the module sections and custom links with up/down controls; the sidebar re-arranges live. Stored app-wide in <code>app_settings.sidebar_config</code>, served via <code>/api/auth/me</code>, saved via admin-only <code>PUT /api/settings/sidebar</code>.
+
 ## v1.7.8
 - <strong>Knowledge Base dashboard widget</strong> — The dashboard gained a Knowledge Base widget listing the six most recently added documents with thumbnail (featured image when set), category, file type, and date added. Clicking a row opens the document; "View all →" jumps to the Knowledge Base.
 - <strong>Customizable dashboard</strong> — A new <strong>Customize</strong> button on the dashboard lets each user choose which widgets appear (Work Orders, Recent Part Updates, Knowledge Base, and — for admins — Locked Accounts). Choices are saved per user in the browser. Widgets belonging to a disabled module are no longer rendered or fetched, so disabling e.g. Work Orders no longer produces failed dashboard requests.
