@@ -232,6 +232,9 @@ body {
        Dashboard link (.nav-item at 0.8rem) so the top-level entries align. */
     font-family: var(--font); font-size: 0.8rem; font-weight: 500;
     text-transform: none; letter-spacing: 0; color: var(--text-secondary);
+    /* Symmetric padding (overrides .sidebar-section-label's 0.75/0.35 split)
+       so the hover highlight centers on the text instead of hanging low. */
+    padding: 0.55rem 0.75rem;
 }
 .nav-section-header:hover { color: var(--text-primary); background: var(--nav-hover); }
 .nav-caret {
