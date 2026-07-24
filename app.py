@@ -5857,39 +5857,6 @@ def customers_detail(cust_id):
     })
 
 
-@app.route('/api/customers/<cust_id>/invoices', methods=['GET'])
-@login_required
-def customers_invoices(cust_id):
-    g = _customers_guard()
-    if g:
-        return g
-    base = _customers_api_base()
-    if not base:
-        return jsonify({'error': 'Customers module is not configured yet.'}), 400
-    import urllib.error
-    from urllib.parse import quote
-    try:
-        data = _ims_get(base, f'/customers/{quote(cust_id, safe="")}/invoices')
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return jsonify({'customer': cust_id, 'count': 0, 'openInvoices': []})
-        return jsonify({'error': f'IMS customer API error (HTTP {e.code})'}), 502
-    except Exception as e:
-        return jsonify({'error': f'Could not reach the IMS customer API — {e}'}), 502
-    invoices = []
-    for inv in data.get('openInvoices', []) or []:
-        if isinstance(inv, dict):
-            inv = dict(inv)
-            inv['invDate'] = _ims_date(inv.get('invDate'))
-            inv['orderDate'] = _ims_date(inv.get('orderDate'))
-        invoices.append(inv)
-    return jsonify({
-        'customer': data.get('customer', cust_id),
-        'count': len(invoices),
-        'openInvoices': invoices,
-    })
-
-
 # ── Cloudflare Turnstile ──
 
 def _verify_turnstile(token, remote_ip=None):

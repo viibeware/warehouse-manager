@@ -857,6 +857,17 @@ body {
 
 /* ── DETAIL ── */
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+/* Click-to-copy account number in the customer detail modal */
+.copy-acct { position: relative; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.copy-acct svg { width: 13px; height: 13px; opacity: 0.55; flex-shrink: 0; }
+.copy-acct:hover { color: var(--accent); }
+.copy-acct:hover svg { opacity: 1; }
+.copy-tip {
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--bg-card);
+    padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; font-weight: 600;
+    white-space: nowrap; pointer-events: none; z-index: 10;
+}
 .detail-label {
     font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;
@@ -8759,56 +8770,62 @@ async function openCustomerDetail(id) {
         body.innerHTML = '<div class="kb-empty">Connection error — could not reach the server.</div>';
         return;
     }
-    title.textContent = c.name ? `${c.name} — ${c.id}` : `Customer ${c.id}`;
+    title.textContent = c.name || `Customer ${c.id}`;
     const item = (label, html, full) => html
         ? `<div class="detail-item"${full ? ' style="grid-column:1/-1"' : ''}><div class="detail-label">${label}</div><div class="detail-value">${html}</div></div>`
         : '';
-    const contactsHtml = (c.contacts || []).map(ct => {
+    const contactLine = ct => {
         const link = ct.kind === 'email'
             ? `<a href="mailto:${esc(ct.value)}">${esc(ct.value)}</a>`
             : `<a href="tel:${esc(ct.value.replace(/[^0-9+]/g, ''))}">${esc(ct.value)}</a>`;
         return `${link}${ct.desc ? ` <span style="color:var(--text-muted);font-size:0.78rem;">(${esc(ct.desc)})</span>` : ''}`;
-    }).join('<br>');
+    };
+    const contacts = c.contacts || [];
+    const phones = contacts.filter(ct => ct.kind === 'phone').map(contactLine).join('<br>');
+    const emails = contacts.filter(ct => ct.kind === 'email').map(contactLine).join('<br>');
     const addr = [c.addr1, c.addr2, [c.city, c.state].filter(Boolean).join(', ') + (c.zip ? ' ' + c.zip : '')]
         .map(s => (s || '').trim()).filter(Boolean).map(esc).join('<br>');
     const st = c.shipto || {};
     const shipto = [st.name, st.addr1, st.addr2, [st.city, st.state].filter(Boolean).join(', ') + (st.zip ? ' ' + st.zip : '')]
         .map(s => (s || '').trim()).filter(Boolean).map(esc).join('<br>');
+    const acct = `<span class="copy-acct" data-acct="${esc(c.id)}" title="Click to copy account number" onclick="copyCustomerAccount(this, event)">${esc(c.id)}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></span>`;
     let h = '<div class="detail-grid">';
-    h += item('Contact', contactsHtml, true);
+    h += item('Account #', acct);
+    h += item('Phone', phones);
+    h += item('Email', emails);
     h += item('Address', addr);
-    h += item('Ship To', shipto);
+    h += item('Shipping Address', shipto);
     h += item('Type', esc(c.type));
     h += item('Entry Date', esc(c.entry_date));
-    h += item('Resale #', esc(c.resale));
-    h += item('Ship Method', esc(c.ship_code));
     h += '</div>';
-    h += `<div id="customerInvoices" style="margin-top:1rem;"></div>`;
     body.innerHTML = h;
-    loadCustomerInvoices(c.id);
 }
 
-async function loadCustomerInvoices(id) {
-    const el = document.getElementById('customerInvoices');
-    if (!el) return;
+function copyCustomerAccount(el, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    const txt = (el.dataset.acct || '').trim();
+    if (!txt) return;
+    const showTip = ok => {
+        el.querySelectorAll('.copy-tip').forEach(t => t.remove());
+        const tip = document.createElement('span');
+        tip.className = 'copy-tip';
+        tip.textContent = ok ? 'Copied!' : 'Copy failed';
+        el.appendChild(tip);
+        setTimeout(() => tip.remove(), 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => showTip(true)).catch(() => showTip(false));
+        return;
+    }
     try {
-        const res = await fetch(`/api/customers/${encodeURIComponent(id)}/invoices`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) return; // invoices are supplementary — fail quietly
-        const invs = data.openInvoices || [];
-        if (!invs.length) {
-            el.innerHTML = '<div class="detail-label">Open Invoices</div><div style="color:var(--text-muted);font-size:0.82rem;">None</div>';
-            return;
-        }
-        let rows = '';
-        for (const inv of invs) {
-            rows += `<tr><td>${esc(inv.id || '')}</td><td>${esc(inv.invDate || '')}</td><td>${esc(inv.status || '')}</td><td>${esc(inv.po || '')}</td><td style="text-align:right;">${esc(inv.invTotal || '')}</td></tr>`;
-        }
-        el.innerHTML = `<div class="detail-label" style="margin-bottom:0.35rem;">Open Invoices (${invs.length})</div>
-            <div class="parts-table-wrap"><table class="parts-table" style="min-width:0;">
-            <thead><tr><th>Invoice</th><th>Date</th><th>Status</th><th>PO</th><th style="text-align:right;">Total</th></tr></thead>
-            <tbody>${rows}</tbody></table></div>`;
-    } catch { /* supplementary — ignore */ }
+        const ta = document.createElement('textarea');
+        ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showTip(true);
+    } catch { showTip(false); }
 }
 
 /* ── Settings → Modules → Customers config (admin) ── */
