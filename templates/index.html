@@ -351,7 +351,7 @@ body {
 }
 /* Dashboard sits above the module sections rather than inside one, so it takes
    the header tier's size (0.8rem) instead of the nav-item tier's 0.7rem. */
-.nav-item[data-view="dashboard"] { font-size: 0.8rem; }
+.nav-item[data-view="dashboard"], #navZoneChartLink { font-size: 0.8rem; }
 /* Admin-defined external links: top-level tier like Dashboard. The trailing
    arrow marks them as leaving the app. */
 .nav-custom-link { font-size: 0.8rem; text-decoration: none; }
@@ -2889,6 +2889,10 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
             Dashboard
         </button>
+        <button class="nav-item" id="navZoneChartLink" onclick="window.location.href='/zonechart'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            UPS Zone Chart
+        </button>
     </div>
     <nav class="sidebar-nav">
         <div id="navSectionInventory" class="nav-section">
@@ -3250,6 +3254,19 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     <div class="module-row-controls">
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleGlossaryToggle" onchange="saveModule('glossary', this.checked)">
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-label">UPS Zone Chart</div>
+                        <div class="settings-desc">Interactive UPS zone map and time-in-transit lookup by origin/destination ZIP. Opens as its own page from the sidebar.</div>
+                    </div>
+                    <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleZoneChartManageBtn" style="display:none;" onclick="window.location.href='/zonechart/admin'">Manage</button>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="moduleZoneChartToggle" onchange="saveModule('zone_chart', this.checked)">
                             <span class="toggle-track"></span>
                         </label>
                     </div>
@@ -4630,6 +4647,7 @@ function refreshModuleToggles() {
     set('moduleWorkOrdersToggle', m.work_orders);
     set('moduleKnowledgeBaseToggle', m.knowledge_base);
     set('moduleGlossaryToggle', m.glossary);
+    set('moduleZoneChartToggle', m.zone_chart);
     // The Glossary sub-toggle is only meaningful while KB is on.
     const gt = document.getElementById('moduleGlossaryToggle');
     if (gt) gt.disabled = !m.knowledge_base;
@@ -4664,7 +4682,7 @@ async function saveModule(name, enabled) {
         }
         // Keep the glossary toggle's disabled state in sync after a KB change.
         refreshModuleToggles();
-        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary' }[name] || name;
+        const label = { inventory: 'Inventory', work_orders: 'Work Orders', knowledge_base: 'Knowledge Base', glossary: 'Glossary', zone_chart: 'UPS Zone Chart' }[name] || name;
         showToast(`${label} ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch {
         showToast('Connection error', 'error');
@@ -5201,6 +5219,7 @@ function getModules() {
         work_orders: m.work_orders !== false,
         knowledge_base: m.knowledge_base !== false,
         glossary: m.glossary !== false,
+        zone_chart: m.zone_chart !== false,
     };
 }
 function applyModuleVisibility() {
@@ -5209,10 +5228,12 @@ function applyModuleVisibility() {
     setDisp('navSectionInventory', m.inventory);
     setDisp('navSectionWorkOrders', m.work_orders);
     setDisp('navSectionKnowledgeBase', m.knowledge_base);
+    setDisp('navZoneChartLink', m.zone_chart);
     // Manage buttons in the Modules tab: shown only when the module is enabled.
     setDisp('moduleInventoryManageBtn', m.inventory);
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
     setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
+    setDisp('moduleZoneChartManageBtn', m.zone_chart);
     // WordPress → KB importer (Data tab) only makes sense when KB is enabled.
     setDisp('settingsKbWpImport', m.knowledge_base);
     // Glossary sub-module: sidebar item + its Data-tab tools, gated on KB AND glossary.

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zone Chart Admin · Warehouse Manager</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='zonechart/css/app.css') }}">
+<link rel="icon" href="/static/favicon.png">
+</head>
+<body>
+<div class="app">
+
+  <header class="masthead">
+    <div class="masthead-title">
+      <span class="eyebrow">UPS Zone Chart · admin</span>
+      <h1>Rate data</h1>
+    </div>
+    <div class="masthead-right admin-nav">
+      <a class="ghost-btn" href="/zonechart">← Map</a>
+      <a class="ghost-btn" href="/">Warehouse Manager</a>
+    </div>
+  </header>
+
+  <main class="admin-layout">
+
+    <section class="card refresh-card">
+      <div class="refresh-head">
+        <div>
+          <span class="eyebrow">Zone charts on file</span>
+          <div class="stat-row">
+            <span class="stat-num mono" id="stat-charts">—</span>
+            <span class="stat-of" id="stat-of">of — mapped prefixes</span>
+          </div>
+          <div class="stat-sub" id="stat-age">—</div>
+        </div>
+        <div class="refresh-actions">
+          <label class="force-label">
+            <input type="checkbox" id="force-box"> Force full re-download
+          </label>
+          <button class="solid-btn" id="refresh-btn" type="button">Refresh charts</button>
+          <button class="ghost-btn" id="cancel-btn" type="button" hidden>Cancel</button>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="progress-wrap" hidden>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-meta">
+          <span id="progress-label">—</span>
+          <span class="mono" id="progress-current"></span>
+        </div>
+      </div>
+
+      <div class="run-summary" id="run-summary"></div>
+
+      <div class="prefix-grid-wrap">
+        <div class="prefix-grid" id="prefix-grid" aria-label="Per-prefix download status"></div>
+        <div class="grid-legend">
+          <span><i class="cell-swatch sw-done"></i> downloaded</span>
+          <span><i class="cell-swatch sw-cached"></i> already current</span>
+          <span><i class="cell-swatch sw-active"></i> fetching</span>
+          <span><i class="cell-swatch sw-missing"></i> unavailable</span>
+          <span><i class="cell-swatch sw-pending"></i> queued</span>
+        </div>
+      </div>
+    </section>
+
+    <p class="fine-print">
+      Refresh downloads the official chart for every origin prefix directly
+      from ups.com, pacing requests a couple of seconds apart. Without
+      “force” it only fetches charts that are missing or invalid. New charts
+      go live the moment the run finishes. UPS typically updates rates in
+      late December. If ups.com blocks the server (bot protection), charts
+      can also be dropped into the data volume's
+      <span class="mono">zonechart/charts/</span> directory as
+      <span class="mono">NNN.xls</span> files.
+    </p>
+
+    <section class="card settings-card">
+      <span class="eyebrow">Frontend</span>
+      <h2 class="settings-title">Origin selection</h2>
+      <label class="force-label">
+        <input type="checkbox" id="lock-box">
+        Lock the map to a single origin (hides the “Change” button)
+      </label>
+      <div class="settings-row">
+        <label class="settings-label" for="lock-origin">Origin ZIP</label>
+        <input id="lock-origin" class="mono settings-input" type="text"
+               inputmode="numeric" maxlength="5" placeholder="e.g. 43952">
+        <button id="frontend-save" class="solid-btn" type="button">Save</button>
+      </div>
+      <p class="search-msg" id="frontend-msg" role="status"></p>
+    </section>
+
+  </main>
+</div>
+<script src="{{ url_for('static', filename='zonechart/js/admin.js') }}"></script>
+</body>
+</html>
