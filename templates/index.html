@@ -218,15 +218,17 @@ body {
 /* Collapsible module section header (caret + label). Resets button chrome but
    inherits the .sidebar-section-label type styles. */
 .nav-section-header {
-    display: flex; align-items: center; gap: 5px;
+    display: flex; align-items: center; gap: 0.6rem;
     width: 100%; text-align: left; background: none; border: none;
     border-radius: var(--radius); cursor: pointer;
     transition: color var(--transition), background var(--transition);
     /* Sits a step above the nav items beneath it (0.7rem), so the two tiers
-       read as a hierarchy rather than one flat list. Case matches the items. */
-    font-size: 0.8rem; text-transform: none; letter-spacing: 0;
+       read as a hierarchy rather than one flat list. Type matches the
+       Dashboard link (.nav-item at 0.8rem) so the top-level entries align. */
+    font-family: var(--font); font-size: 0.8rem; font-weight: 500;
+    text-transform: none; letter-spacing: 0; color: var(--text-secondary);
 }
-.nav-section-header:hover { color: var(--text-secondary); background: var(--bg-card); }
+.nav-section-header:hover { color: var(--text-primary); background: var(--bg-card); }
 .nav-caret {
     flex-shrink: 0; transition: transform 0.22s ease; opacity: 0.8;
 }

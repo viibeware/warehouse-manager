@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.7.6
+- <strong>Sidebar section headers match the Dashboard link</strong> — The module section headers (Inventory, Work Orders, Knowledge Base) previously used the monospace label typeface, which rendered slightly thinner than the Dashboard link despite sharing its 0.8rem size. They now use the same font, weight, and color as Dashboard, and the gap between the caret and the header text matches the gap between the Dashboard icon and its label.
+
 ## v1.7.5
 - <strong>External glossary endpoint</strong> — The external Knowledge Base API gained <code>GET /api/external/kb/glossary</code>, returning all glossary terms (<code>term</code>, <code>definition</code>, <code>letter</code>) so the WMKB Frontend companion site can mirror the glossary. Authenticated with the same <code>X-API-Key</code> mechanism as the other external KB routes; when the glossary sub-module is toggled off, it returns an empty list so a consumer prunes its mirror.
 
