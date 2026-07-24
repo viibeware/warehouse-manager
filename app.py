@@ -6126,10 +6126,14 @@ def zonechart_embed():
     conn.close()
     if not enabled:
         return redirect('/')
-    return render_template('zonechart.html',
-                           default_origin=_zc_config()['default_origin'][:3],
-                           version=APP_VERSION,
-                           is_admin=current_user.is_admin)
+    resp = Response(render_template('zonechart.html',
+                                    default_origin=_zc_config()['default_origin'][:3],
+                                    version=APP_VERSION,
+                                    is_admin=current_user.is_admin))
+    # Relax the global X-Frame-Options: DENY to SAMEORIGIN — this page renders
+    # inside the SPA's own iframe (same precedent as the KB PDF preview).
+    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
 
 
 @app.route('/zonechart/admin')
@@ -6140,7 +6144,10 @@ def zonechart_admin_page():
     conn.close()
     if not enabled:
         return redirect('/')
-    return render_template('zonechart_admin.html')
+    resp = Response(render_template('zonechart_admin.html'))
+    # Same-origin framing allowed — reached inside the SPA's zone chart frame.
+    resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
 
 
 # ── Read API ──
