@@ -353,6 +353,12 @@ body {
    rather than inside one, so they take the header tier's size (0.8rem)
    instead of the nav-item tier's 0.7rem. */
 .nav-item[data-view="dashboard"], #navCustomersLink, #navZoneChartLink { font-size: 0.8rem; }
+/* Zone Chart view: the map app renders in an iframe filling the content area
+   (its own CSS/DOM would collide with the SPA if inlined). */
+#zonechartContainer iframe {
+    width: 100%; height: calc(100vh - 4.5rem); border: none; display: block;
+    border-radius: var(--radius); background: transparent;
+}
 /* Admin-defined external links: top-level tier like Dashboard. The trailing
    arrow marks them as leaving the app. */
 .nav-custom-link { font-size: 0.8rem; text-decoration: none; }
@@ -2905,7 +2911,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Customers
         </button>
-        <button class="nav-item" id="navZoneChartLink" onclick="window.location.href='/zonechart'">
+        <button class="nav-item" id="navZoneChartLink" data-view="zonechart" onclick="showZoneChartView()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
             UPS Zone Chart
         </button>
@@ -3086,6 +3092,9 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             </div>
             <div id="customersResults"></div>
             <div id="customersEmptyState" class="kb-empty" style="display:none;"></div>
+        </div>
+        <div id="zonechartContainer" style="display:none;">
+            <iframe id="zonechartFrame" title="UPS Zone Chart"></iframe>
         </div>
     </div>
 </div>
@@ -3342,7 +3351,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                         <div class="settings-desc">Interactive UPS zone map and time-in-transit lookup by origin/destination ZIP. Opens as its own page from the sidebar.</div>
                     </div>
                     <div class="module-row-controls">
-                        <button class="btn btn-ghost btn-sm" id="moduleZoneChartManageBtn" style="display:none;" onclick="window.location.href='/zonechart/admin'">Manage</button>
+                        <button class="btn btn-ghost btn-sm" id="moduleZoneChartManageBtn" style="display:none;" onclick="closeModal('settingsModal'); showZoneChartView(true, '/zonechart/admin');">Manage</button>
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleZoneChartToggle" onchange="saveModule('zone_chart', this.checked)">
                             <span class="toggle-track"></span>
@@ -4757,7 +4766,8 @@ async function saveModule(name, enabled) {
         const showingWo = document.getElementById('workOrdersContainer').style.display !== 'none';
         const showingParts = document.getElementById('partsToolbar').style.display !== 'none';
         const showingCustomers = document.getElementById('customersContainer').style.display !== 'none';
-        if ((!m.knowledge_base && showingKb) || (!m.work_orders && showingWo) || (!m.inventory && showingParts) || (!m.customers && showingCustomers)) {
+        const showingZonechart = document.getElementById('zonechartContainer').style.display !== 'none';
+        if ((!m.knowledge_base && showingKb) || (!m.work_orders && showingWo) || (!m.inventory && showingParts) || (!m.customers && showingCustomers) || (!m.zone_chart && showingZonechart)) {
             showDashboard();
         }
         // Keep the glossary toggle's disabled state in sync after a KB change.
@@ -5955,6 +5965,7 @@ function setCategoryBySlug(slug, push) {
     exitDashboard();
     exitKnowledgeBaseView();
     exitCustomersView();
+    exitZoneChartView();
     currentCategory = slug || '';
     currentPage = 1;
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === currentCategory));
@@ -7071,6 +7082,7 @@ async function showKnowledgeBaseView(slug='', push=true) {
     exitWorkOrdersView();
     exitDashboard();
     exitCustomersView();
+    exitZoneChartView();
     currentKbCategory = slug || '';
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
@@ -8247,6 +8259,7 @@ async function showWorkOrdersView(view, push=true) {
     exitDashboard();
     exitKnowledgeBaseView();
     exitCustomersView();
+    exitZoneChartView();
     currentWoView = view;
     currentWoStatusFilter = 'all';
     // Archive-only sort options get reset when leaving the archive so the
@@ -8292,6 +8305,7 @@ async function showSingleWorkOrder(ident, push=true) {
     exitDashboard();
     exitKnowledgeBaseView();
     exitCustomersView();
+    exitZoneChartView();
     // Reuse the list-view's container + status helpers so the layout matches
     currentWoView = 'active';
     currentWoStatusFilter = 'all';
@@ -8368,6 +8382,7 @@ async function showDashboard(push=true) {
     exitWorkOrdersView();
     exitKnowledgeBaseView();
     exitCustomersView();
+    exitZoneChartView();
     currentDashboard = true;
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
@@ -8689,6 +8704,7 @@ function showCustomersView(push=true) {
     exitWorkOrdersView();
     exitDashboard();
     exitKnowledgeBaseView();
+    exitZoneChartView();
     // Hide parts UI
     document.getElementById('partsToolbar').style.display = 'none';
     document.getElementById('partsGrid').style.display = 'none';
@@ -8903,6 +8919,44 @@ async function saveCustomersConfig() {
 }
 
 // ══════════════════════════════════════════
+//  UPS ZONE CHART (embedded)
+//  The map app is served at /zonechart/embed and shown here in an iframe so
+//  the SPA chrome (sidebar, header) stays intact around it.
+// ══════════════════════════════════════════
+function exitZoneChartView() {
+    document.getElementById('zonechartContainer').style.display = 'none';
+}
+
+function showZoneChartView(push=true, src='/zonechart/embed') {
+    if (!getModules().zone_chart) { showDashboard(); return; }
+    exitWorkOrdersView();
+    exitDashboard();
+    exitKnowledgeBaseView();
+    exitCustomersView();
+    // Hide parts UI
+    document.getElementById('partsToolbar').style.display = 'none';
+    document.getElementById('partsGrid').style.display = 'none';
+    document.getElementById('partsTable').innerHTML = '';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('bulkBar').style.display = 'none';
+    document.getElementById('loadingSpinner').style.display = 'none';
+    document.getElementById('zonechartContainer').style.display = '';
+    // The frame loads lazily on first open (the geo data is ~2.6 MB) and is
+    // kept loaded afterwards so revisiting doesn't re-fetch or lose state.
+    const frame = document.getElementById('zonechartFrame');
+    if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+    // Nav active state
+    document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-customers-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'zonechart'));
+    document.getElementById('sidebar').classList.remove('open');
+    if (push) history.pushState({ view: 'zonechart' }, '', '/zonechart');
+}
+
+// ══════════════════════════════════════════
 //  URL ROUTING
 // ══════════════════════════════════════════
 function initViewFromUrl() {
@@ -8929,6 +8983,8 @@ function initViewFromUrl() {
         showKnowledgeBaseView(slug, false);
     } else if (path === '/customers') {
         showCustomersView(false);
+    } else if (path === '/zonechart') {
+        showZoneChartView(false);
     } else {
         // '/', '/dashboard' or anything unknown → dashboard
         showDashboard(false);

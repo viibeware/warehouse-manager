@@ -11,7 +11,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.10.0'
+APP_VERSION = '1.9.0'
 
 
 def _compute_build_fingerprint():
@@ -2479,6 +2479,7 @@ def _is_setup_complete():
 @app.route('/kb')
 @app.route('/kb/<slug>')
 @app.route('/customers')
+@app.route('/zonechart')
 @login_required
 def index(slug=None, wid=None, wo_number=None):
     # Fresh install: bounce admins into the setup wizard before they see
@@ -6113,9 +6114,13 @@ def _zonechart_guard():
 
 # ── Pages ──
 
-@app.route('/zonechart')
+@app.route('/zonechart/embed')
 @login_required
-def zonechart_page():
+def zonechart_embed():
+    """The map app itself. The SPA shows it inside the main content area via
+    an iframe (its D3 UI and theme CSS would collide with the SPA's DOM if
+    inlined), so the sidebar and app chrome stay intact. /zonechart is the
+    SPA route that hosts the frame."""
     conn = get_db()
     enabled = _module_enabled(conn, 'zone_chart')
     conn.close()
