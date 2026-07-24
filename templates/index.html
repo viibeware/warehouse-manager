@@ -41,6 +41,11 @@
     --yes: #10b981;
     --no: #ef4444;
     --sidebar-w: 240px;
+    /* Sidebar link hover. Translucent so it reads as light grey on the white
+       sidebars (light/neobrutal-light/solarpunk, where --bg-card is the same
+       white as the sidebar and would be invisible) and as a subtle lighten on
+       the dark themes. */
+    --nav-hover: rgba(127, 135, 150, 0.16);
 }
 
 /* ── DARK THEME (default) ── */
@@ -228,7 +233,7 @@ body {
     font-family: var(--font); font-size: 0.8rem; font-weight: 500;
     text-transform: none; letter-spacing: 0; color: var(--text-secondary);
 }
-.nav-section-header:hover { color: var(--text-primary); background: var(--bg-card); }
+.nav-section-header:hover { color: var(--text-primary); background: var(--nav-hover); }
 .nav-caret {
     flex-shrink: 0; transition: transform 0.22s ease; opacity: 0.8;
 }
@@ -347,7 +352,7 @@ body {
 /* Dashboard sits above the module sections rather than inside one, so it takes
    the header tier's size (0.8rem) instead of the nav-item tier's 0.7rem. */
 .nav-item[data-view="dashboard"] { font-size: 0.8rem; }
-.nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.nav-item:hover { background: var(--nav-hover); color: var(--text-primary); }
 .nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 .nav-item svg { flex-shrink: 0; }
 .nav-item .nav-count {
@@ -1022,7 +1027,10 @@ body {
 
 /* ── DASHBOARD ── */
 #dashboardContainer { padding: 0.25rem 0 1rem; }
-.dashboard-header { margin-bottom: 1.15rem; }
+.dashboard-header {
+    margin-bottom: 1.15rem;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+}
 .dashboard-header h1 {
     font-family: 'Inter', sans-serif; font-size: 1.35rem; font-weight: 700;
     color: var(--text-primary); letter-spacing: -0.02em;
@@ -1031,6 +1039,36 @@ body {
     font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;
     font-family: var(--mono);
 }
+/* "Customize" popover: per-user widget visibility checkboxes. */
+.dash-customize { position: relative; flex-shrink: 0; }
+.dash-customize-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.45rem 0.7rem; background: none;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-secondary); font-family: var(--font); font-size: 0.74rem;
+    font-weight: 500; cursor: pointer;
+    transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.dash-customize-btn:hover { color: var(--text-primary); border-color: var(--accent); background: var(--nav-hover); }
+.dash-customize-panel {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 50;
+    min-width: 220px; padding: 0.5rem;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.dash-customize-title {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+    padding: 0.25rem 0.5rem 0.45rem;
+}
+.dash-customize-row {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.42rem 0.5rem; border-radius: var(--radius);
+    font-size: 0.8rem; color: var(--text-primary); cursor: pointer;
+    transition: background var(--transition);
+}
+.dash-customize-row:hover { background: var(--nav-hover); }
+.dash-customize-row input { accent-color: var(--accent); cursor: pointer; }
 .dashboard-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
 }
@@ -5603,6 +5641,7 @@ function setCategoryBySlug(slug, push) {
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === currentCategory));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('partsToolbar').style.display = '';
     if (push) {
         const url = currentCategory ? `/parts/${currentCategory}` : '/parts';
@@ -7892,6 +7931,7 @@ async function showWorkOrdersView(view, push=true) {
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === view));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('sidebar').classList.remove('open');
     if (push) {
         const url = view === 'archive' ? '/workorders/archive' : '/workorders';
@@ -7927,6 +7967,7 @@ async function showSingleWorkOrder(ident, push=true) {
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.toggle('active', b.dataset.woView === 'active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
     document.getElementById('sidebar').classList.remove('open');
     await loadWoSettings();
     woc.innerHTML = `
@@ -7999,67 +8040,144 @@ async function showDashboard(push=true) {
     // Nav
     document.querySelectorAll('.nav-item[data-category]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-wo-view]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-item[data-kb-view]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'dashboard'));
     document.getElementById('sidebar').classList.remove('open');
     if (push) {
         history.pushState({ view: 'dashboard' }, '', '/dashboard');
     }
+    dashCustomizeOpen = false;
     await renderDashboard();
 }
+
+/* Per-user dashboard widget visibility. Stored in localStorage (same pattern
+   as wm-theme / wm-nav-collapsed) keyed by user id so accounts sharing a
+   browser keep separate layouts. A widget is only offered when its module is
+   enabled (Locked Accounts only to admins); unknown keys default to on, so a
+   widget added in a later release shows up without anyone re-saving prefs. */
+const DASHBOARD_WIDGETS = [
+    { key: 'locked_accounts', label: 'Locked Accounts', adminOnly: true },
+    { key: 'work_orders', label: 'Work Orders', module: 'work_orders' },
+    { key: 'recent_parts', label: 'Recent Part Updates', module: 'inventory' },
+    { key: 'knowledge_base', label: 'Knowledge Base', module: 'knowledge_base' },
+];
+let dashCustomizeOpen = false;
+
+function dashboardPrefsKey() {
+    return `wm-dashboard-widgets:${(currentUserData && currentUserData.id) || 'anon'}`;
+}
+function dashboardWidgetPrefs() {
+    try { return JSON.parse(localStorage.getItem(dashboardPrefsKey()) || '{}'); } catch { return {}; }
+}
+function availableDashboardWidgets() {
+    const mods = getModules();
+    const isAdmin = currentUserData && currentUserData.role === 'admin';
+    return DASHBOARD_WIDGETS.filter(w => (!w.adminOnly || isAdmin) && (!w.module || mods[w.module]));
+}
+function toggleDashboardWidget(key, on) {
+    const prefs = dashboardWidgetPrefs();
+    prefs[key] = !!on;
+    localStorage.setItem(dashboardPrefsKey(), JSON.stringify(prefs));
+    renderDashboard();
+}
+function toggleDashCustomize(ev) {
+    if (ev) ev.stopPropagation();
+    dashCustomizeOpen = !dashCustomizeOpen;
+    const panel = document.getElementById('dashCustomizePanel');
+    if (panel) panel.style.display = dashCustomizeOpen ? '' : 'none';
+}
+// Click anywhere outside the popover closes it (clicks inside — including the
+// checkboxes — stay within .dash-customize and are ignored).
+document.addEventListener('click', (e) => {
+    if (!dashCustomizeOpen) return;
+    if (e.target.closest && e.target.closest('.dash-customize')) return;
+    dashCustomizeOpen = false;
+    const panel = document.getElementById('dashCustomizePanel');
+    if (panel) panel.style.display = 'none';
+});
 
 async function renderDashboard() {
     const container = document.getElementById('dashboardContainer');
     const name = (currentUserData && (currentUserData.display_name || currentUserData.username)) || 'there';
     const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-    const isAdmin = currentUserData && currentUserData.role === 'admin';
-    const lockedWidget = isAdmin
-        ? `<div class="dashboard-widget" id="widgetLockedAccountsWrap" style="display:none;">
+    const prefs = dashboardWidgetPrefs();
+    const avail = availableDashboardWidgets();
+    const on = key => avail.some(w => w.key === key) && prefs[key] !== false;
+
+    const widgets = [];
+    if (on('locked_accounts')) widgets.push(`
+        <div class="dashboard-widget" id="widgetLockedAccountsWrap" style="display:none;">
             <div class="widget-header">
                 <span>Locked Accounts</span>
                 <a onclick="refreshLockedAccounts()">Refresh</a>
             </div>
             <div class="widget-body" id="widgetLockedAccounts"><div class="widget-empty">Checking…</div></div>
-           </div>`
-        : '';
+        </div>`);
+    if (on('work_orders')) widgets.push(`
+        <div class="dashboard-widget">
+            <div class="widget-header">
+                <span>Work Orders</span>
+                <a onclick="showWorkOrdersView('active')">View all →</a>
+            </div>
+            <div id="widgetWoSummary"><div class="widget-empty">Loading…</div></div>
+            <div class="widget-subheader">Active</div>
+            <div class="widget-body" id="widgetRecentWos"><div class="widget-empty">Loading…</div></div>
+        </div>`);
+    if (on('recent_parts')) widgets.push(`
+        <div class="dashboard-widget">
+            <div class="widget-header">
+                <span>Recent Part Updates</span>
+                <a onclick="setCategoryBySlug('', true)">All parts →</a>
+            </div>
+            <div class="widget-body" id="widgetRecentParts"><div class="widget-empty">Loading…</div></div>
+        </div>`);
+    if (on('knowledge_base')) widgets.push(`
+        <div class="dashboard-widget">
+            <div class="widget-header">
+                <span>Knowledge Base</span>
+                <a onclick="showKnowledgeBaseView('')">View all →</a>
+            </div>
+            <div class="widget-subheader">Recently added</div>
+            <div class="widget-body" id="widgetRecentKb"><div class="widget-empty">Loading…</div></div>
+        </div>`);
+
     container.innerHTML = `
         <div class="dashboard-header">
-            <h1>Welcome, ${esc(name)}</h1>
-            <div class="sub">${esc(today)}</div>
-        </div>
-        <div class="dashboard-grid">
-            ${lockedWidget}
-            <div class="dashboard-widget">
-                <div class="widget-header">
-                    <span>Work Orders</span>
-                    <a onclick="showWorkOrdersView('active')">View all →</a>
-                </div>
-                <div id="widgetWoSummary"><div class="widget-empty">Loading…</div></div>
-                <div class="widget-subheader">Active</div>
-                <div class="widget-body" id="widgetRecentWos"><div class="widget-empty">Loading…</div></div>
+            <div>
+                <h1>Welcome, ${esc(name)}</h1>
+                <div class="sub">${esc(today)}</div>
             </div>
-            <div class="dashboard-widget">
-                <div class="widget-header">
-                    <span>Recent Part Updates</span>
-                    <a onclick="setCategoryBySlug('', true)">All parts →</a>
+            <div class="dash-customize">
+                <button class="dash-customize-btn" onclick="toggleDashCustomize(event)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                    Customize
+                </button>
+                <div class="dash-customize-panel" id="dashCustomizePanel" style="display:${dashCustomizeOpen ? '' : 'none'};">
+                    <div class="dash-customize-title">Dashboard widgets</div>
+                    ${avail.map(w => `<label class="dash-customize-row"><input type="checkbox" ${prefs[w.key] !== false ? 'checked' : ''} onchange="toggleDashboardWidget('${w.key}', this.checked)">${esc(w.label)}</label>`).join('')}
                 </div>
-                <div class="widget-body" id="widgetRecentParts"><div class="widget-empty">Loading…</div></div>
             </div>
         </div>
+        <div class="dashboard-grid">${widgets.join('')}</div>
+        ${widgets.length ? '' : '<div class="widget-empty">All widgets are hidden — use Customize to turn some back on.</div>'}
     `;
-    // Fetch in parallel
+    // Fetch only what the visible widgets need.
+    const jobs = [];
+    if (on('recent_parts')) jobs.push(
+        fetch('/api/parts?sort_by=updated_at&sort_dir=desc&per_page=6&page=1')
+            .then(r => r.json()).then(d => renderRecentParts(d.parts || [])));
+    if (on('work_orders')) {
+        jobs.push(fetch('/api/work-orders/counts').then(r => r.json()).then(renderWoSummary));
+        jobs.push(fetch('/api/work-orders?sort_by=request_date&sort_dir=desc')
+            .then(r => r.json()).then(o => renderRecentWos((o || []).slice(0, 6))));
+    }
+    if (on('knowledge_base')) jobs.push(loadKbWidget());
     try {
-        const [partsResp, counts, orders] = await Promise.all([
-            fetch('/api/parts?sort_by=updated_at&sort_dir=desc&per_page=6&page=1').then(r => r.json()),
-            fetch('/api/work-orders/counts').then(r => r.json()),
-            fetch('/api/work-orders?sort_by=request_date&sort_dir=desc').then(r => r.json()),
-        ]);
-        renderWoSummary(counts);
-        renderRecentParts(partsResp.parts || []);
-        renderRecentWos((orders || []).slice(0, 6));
+        await Promise.all(jobs);
     } catch {
         showToast('Failed to load dashboard data', 'error');
     }
-    if (isAdmin) refreshLockedAccounts();
+    if (on('locked_accounts')) refreshLockedAccounts();
 }
 
 async function refreshLockedAccounts() {
@@ -8165,6 +8283,45 @@ function renderRecentWos(orders) {
                     <span class="wo-status-badge ${wo.status}">${wo.status}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${(wo.priority||'').toLowerCase().replace(/\s+/g,'-')}">${esc(wo.priority)}</span>` : ''}
                     ${wo.vehicle ? `<span>${esc(wo.vehicle)}</span>` : ''}
+                </div>
+            </div>
+            <div class="widget-row-meta">${esc(when)}</div>
+        </div>`;
+    }).join('');
+}
+
+/* Knowledge Base widget: the most recently added documents. The documents
+   endpoint has no recency sort (the KB view orders by sort_order/title), so
+   sort client-side on created_at and keep the newest six. The glossary
+   aggregate entry is excluded — it's a rebuilt container, not a new doc. */
+async function loadKbWidget() {
+    const el = document.getElementById('widgetRecentKb');
+    if (!el) return;
+    const [docsResp, catsResp] = await Promise.all([
+        fetch('/api/kb/documents').then(r => r.json()),
+        fetch('/api/kb/categories').then(r => r.json()),
+    ]);
+    const catNames = {};
+    (catsResp.categories || []).forEach(c => { catNames[c.id] = c.name; });
+    const docs = (docsResp.documents || [])
+        .filter(d => d.doc_type !== 'glossary')
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 6);
+    if (!docs.length) { el.innerHTML = '<div class="widget-empty">No documents yet</div>'; return; }
+    el.innerHTML = docs.map(d => {
+        const img = d.has_featured ? d.featured_image : (d.is_image && d.has_file ? d.filename : '');
+        const thumb = img
+            ? `<img class="widget-thumb" src="/uploads/${esc(img)}" alt="">`
+            : `<div class="widget-thumb-ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>`;
+        const when = (d.created_at || '').split('.')[0].replace('T', ' ').substring(0, 16);
+        const cat = d.category_id ? (catNames[d.category_id] || '') : 'Uncategorized';
+        return `<div class="widget-row" onclick="openKbDetailById(${d.id})">
+            ${thumb}
+            <div class="widget-row-text">
+                <div class="widget-row-title">${esc(d.title)}</div>
+                <div class="widget-row-sub">
+                    ${cat ? `<span>${esc(cat)}</span>` : ''}
+                    ${d.ext ? `<span style="font-family:var(--mono);font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);">${esc(d.ext)}</span>` : ''}
                 </div>
             </div>
             <div class="widget-row-meta">${esc(when)}</div>

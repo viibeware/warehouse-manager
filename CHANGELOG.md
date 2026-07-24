@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.8
+- <strong>Knowledge Base dashboard widget</strong> — The dashboard gained a Knowledge Base widget listing the six most recently added documents with thumbnail (featured image when set), category, file type, and date added. Clicking a row opens the document; "View all →" jumps to the Knowledge Base.
+- <strong>Customizable dashboard</strong> — A new <strong>Customize</strong> button on the dashboard lets each user choose which widgets appear (Work Orders, Recent Part Updates, Knowledge Base, and — for admins — Locked Accounts). Choices are saved per user in the browser. Widgets belonging to a disabled module are no longer rendered or fetched, so disabling e.g. Work Orders no longer produces failed dashboard requests.
+- <strong>Fix: sidebar highlight stuck on two links</strong> — Navigating from a Knowledge Base page to the Dashboard (or Parts / Work Orders) left the previous link highlighted alongside the new one. Only the section currently shown in the content area is highlighted now.
+
+## v1.7.7
+- <strong>Visible sidebar hover</strong> — Hovering a sidebar link or section header now shows a light grey background. Previously the hover color was the theme's card color, which on the white-sidebar themes (Light, Neobrutal Light, Solarpunk) is the same white as the sidebar itself, so hovering showed nothing. The new translucent grey reads as light grey on white sidebars and as a subtle lighten on the dark themes.
+
 ## v1.7.6
 - <strong>Sidebar section headers match the Dashboard link</strong> — The module section headers (Inventory, Work Orders, Knowledge Base) previously used the monospace label typeface, which rendered slightly thinner than the Dashboard link despite sharing its 0.8rem size. They now use the same font, weight, and color as Dashboard, and the gap between the caret and the header text matches the gap between the Dashboard icon and its label.
 
