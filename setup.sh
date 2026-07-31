@@ -35,7 +35,11 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 # ── 4. Python virtual environment & dependencies ──
 echo "[4/6] Creating Python virtual environment..."
 sudo -u "$APP_USER" python3 -m venv "$APP_DIR/venv"
-sudo -u "$APP_USER" "$APP_DIR/venv/bin/pip" install --quiet flask flask-login gunicorn openpyxl
+# Install from requirements.txt so this matches the Docker image exactly.
+# The old inline list omitted Pillow, qrcode, reportlab and xlrd, so image
+# uploads, QR codes, label PDFs and legacy zone-chart workbooks all failed at
+# runtime on a setup.sh install.
+sudo -u "$APP_USER" "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
 
 # ── 5. Initialize database ──
 echo "[5/6] Initializing database..."

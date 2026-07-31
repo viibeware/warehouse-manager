@@ -92,6 +92,56 @@ If using a custom port via `.env`, update your compose ports:
       - "${WM_PORT:-5059}:5000"
 ```
 
+## Deployment & Security
+
+Warehouse Manager serves plain HTTP and does not terminate TLS itself. Anything
+beyond a trusted LAN should sit behind a reverse proxy that does.
+
+**1. Put it behind HTTPS.** Caddy needs one line and obtains a certificate
+automatically:
+
+```caddyfile
+warehouse.example.com {
+    reverse_proxy 127.0.0.1:5059
+}
+```
+
+**2. Then turn on secure cookies.** Once — and only once — the app is reached
+over HTTPS, set `WM_SECURE_COOKIES=1` (there is a commented-out line for it in
+`docker-compose.yml`). It marks the session cookies `Secure`, so a browser will
+never send them over plain HTTP. Setting it while still serving HTTP prevents
+sign-in from working at all. The server prints a reminder on every boot while
+it is unset.
+
+**3. Finish the setup wizard immediately.** A fresh install seeds an
+`admin` / `admin` account. Until the wizard is completed the API is restricted
+to the wizard's own endpoints and the server prints a warning on every boot,
+but that account is still a valid login — so do not expose a fresh instance to
+an untrusted network before completing it.
+
+**4. Don't publish the host port.** With a reverse proxy on the same machine,
+bind the container to localhost so the plain-HTTP port isn't reachable from
+outside:
+
+```yaml
+    ports:
+      - "127.0.0.1:${WM_PORT:-5059}:5000"
+```
+
+Other things worth knowing:
+
+- The server process runs as an unprivileged user (`wm`, uid 10001). On first
+  start after upgrading, the container takes ownership of `/data` once so the
+  existing database stays writable.
+- Sessions last 90 days by default.
+- Failed sign-ins are rate limited per account (5 attempts, 15-minute lockout)
+  and per source IP (20 attempts per 15 minutes), and are written to the
+  container log with the source address.
+- Behind a reverse proxy every request appears to come from the proxy. If you
+  want real client addresses in those logs and in the IP throttle, wrap the app
+  in Werkzeug's `ProxyFix` with the correct proxy count — don't do it without a
+  proxy in front, or clients can spoof their address.
+
 ## User Roles
 
 | Role | Browse & Search | Add / Edit / Delete | Import / Export | Manage Users & Categories |
