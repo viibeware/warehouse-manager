@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import uuid
 import base64
 import secrets
@@ -11,7 +12,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.9.0'
+APP_VERSION = '1.9.1'
 
 
 def _compute_build_fingerprint():
@@ -44,20 +45,48 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
+def _load_secret_key(path):
+    """Read the persisted session-signing key, creating it on first boot.
+
+    Every Gunicorn worker imports this module separately, so all of them run
+    this on startup. Creation must therefore be atomic: an exists()-then-write
+    sequence lets each worker see no file, generate its own key, and keep that
+    key in memory — so a session signed by one worker is rejected by the
+    others and roughly (workers-1)/workers of all requests fail auth until the
+    container is restarted. O_EXCL makes exactly one worker the creator, and
+    every worker (creator included) reads the key back off disk, so they agree
+    by construction.
+    """
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        pass  # another worker created it; fall through and read theirs
+    else:
+        with os.fdopen(fd, 'w') as f:
+            f.write(secrets.token_hex(32))
+            f.flush()
+            os.fsync(f.fileno())
+    # A worker that lost the race can arrive between the creator's open() and
+    # its write(), so retry briefly rather than accept an empty read. Failing
+    # loudly beats booting with a key nobody else shares.
+    for _ in range(100):
+        try:
+            with open(path, 'r') as f:
+                key = f.read().strip()
+            if key:
+                return key
+        except FileNotFoundError:
+            pass
+        time.sleep(0.02)
+    raise RuntimeError(f'Timed out reading the secret key at {path}')
+
+
 # Secret key: env var > file > auto-generate
 if os.environ.get('SECRET_KEY'):
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 else:
     SECRET_KEY_FILE = os.path.join(DATA_DIR, '.secret_key')
-    if os.path.exists(SECRET_KEY_FILE):
-        with open(SECRET_KEY_FILE, 'r') as f:
-            app.config['SECRET_KEY'] = f.read().strip()
-    else:
-        key = secrets.token_hex(32)
-        with open(SECRET_KEY_FILE, 'w') as f:
-            f.write(key)
-        os.chmod(SECRET_KEY_FILE, 0o600)
-        app.config['SECRET_KEY'] = key
+    app.config['SECRET_KEY'] = _load_secret_key(SECRET_KEY_FILE)
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -81,12 +110,41 @@ ALLOWED_ATTACHMENT_EXTS = {
     'pdf', 'doc', 'docx',
 }
 IMAGE_EXTS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-# Knowledge Base documents accept images, common office/doc formats, plain
-# text, and SVG. KB files are served as downloads (never rendered inline),
-# so SVG carries no XSS risk here.
+# Knowledge Base documents accept images, common office/doc formats, and
+# plain text. SVG is deliberately excluded: browsers execute <script> inside
+# SVG rendered at top level, so accepting it would let any editor plant
+# stored XSS reachable by every user via the download route.
 ALLOWED_KB_EXTS = ALLOWED_ATTACHMENT_EXTS | {
-    'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'svg', 'rtf', 'odt',
+    'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'odt',
 }
+
+# Fixed extension→MIME map for storing and serving uploaded files. The
+# uploader-supplied multipart Content-Type must never be trusted: an allowed
+# extension declared as text/html would be rendered by the browser on the
+# app origin (stored XSS). Anything not in this map is served as
+# application/octet-stream.
+EXT_MIME_MAP = {
+    'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+    'gif': 'image/gif', 'webp': 'image/webp',
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'txt': 'text/plain', 'csv': 'text/csv',
+    'rtf': 'application/rtf',
+    'odt': 'application/vnd.oasis.opendocument.text',
+}
+
+
+def _safe_mime_for(filename):
+    """MIME type for a stored/served file derived only from its extension via
+    EXT_MIME_MAP — never from client-supplied headers."""
+    ext = (filename or '').rsplit('.', 1)[-1].lower()
+    return EXT_MIME_MAP.get(ext, 'application/octet-stream')
+
 
 # Account-lockout policy: lock after N consecutive failures for LOCKOUT_MINUTES.
 LOGIN_FAIL_LIMIT = 5
@@ -1444,7 +1502,6 @@ def save_work_order_attachment(file_field):
     size_bytes) — or None if the extension is not allowed or the save fails."""
     if not (file_field and file_field.filename and _attachment_ext_ok(file_field.filename)):
         return None
-    import mimetypes
     original = os.path.basename(file_field.filename)
     ext = original.rsplit('.', 1)[1].lower()
     if ext in IMAGE_EXTS:
@@ -1461,7 +1518,7 @@ def save_work_order_attachment(file_field):
     except Exception:
         return None
     size = os.path.getsize(path) if os.path.exists(path) else 0
-    mime = file_field.mimetype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
+    mime = _safe_mime_for(stored)
     return (stored, original, mime, size)
 
 
@@ -1490,7 +1547,6 @@ def save_kb_document(file_field):
     fname = file_field.filename
     if '.' not in fname or fname.rsplit('.', 1)[1].lower() not in ALLOWED_KB_EXTS:
         return None
-    import mimetypes
     original = os.path.basename(fname)
     ext = original.rsplit('.', 1)[1].lower()
     if ext in IMAGE_EXTS:
@@ -1507,7 +1563,7 @@ def save_kb_document(file_field):
     except Exception:
         return None
     size = os.path.getsize(path) if os.path.exists(path) else 0
-    mime = file_field.mimetype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
+    mime = _safe_mime_for(stored)
     return (stored, original, mime, size, _file_sha256(path))
 
 
@@ -2622,6 +2678,29 @@ def _normalize_web_url(url):
     return 'https://' + url
 
 
+def _slugify_field_key(key):
+    """Field keys are interpolated into element ids and inline JS on the
+    frontend, so they must be a strict slug — same normalization the category
+    editor UI applies when auto-deriving keys from labels."""
+    return re.sub(r'[^a-z0-9]+', '_', str(key or '').strip().lower()).strip('_')
+
+
+def _custom_field_value_ok(field_type, radio_options, val):
+    """Validate a submitted radio/toggle custom-field value against the
+    field's declared options. The well-behaved client only ever submits
+    declared values, so anything else is a crafted request — and these values
+    are interpolated into pill markup on render, so free-form strings here
+    were a stored-XSS vector. Text/textarea fields accept anything."""
+    if field_type == 'toggle':
+        return val in ('', '0', '1')
+    if field_type == 'radio':
+        if val == '':
+            return True
+        allowed = {o.strip().lower() for o in (radio_options or '').split(',') if o.strip()}
+        return val.lower() in allowed
+    return True
+
+
 
 @app.route('/api/parts', methods=['POST'])
 @editor_required
@@ -2643,7 +2722,7 @@ def create_part():
 
     # Build custom_data from category fields
     cat_fields = conn.execute(
-        "SELECT field_key FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
+        "SELECT field_key, field_type, radio_options FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
     ).fetchall()
     custom_data = {}
     for cf in cat_fields:
@@ -2652,9 +2731,15 @@ def create_part():
             continue  # these are already in SQL columns via form_val
         # Check both custom_ prefixed and direct form keys
         if f"custom_{k}" in f:
-            custom_data[k] = f.get(f"custom_{k}", '')
+            val = f.get(f"custom_{k}", '')
         elif k in f:
-            custom_data[k] = f.get(k, '')
+            val = f.get(k, '')
+        else:
+            continue
+        if not _custom_field_value_ok(cf['field_type'], cf['radio_options'], val):
+            conn.close()
+            return jsonify({'error': f"Invalid value for field '{k}'"}), 400
+        custom_data[k] = val
     # Companion key to the posted_to_web toggle (not a category field itself):
     # the product's URL on the web shop, linked from the detail-modal pill.
     if 'custom_posted_to_web_url' in f:
@@ -2721,7 +2806,7 @@ def update_part(pid):
     import json as json_mod
     shared_keys = {'category', 'sku', 'location', 'fitment_vehicle', 'sold', 'sold_date', 'notes', 'flagged', 'needs_audit', 'audit_note'}
     cat_fields = conn.execute(
-        "SELECT field_key FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
+        "SELECT field_key, field_type, radio_options FROM category_fields WHERE category_slug = ? ORDER BY sort_order", (category,)
     ).fetchall()
     existing_cd = {}
     try:
@@ -2733,9 +2818,15 @@ def update_part(pid):
         if k in shared_keys:
             continue
         if f"custom_{k}" in f:
-            existing_cd[k] = f.get(f"custom_{k}", '')
+            val = f.get(f"custom_{k}", '')
         elif k in f:
-            existing_cd[k] = f.get(k, '')
+            val = f.get(k, '')
+        else:
+            continue
+        if not _custom_field_value_ok(cf['field_type'], cf['radio_options'], val):
+            conn.close()
+            return jsonify({'error': f"Invalid value for field '{k}'"}), 400
+        existing_cd[k] = val
     # Companion key to the posted_to_web toggle (see create_part).
     if 'custom_posted_to_web_url' in f:
         existing_cd['posted_to_web_url'] = _normalize_web_url(f.get('custom_posted_to_web_url', ''))
@@ -2900,7 +2991,7 @@ def create_category():
     for i, f in enumerate(fields_data):
         conn.execute(
             "INSERT INTO category_fields (category_slug, field_key, field_label, field_type, radio_options, show_on_card, show_in_table, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (slug, f.get('field_key', '').strip(), f.get('field_label', '').strip(),
+            (slug, _slugify_field_key(f.get('field_key', '')), f.get('field_label', '').strip(),
              f.get('field_type', 'text'), f.get('radio_options', ''),
              int(f.get('show_on_card', 0)), int(f.get('show_in_table', 0)), i)
         )
@@ -2933,7 +3024,7 @@ def update_category(slug):
         for i, f in enumerate(data['fields']):
             conn.execute(
                 "INSERT INTO category_fields (category_slug, field_key, field_label, field_type, radio_options, show_on_card, show_in_table, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (slug, f.get('field_key', '').strip(), f.get('field_label', '').strip(),
+                (slug, _slugify_field_key(f.get('field_key', '')), f.get('field_label', '').strip(),
                  f.get('field_type', 'text'), f.get('radio_options', ''),
                  int(f.get('show_on_card', 0)), int(f.get('show_in_table', 0)), i)
             )
@@ -2994,7 +3085,10 @@ def _normalize_fitment(raw):
 
 def _normalize_kb_parts(raw):
     """Accept a list of {number,url} dicts (or a JSON string of one) and return
-    a cleaned list, dropping rows where both fields are empty."""
+    a cleaned list, dropping rows where both fields are empty. URLs are pushed
+    through _normalize_web_url — they're rendered as clickable hrefs, so
+    javascript:/data: schemes must never be stored (this also covers URLs
+    arriving via the WordPress importer)."""
     import json as json_mod
     if isinstance(raw, str):
         try:
@@ -3008,7 +3102,7 @@ def _normalize_kb_parts(raw):
         if not isinstance(item, dict):
             continue
         num = str(item.get('number', '') or '').strip()
-        url = str(item.get('url', '') or '').strip()
+        url = _normalize_web_url(str(item.get('url', '') or ''))
         if num or url:
             out.append({'number': num, 'url': url})
     return out
@@ -3698,16 +3792,38 @@ def kb_set_doc_public(did):
     return jsonify({'success': True, 'document': _kb_doc_to_dict(out)})
 
 
+def _send_stored_upload(path, stored_name, original_name):
+    """send_file wrapper for user-uploaded files (KB documents, WO
+    attachments) with a hardened serving policy: the MIME type comes from the
+    stored file's extension via EXT_MIME_MAP — never from the mime_type the
+    uploader declared, which may already hold text/html in old rows — and only
+    known-inert types (raster images, PDF) render inline; everything else is
+    forced to download. A sandboxing CSP is added so even a mislabeled file
+    can't script the app origin. PDF gets default-src 'none' instead of
+    sandbox because Chrome's viewer refuses to render sandboxed PDFs."""
+    from flask import send_file
+    ext = (stored_name or '').rsplit('.', 1)[-1].lower()
+    inline = ext in IMAGE_EXTS or ext == 'pdf'
+    resp = send_file(
+        path,
+        mimetype=_safe_mime_for(stored_name),
+        as_attachment=not inline,
+        download_name=original_name,
+    )
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'none'" if ext == 'pdf' else 'sandbox')
+    return resp
+
+
 def _kb_send_document_file(did, allow_same_origin_frame=False):
     """Send a KB document's stored file with its original name preserved, or a
     bare 404 if the row/file is missing. Shared by the internal (login) and
     external (api-key) download routes. `allow_same_origin_frame` relaxes the
     global X-Frame-Options: DENY to SAMEORIGIN so WM's own PDF-preview iframe
     works — the external consumer is a different origin and never needs it."""
-    from flask import send_file
     conn = get_db()
     row = conn.execute(
-        "SELECT filename, original_name, mime_type FROM kb_documents WHERE id = ?", (did,)
+        "SELECT filename, original_name FROM kb_documents WHERE id = ?", (did,)
     ).fetchone()
     conn.close()
     if not row or not row['filename']:
@@ -3715,12 +3831,7 @@ def _kb_send_document_file(did, allow_same_origin_frame=False):
     path = os.path.join(app.config['UPLOAD_FOLDER'], row['filename'])
     if not os.path.exists(path):
         return '', 404
-    resp = send_file(
-        path,
-        mimetype=row['mime_type'] or 'application/octet-stream',
-        as_attachment=False,
-        download_name=row['original_name'],
-    )
+    resp = _send_stored_upload(path, row['filename'], row['original_name'])
     if allow_same_origin_frame:
         resp.headers['X-Frame-Options'] = 'SAMEORIGIN'
     return resp
@@ -4176,8 +4287,7 @@ def _wp_download_file(url, auth):
             fh.write(data)
     except Exception:
         return None
-    mime = ctype or mimetypes.guess_type(original)[0] or 'application/octet-stream'
-    return (stored, original, mime, len(data))
+    return (stored, original, _safe_mime_for(stored), len(data))
 
 
 def _wp_save_text(title, body_html):
@@ -4873,7 +4983,14 @@ def import_preview():
                     mapped[db_field] = 0
                     errors.append(f"Row {row_idx + 1}: '{db_field}' value '{value}' not recognized, defaulting to No")
             elif db_field in RADIO_FIELDS:
-                mapped[db_field] = value.strip().lower() if value.strip() else 'untested'
+                # Only the declared option values may be stored — radio values
+                # are interpolated into pill markup on render.
+                v = value.strip().lower()
+                if v not in ('yes', 'no', 'untested'):
+                    if v:
+                        errors.append(f"Row {row_idx + 1}: '{db_field}' value '{value}' not recognized, defaulting to Untested")
+                    v = 'untested'
+                mapped[db_field] = v
             else:
                 mapped[db_field] = value.strip()
 
@@ -4951,7 +5068,8 @@ def import_execute():
                 value_lower = str(value).strip().lower()
                 vals[db_field] = 1 if value_lower in ('yes', 'y', '1', 'true') else 0
             elif db_field in RADIO_FIELDS:
-                vals[db_field] = str(value).strip().lower() if str(value).strip() else 'untested'
+                v = str(value).strip().lower()
+                vals[db_field] = v if v in ('yes', 'no', 'untested') else 'untested'
             else:
                 vals[db_field] = value
                 if value:
@@ -7076,7 +7194,11 @@ def _normalize_parts(raw):
         if qty < 1:
             qty = 1
         if desc:
-            key = str(p.get('key', '') or '').strip() or uuid.uuid4().hex
+            # Keys are normally server-generated hex; enforce a safe charset
+            # because they're interpolated into attribute/JS contexts on render.
+            key = str(p.get('key', '') or '').strip()
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', key):
+                key = uuid.uuid4().hex
             out.append({
                 'key': key,
                 'description': desc,
@@ -7495,12 +7617,12 @@ def upload_work_order_attachments(wid):
 @app.route('/api/work-orders/<int:wid>/attachments/<int:att_id>', methods=['GET'])
 @login_required
 def get_work_order_attachment(wid, att_id):
-    """Serve an attachment file inline with its original filename preserved
-    in Content-Disposition so browser downloads use the name the user chose."""
-    from flask import send_file
+    """Serve an attachment file with its original filename preserved in
+    Content-Disposition. Images/PDFs render inline; other types are forced to
+    download with a safe MIME type (see _send_stored_upload)."""
     conn = get_db()
     row = conn.execute(
-        "SELECT filename, original_name, mime_type FROM work_order_attachments "
+        "SELECT filename, original_name FROM work_order_attachments "
         "WHERE id = ? AND work_order_id = ?",
         (att_id, wid)
     ).fetchone()
@@ -7510,12 +7632,7 @@ def get_work_order_attachment(wid, att_id):
     path = os.path.join(app.config['UPLOAD_FOLDER'], row['filename'])
     if not os.path.exists(path):
         return '', 404
-    return send_file(
-        path,
-        mimetype=row['mime_type'] or 'application/octet-stream',
-        as_attachment=False,
-        download_name=row['original_name'],
-    )
+    return _send_stored_upload(path, row['filename'], row['original_name'])
 
 
 @app.route('/api/work-orders/<int:wid>/attachments/<int:att_id>', methods=['DELETE'])

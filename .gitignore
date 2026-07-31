@@ -8,3 +8,6 @@ __pycache__/
 venv/
 .env
 temp/
+
+# Internal security audit — do not publish (public repo)
+SECURITY_AUDIT.md

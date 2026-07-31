@@ -3886,7 +3886,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div class="form-group">
                 <label class="form-label">File(s)</label>
                 <input class="form-input" type="file" id="kbUploadFile" multiple
-                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.png,.jpg,.jpeg,.gif,.webp,.svg">
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.png,.jpg,.jpeg,.gif,.webp">
                 <span class="form-hint">PDF, Office docs, text, and images. Multiple files share the title only on the first; the rest use their own name.</span>
             </div>
             <div class="form-group">
@@ -5806,8 +5806,8 @@ async function loadUsers() {
                 <td data-label="Status"><span class="admin-cell-value"><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</span></td>
                 <td data-label="Created" class="admin-cell-created"><span class="admin-cell-value">${u.created_at?u.created_at.split(' ')[0]:''}</span></td>
                 <td data-label="Actions" class="admin-actions-cell"><span class="admin-cell-value"><div class="table-actions" style="justify-content:flex-end;">
-                    <button class="table-btn" onclick='openUserForm(${JSON.stringify(u)})'>Edit</button>
-                    ${!isSelf(u.id)?`<button class="table-btn danger" onclick="deleteUser(${u.id},'${esc(u.username)}')">Delete</button>`:''}</div></span></td>
+                    <button class="table-btn" onclick='openUserForm(${JSON.stringify(u).replace(/'/g,'&#39;')})'>Edit</button>
+                    ${!isSelf(u.id)?`<button class="table-btn danger" onclick='deleteUser(${u.id}, ${JSON.stringify(u.username).replace(/'/g,'&#39;')})'>Delete</button>`:''}</div></span></td>
             </tr>`).join('')}</tbody></table>`;
     } catch { showToast('Failed to load users', 'error'); }
 }
@@ -5980,16 +5980,16 @@ function renderCard(p) {
     const cardFields = allFields.filter(f => f.show_on_card && f.key !== 'sold' && f.key !== 'sold_date' && f.key !== 'notes');
     const meta = cardFields.filter(f => f.type === 'text' || f.type === 'textarea').map(f => {
         const val = cd[f.key] || p[f.key] || '';
-        return val ? `<div class="meta-item"><div class="meta-label">${f.label}</div><div class="meta-value">${esc(val)}</div></div>` : '';
+        return val ? `<div class="meta-item"><div class="meta-label">${esc(f.label)}</div><div class="meta-value">${esc(val)}</div></div>` : '';
     }).join('');
     const pills = cardFields.filter(f => f.type === 'radio' || f.type === 'toggle').map(f => {
         const val = cd[f.key] || p[f.key] || '';
         if (f.type === 'radio') {
             const v = val || 'untested';
-            return `<span class="radio-pill val-${v}">${f.label}: ${RADIO_DISPLAY[v]||v}</span>`;
+            return `<span class="radio-pill val-${safeCls(v)}">${esc(f.label)}: ${esc(RADIO_DISPLAY[v]||v)}</span>`;
         } else {
             const on = !!(val && val !== '0');
-            return `<span class="toggle-pill ${on?'yes':'no'}">${f.label}: ${on?'Yes':'No'}</span>`;
+            return `<span class="toggle-pill ${on?'yes':'no'}">${esc(f.label)}: ${on?'Yes':'No'}</span>`;
         }
     }).join('');
     const flagBtn = `<button class="flag-btn card-flag${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button>`;
@@ -6031,7 +6031,7 @@ function renderTable(parts) {
             const cd = _parseCustomData(p);
             const val = cd[c.key] || p[c.key] || '';
             if (c.key==='sold') cell = isSold ? '<span class="sold-tag">SOLD</span>' : '';
-            else if (c.radio) { const v=val||'untested'; cell=`<span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span>`; }
+            else if (c.radio) { const v=val||'untested'; cell=`<span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span>`; }
             else if (c.toggle) { const on=!!(val && val !== '0'); cell=`<span class="${on?'table-toggle-yes':'table-toggle-no'}">${on?'Yes':'No'}</span>`; }
             else cell = esc(val);
             h += `<td onclick="openDetail(${p.id})">${cell}</td>`;
@@ -6190,22 +6190,24 @@ function buildForm(category, data) {
         if (f.type==='radio' && f.options) {
             const lastOpt = f.options[f.options.length-1]?.value || '';
             const curVal = isShared ? (data ? (data[f.key] || lastOpt) : lastOpt) : (cd[f.key] || lastOpt);
-            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><input type="hidden" id="field_${fieldId}" value="${curVal}"><div class="radio-group">`;
-            for (const opt of f.options) { const sc = curVal===opt.value ? ` selected selected-${opt.value}` : ''; h += `<button type="button" class="radio-option${sc}" onclick="selectRadio('${fieldId}','${opt.value}',this)">${opt.label}</button>`; }
+            h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><input type="hidden" id="field_${fieldId}" value="${esc(curVal)}"><div class="radio-group">`;
+            // Option value/field key ride in data-* attributes — interpolating
+            // them into the inline onclick JS string would allow quote breakout.
+            for (const opt of f.options) { const sc = curVal===opt.value ? ` selected selected-${safeCls(opt.value)}` : ''; h += `<button type="button" class="radio-option${sc}" data-field="${esc(fieldId)}" data-value="${esc(opt.value)}" onclick="selectRadio(this)">${esc(opt.label)}</button>`; }
             h += `</div></div>`;
         } else if (f.type==='toggle') {
             const ck = isShared ? (data ? !!data[f.key] : false) : !!(cd[f.key] && cd[f.key] !== '0');
             // posted_to_web carries a companion URL input (custom_data key
             // posted_to_web_url) revealed while the toggle is on.
             const extra = f.key==='posted_to_web' ? `;var pg=document.getElementById('postedUrlGroup');if(pg)pg.style.display=this.checked?'':'none'` : '';
-            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><div class="toggle-row"><span class="toggle-label-text" id="toggleText_${fieldId}">${ck?'Yes':'No'}</span><label class="toggle-switch"><input type="checkbox" id="field_${fieldId}" ${ck?'checked':''} onchange="document.getElementById('toggleText_${fieldId}').textContent=this.checked?'Yes':'No'${extra}"><span class="toggle-track"></span></label></div></div>`;
+            h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><div class="toggle-row"><span class="toggle-label-text" id="toggleText_${fieldId}">${ck?'Yes':'No'}</span><label class="toggle-switch"><input type="checkbox" id="field_${fieldId}" ${ck?'checked':''} onchange="document.getElementById('toggleText_${fieldId}').textContent=this.checked?'Yes':'No'${extra}"><span class="toggle-track"></span></label></div></div>`;
             if (f.key==='posted_to_web') {
                 h += `<div class="form-group full-width" id="postedUrlGroup" style="display:${ck?'':'none'};"><label class="form-label">Product URL</label><input class="form-input" type="url" id="field_custom_posted_to_web_url" value="${esc(cd.posted_to_web_url||'')}" placeholder="https://…"></div>`;
             }
         } else if (f.type==='textarea') {
-            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><textarea class="form-textarea" id="field_${fieldId}" rows="3">${esc(val)}</textarea></div>`;
+            h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><textarea class="form-textarea" id="field_${fieldId}" rows="3">${esc(val)}</textarea></div>`;
         } else {
-            h += `<div class="form-group${fc}"><label class="form-label">${f.label}</label><input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"></div>`;
+            h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"></div>`;
         }
     }
     // Needs Audited (hardcoded universal field, stored as columns)
@@ -6239,7 +6241,7 @@ function onNeedsAuditChange(cb) {
     const g = document.getElementById('auditNoteGroup');
     if (g) g.style.display = cb.checked ? '' : 'none';
 }
-function selectRadio(key, value, btn) { document.getElementById(`field_${key}`).value=value; btn.parentElement.querySelectorAll('.radio-option').forEach(b=>{b.className='radio-option';}); btn.classList.add('selected',`selected-${value}`); }
+function selectRadio(btn) { const key=btn.dataset.field, value=btn.dataset.value; document.getElementById(`field_${key}`).value=value; btn.parentElement.querySelectorAll('.radio-option').forEach(b=>{b.className='radio-option';}); btn.classList.add('selected'); const vc=safeCls(value); if(vc) btn.classList.add(`selected-${vc}`); }
 function onCategoryChange() { const cat=document.getElementById('formCategory').value; if(!cat){document.getElementById('categoryFields').innerHTML=`<div class="category-prompt"><p>Select a category to see its fields</p></div>`;return;} document.getElementById('formContent').innerHTML=buildForm(cat,editingPart&&editingPart.category===cat?editingPart:null); }
 function openAddModal() { editingPart=null;document.getElementById('formModalTitle').textContent='Add Part';document.getElementById('formSaveBtn').textContent='Save Part';document.getElementById('formContent').innerHTML=buildForm('',null);openModal('formModal'); }
 function openEditModal(part) { editingPart=part;document.getElementById('formModalTitle').textContent='Edit Part';document.getElementById('formSaveBtn').textContent='Update Part';document.getElementById('formContent').innerHTML=buildForm(part.category,part);openModal('formModal'); }
@@ -6336,19 +6338,19 @@ async function openDetail(id) {
             const val = isShared ? p[f.key] : (cd[f.key] || p[f.key] || '');
             if (f.type==='radio' && f.options) {
                 const v = val || f.options[f.options.length-1]?.value || '';
-                h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span></div></div>`;
+                h+=`<div class="detail-item"><div class="detail-label">${esc(f.label)}</div><div class="detail-value"><span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span></div></div>`;
             }
             else if (f.type==='toggle') {
                 const on = isShared ? !!p[f.key] : !!(val && val !== '0');
-                if(f.key==='sold'){h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="detail-toggle ${on?'sold-yes':'sold-no'}">${on?'SOLD':'No'}</span></div></div>`;}
+                if(f.key==='sold'){h+=`<div class="detail-item"><div class="detail-label">${esc(f.label)}</div><div class="detail-value"><span class="detail-toggle ${on?'sold-yes':'sold-no'}">${on?'SOLD':'No'}</span></div></div>`;}
                 else if(f.key==='posted_to_web' && on && cd.posted_to_web_url){
                     // Pill doubles as a link to the product's page on the web shop
-                    h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><a class="detail-toggle yes link" href="${esc(cd.posted_to_web_url)}" target="_blank" rel="noopener" title="${esc(cd.posted_to_web_url)}">✓ Yes <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div></div>`;
+                    h+=`<div class="detail-item"><div class="detail-label">${esc(f.label)}</div><div class="detail-value"><a class="detail-toggle yes link" href="${esc(cd.posted_to_web_url)}" target="_blank" rel="noopener" title="${esc(cd.posted_to_web_url)}">✓ Yes <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div></div>`;
                 }
-                else{h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value"><span class="detail-toggle ${on?'yes':'no'}">${on?'✓ Yes':'✕ No'}</span></div></div>`;}
+                else{h+=`<div class="detail-item"><div class="detail-label">${esc(f.label)}</div><div class="detail-value"><span class="detail-toggle ${on?'yes':'no'}">${on?'✓ Yes':'✕ No'}</span></div></div>`;}
             }
-            else if (f.type==='textarea') { if(val) h+=`<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">${f.label}</div><div class="detail-value" style="white-space:pre-wrap;">${esc(val)}</div></div>`; }
-            else { if(val) h+=`<div class="detail-item"><div class="detail-label">${f.label}</div><div class="detail-value">${esc(val)}</div></div>`; }
+            else if (f.type==='textarea') { if(val) h+=`<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">${esc(f.label)}</div><div class="detail-value" style="white-space:pre-wrap;">${esc(val)}</div></div>`; }
+            else { if(val) h+=`<div class="detail-item"><div class="detail-label">${esc(f.label)}</div><div class="detail-value">${esc(val)}</div></div>`; }
         }
         h += '</div>';
 
@@ -6602,7 +6604,7 @@ function renderMappingStep() {
     });
     const headers=vHeaders;let colOpts=`<option value="-1">— Skip —</option>`;headers.forEach((h,i)=>{colOpts+=`<option value="${i}">${esc(h||`Column ${i+1}`)}</option>`;});
     let mapHtml=`<div class="import-mapping-grid"><div class="map-header">${esc(catLabel)} Field</div><div class="map-header"></div><div class="map-header">Excel Column</div>`;
-    for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${f.label}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:0.65rem;color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${f.key}" onchange="importState.mapping['${f.key}']=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
+    for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${esc(f.label)}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:0.65rem;color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${esc(f.key)}" onchange="importState.mapping[this.dataset.field]=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
     const nf=fields.find(f=>f.key==='notes');if(nf){const nm=importState.mapping['notes']!==undefined?importState.mapping['notes']:autoMatchColumn(nf,headers);importState.mapping['notes']=nm;mapHtml+=`<div class="map-field-label">Notes</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="notes" onchange="importState.mapping['notes']=parseInt(this.value)">${colOpts.replace(`value="${nm}"`,'value="'+nm+'" selected')}</select>`;}
     mapHtml+=`</div>`;
     let sampleHtml='';if(vSamples.length){sampleHtml=`<div style="margin-top:1rem;"><span class="form-label">Sample Data</span><div class="preview-table-wrap" style="margin-top:0.3rem;max-height:160px;"><table class="preview-table"><thead><tr>`;headers.forEach(h=>{sampleHtml+=`<th>${esc(h||'—')}</th>`;});sampleHtml+=`</tr></thead><tbody>`;vSamples.slice(0,5).forEach(row=>{sampleHtml+=`<tr>`;row.slice(0,headers.length).forEach(c=>{sampleHtml+=`<td>${esc((c||'').toString().slice(0,140))}</td>`;});sampleHtml+=`</tr>`;});sampleHtml+=`</tbody></table></div></div>`;}
@@ -6625,7 +6627,7 @@ function renderPreview(data) {
     if(data.preview.length){
         const fields=data.fields,labels=data.field_labels;const radioFields=new Set(['engine_turns','trans_spins','trans_shifts']);const toggleFields=new Set(['sold']);
         html+=`<div class="preview-table-wrap" style="margin-top:0.85rem;"><table class="preview-table"><thead><tr><th style="width:45px;">Row</th>`;for(const f of fields)if(data.preview.some(r=>r[f]!==undefined&&r[f]!==''))html+=`<th>${esc(labels[f]||f)}</th>`;html+=`</tr></thead><tbody>`;
-        for(const row of data.preview.slice(0,50)){html+=`<tr><td style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">${row._row_num||''}</td>`;for(const f of fields){if(!data.preview.some(r=>r[f]!==undefined&&r[f]!==''))continue;const val=row[f];if(radioFields.has(f)){const v=val||'untested';html+=`<td><span class="radio-pill val-${v}">${RADIO_DISPLAY[v]||v}</span></td>`;}else if(toggleFields.has(f)){html+=`<td class="${val?'preview-toggle-yes':'preview-toggle-no'}">${val?'Yes':'No'}</td>`;}else html+=`<td>${esc(val||'')}</td>`;}html+=`</tr>`;}
+        for(const row of data.preview.slice(0,50)){html+=`<tr><td style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">${row._row_num||''}</td>`;for(const f of fields){if(!data.preview.some(r=>r[f]!==undefined&&r[f]!==''))continue;const val=row[f];if(radioFields.has(f)){const v=val||'untested';html+=`<td><span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span></td>`;}else if(toggleFields.has(f)){html+=`<td class="${val?'preview-toggle-yes':'preview-toggle-no'}">${val?'Yes':'No'}</td>`;}else html+=`<td>${esc(val||'')}</td>`;}html+=`</tr>`;}
         html+=`</tbody></table></div>`;if(data.preview.length>50)html+=`<div style="text-align:center;padding:0.4rem;font-size:0.78rem;color:var(--text-muted);">Showing 50 of ${data.total}</div>`;
     }else html+=`<div class="empty-state" style="padding:1.5rem;"><h3>No rows to import</h3><p>Check your mapping</p></div>`;
     content.innerHTML=html;footer.innerHTML=`<button class="btn btn-ghost" onclick="setImportStep(2)">← Back</button>${data.total>0?`<button class="btn btn-primary" onclick="executeImport()">Import ${data.total} Record${data.total!==1?'s':''}</button>`:''}`;
@@ -6778,8 +6780,8 @@ async function loadCategoryManager() {
                 <div class="cat-manager-name">${esc(cat.name)}</div>
                 <span class="cat-manager-count">${(cat.fields || []).length} fields</span>
                 <div class="table-actions">
-                    <button class="table-btn" onclick='openCategoryForm(${JSON.stringify(cat)})'>Edit</button>
-                    <button class="table-btn danger" onclick="deleteCategory('${cat.slug}','${esc(cat.name)}')">Delete</button>
+                    <button class="table-btn" onclick='openCategoryForm(${JSON.stringify(cat).replace(/'/g,'&#39;')})'>Edit</button>
+                    <button class="table-btn danger" onclick='deleteCategory(${JSON.stringify(cat.slug)}, ${JSON.stringify(cat.name).replace(/'/g,'&#39;')})'>Delete</button>
                 </div>
             </div>`;
         }
@@ -6864,7 +6866,7 @@ async function loadKbCatManager() {
                 <span class="cat-manager-count">${cat.doc_count || 0} doc${cat.doc_count === 1 ? '' : 's'}</span>
                 <div class="table-actions">
                     <button class="table-btn" onclick="editKbCategory(${cat.id})">Edit</button>
-                    <button class="table-btn danger" onclick="deleteKbCategory(${cat.id}, '${esc(cat.name).replace(/'/g, "\\'")}')">Delete</button>
+                    <button class="table-btn danger" onclick='deleteKbCategory(${cat.id}, ${JSON.stringify(cat.name).replace(/'/g,'&#39;')})'>Delete</button>
                 </div>
             </div>`;
         }
@@ -7418,7 +7420,7 @@ function kbPartChip(p) {
     const label = esc(p.number || p.url || '');
     if (!label) return '';
     if (p.url) {
-        const safe = String(p.url).replace(/"/g, '%22');
+        const safe = esc(p.url);
         let host = 'an external site';
         try { host = new URL(p.url).hostname.replace(/^www\./, ''); } catch {}
         const arrow = `<svg class="kb-extlink-ic" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;
@@ -8756,8 +8758,8 @@ function renderRecentWos(orders) {
             <div class="widget-row-text">
                 <div class="widget-row-title"><span class="wo-number">${esc(wo.wo_number)}</span>${esc(wo.customer_name || '—')}</div>
                 <div class="widget-row-sub">
-                    <span class="wo-status-badge ${wo.status}">${wo.status}</span>
-                    ${wo.priority ? `<span class="wo-priority-badge ${(wo.priority||'').toLowerCase().replace(/\s+/g,'-')}">${esc(wo.priority)}</span>` : ''}
+                    <span class="wo-status-badge ${safeCls(wo.status)}">${esc(wo.status)}</span>
+                    ${wo.priority ? `<span class="wo-priority-badge ${safeCls((wo.priority||'').replace(/\s+/g,'-'))}">${esc(wo.priority)}</span>` : ''}
                     ${wo.vehicle ? `<span>${esc(wo.vehicle)}</span>` : ''}
                 </div>
             </div>
@@ -9851,7 +9853,8 @@ if (!window._woPulseVisibilityBound) {
 function renderWorkOrderCard(wo) {
     const canEdit = currentUserData && currentUserData.can_edit;
     const canViewAudit = currentUserData && currentUserData.can_view_audit;
-    const prioClass = (wo.priority || '').toLowerCase().replace(/\s+/g, '-');
+    // safeCls: priority is free-form editor input and lands in class attributes
+    const prioClass = safeCls((wo.priority || '').replace(/\s+/g, '-'));
     const reqDate = _fmtServerTs(wo.request_date);
     // The old "Flagged: …" alert bar was removed — flag notes now live in the
     // Notes thread below (same render path as Add Note / Reply), so they can
@@ -10016,7 +10019,7 @@ function renderWorkOrderCard(wo) {
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
                 ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy IMS #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">IMS: ${esc(wo.quote_invoice)}</span>` : ''}
                 <span class="wo-card-top-right">
-                    <span class="wo-status-badge ${wo.status}">${wo.status}</span>
+                    <span class="wo-status-badge ${safeCls(wo.status)}">${esc(wo.status)}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
                     ${(isArchived && !wo.was_delivered) || isNotDeliverablePendingCard
                         ? `<span class="wo-not-delivered-badge" title="${isNotDeliverablePendingCard ? 'Marked not deliverable — archives tonight at 23:00' : 'Archived without being marked delivered'}">Not Deliverable</span>`
@@ -11844,7 +11847,17 @@ async function sendSmtpTest() {
 // ══════════════════════════════════════════
 //  UTILITIES
 // ══════════════════════════════════════════
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+// HTML-escape for interpolation into markup. Escapes all five significant
+// characters — the old textContent/innerHTML round-trip left " and '
+// untouched, which made every attr="${esc(x)}" site injectable.
+function esc(s) { if(!s) return ''; return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Sanitize a value used as (part of) a CSS class name. Escaping isn't enough
+// in class/JS-token position — a space starts a new attribute-less token —
+// so strip to a strict charset instead.
+function safeCls(s) { return String(s||'').toLowerCase().replace(/[^a-z0-9_-]/g,''); }
 
 // Escape the text and turn any http(s) URLs into clickable links (new tab).
 // Tokenizes the raw text so we escape non-URL pieces independently and wrap
@@ -11870,7 +11883,7 @@ function _fmtAttachmentSize(bytes) {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
-function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
+function showToast(msg, type='success') { const c=document.getElementById('toastContainer'),t=document.createElement('div');t.className=`toast ${type}`;t.textContent=`${type==='success'?'✓':'✕'} ${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),3000); }
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
