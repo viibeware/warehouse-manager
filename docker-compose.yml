@@ -10,6 +10,12 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-}
       - WM_DATA_DIR=/data
+      # Marks the session cookies "secure" so browsers only send them over
+      # HTTPS. Uncomment once this instance is served through a TLS reverse
+      # proxy — see README → Deployment. Leaving it on while serving plain
+      # HTTP stops sign-in from working at all, which is why it is not the
+      # default here.
+      # - WM_SECURE_COOKIES=1
 
 volumes:
   wm-data:

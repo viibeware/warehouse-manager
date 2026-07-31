@@ -3084,10 +3084,15 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             </button>
         </div>
         <div class="sidebar-footer-bottom">
-            <a class="nav-item danger-nav" href="/logout" style="flex:1;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                Sign Out
-            </a>
+            <!-- Sign-out posts (a GET logout is forgeable via <img src>). A
+                 real form rather than a fetch() so it still works if the
+                 inline JS fails to load. -->
+            <form method="post" action="/logout" style="flex:1;display:flex;">
+                <button type="submit" class="nav-item danger-nav" style="flex:1;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign Out
+                </button>
+            </form>
             <button class="sidebar-icon-btn" id="themeToggleBtn" onclick="toggleThemeFromButton()" title="Toggle theme" aria-label="Toggle theme">
                 <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
                 <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -3291,7 +3296,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                 <div class="form-group">
                     <label class="form-label">New Password</label>
                     <input class="form-input" type="password" id="pwNew" autocomplete="new-password">
-                    <span class="form-hint">Minimum 4 characters</span>
+                    <span class="form-hint">At least 12 characters, mixing 3 of: lowercase, uppercase, numbers, symbols</span>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Confirm New Password</label>
@@ -3767,7 +3772,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     </table>
                     <span class="form-hint">Supervisors get every editor permission plus the audit-trail view.</span>
                 </div>
-                <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">Minimum 4 characters</span></div>
+                <div class="form-group"><label class="form-label" id="ufPasswordLabel">Password</label><input class="form-input" type="password" id="ufPassword" autocomplete="new-password"><span class="form-hint" id="ufPasswordHint">At least 12 characters, mixing 3 of: lowercase, uppercase, numbers, symbols</span></div>
                 <div class="form-group">
                     <label class="form-label">Sales Person</label>
                     <div class="toggle-row"><span class="toggle-label-text" id="ufSalesText">No</span><label class="toggle-switch"><input type="checkbox" id="ufSalesPerson" onchange="document.getElementById('ufSalesText').textContent=this.checked?'Yes':'No'"><span class="toggle-track"></span></label></div>
@@ -5333,6 +5338,9 @@ async function readAllNotifications() {
 
 function startNotificationPoller() {
     if (_notifTimer) clearInterval(_notifTimer);
+    // Notifications are work-order events, and the server now closes that API
+    // with the module — don't poll a guaranteed 403 every 5 s.
+    if (!getModules().work_orders) return;
     // Kick off immediately, then every NOTIF_POLL_MS
     _pollNotifications();
     _notifTimer = setInterval(_pollNotifications, NOTIF_POLL_MS);
@@ -5776,7 +5784,8 @@ async function changePassword() {
     const conf = document.getElementById('pwConfirm').value;
     if (!cur || !nw) { showToast('Fill in all fields', 'error'); return; }
     if (nw !== conf) { showToast('Passwords do not match', 'error'); return; }
-    if (nw.length < 4) { showToast('Password must be at least 4 characters', 'error'); return; }
+    const pwBad = pwPolicyError(nw);
+    if (pwBad) { showToast(pwBad, 'error'); return; }
     try {
         const res = await fetch('/api/auth/change-password', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5826,17 +5835,31 @@ function openUserForm(user) {
         document.getElementById('userFormTitle').textContent = 'Edit User';
         document.getElementById('ufSaveBtn').textContent = 'Save Changes';
         document.getElementById('ufPasswordLabel').textContent = 'New Password (optional)';
-        document.getElementById('ufPasswordHint').textContent = 'Leave blank to keep current password';
+        document.getElementById('ufPasswordHint').textContent = `Leave blank to keep current password — ${PW_POLICY_HINT}`;
         document.getElementById('ufActiveGroup').style.display = '';
     } else {
         document.getElementById('userFormTitle').textContent = 'Add User';
         document.getElementById('ufSaveBtn').textContent = 'Create User';
         document.getElementById('ufPasswordLabel').textContent = 'Password';
-        document.getElementById('ufPasswordHint').textContent = 'Minimum 4 characters';
+        document.getElementById('ufPasswordHint').textContent = PW_POLICY_HINT;
         document.getElementById('ufActiveGroup').style.display = 'none';
     }
     openModal('userFormModal');
 }
+// Mirrors _score_password() on the server so the user gets the rule up front
+// rather than a round-trip rejection. The server remains the authority.
+const PW_POLICY_HINT = 'At least 12 characters, mixing 3 of: lowercase, uppercase, numbers, symbols';
+function pwPolicyError(pw) {
+    if (!pw || pw.length < 12) return 'Password must be at least 12 characters';
+    let classes = 0;
+    if (/[a-z]/.test(pw)) classes++;
+    if (/[A-Z]/.test(pw)) classes++;
+    if (/\d/.test(pw)) classes++;
+    if (/[^A-Za-z0-9]/.test(pw)) classes++;
+    if (classes < 3) return 'Mix at least 3 of: lowercase, uppercase, numbers, symbols';
+    return null;
+}
+
 async function saveUser() {
     const id = document.getElementById('ufId').value;
     const body = {
@@ -5852,7 +5875,7 @@ async function saveUser() {
         showToast('Username must be a valid email address', 'error'); return;
     }
     if (!id && !pw) { showToast('Password is required for new users', 'error'); return; }
-    if (pw) { if (pw.length < 4) { showToast('Password must be at least 4 characters', 'error'); return; } body.password = pw; }
+    if (pw) { const bad = pwPolicyError(pw); if (bad) { showToast(bad, 'error'); return; } body.password = pw; }
     try {
         const res = await fetch(id ? `/api/users/${id}` : '/api/users', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();

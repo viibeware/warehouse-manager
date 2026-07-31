@@ -292,7 +292,10 @@ body {
             <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
         </form>
 
-        <div class="login-form-footer">Ver. {{ app_version }}</div>
+        <!-- The exact version is deliberately not shown pre-auth: it tells an
+             unauthenticated visitor which known issues this build has. It is
+             still on the About pane once signed in. -->
+        <div class="login-form-footer">&nbsp;</div>
     </section>
 </div>
 

