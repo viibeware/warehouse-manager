@@ -961,6 +961,34 @@ body {
     display: flex; align-items: center; justify-content: center;
 }
 
+/* Existing part photos: drag to reorder, tap/check to multi-select */
+#formImagesExistingWrap:not(:empty) + .file-upload { margin-top: 0.4rem; }
+.form-image-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    flex-wrap: wrap; margin-top: 0.4rem;
+}
+.form-image-hint { font-size: 0.7rem; color: var(--text-muted); }
+.form-image-toolbar-actions { display: flex; gap: 0.35rem; }
+.form-image-tool {
+    background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border);
+    border-radius: 5px; font-size: 0.7rem; padding: 0.22rem 0.5rem; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+}
+.form-image-tool:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
+.form-image-tool:disabled { opacity: 0.4; cursor: default; }
+.form-image-tool.danger:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+.form-image-sort-item { cursor: grab; }
+.form-image-sort-item.is-primary img { border-color: var(--accent); }
+.form-image-sort-item.is-picked img { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.form-image-sort-item.img-dragging { opacity: 0.35; cursor: grabbing; pointer-events: none; }
+.form-image-pick {
+    position: absolute; top: -6px; left: -6px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg-input); border: 1px solid var(--border); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.form-image-pick input { width: 11px; height: 11px; cursor: pointer; accent-color: var(--accent); }
+body.img-drag-active { user-select: none; -webkit-user-select: none; }
+
 /* ── DETAIL ── */
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
 .detail-label {
@@ -2330,6 +2358,24 @@ a.wo-number.clickable:hover { text-decoration: none; }
 #woFormModal .modal-body {
     flex: 1; min-height: 0; overflow-y: auto;
 }
+/* Part form + part detail: title bar (and the form's buttons) stay put, only
+   the body scrolls */
+#formModal .modal,
+#detailModal .modal {
+    display: flex; flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+#formModal .modal-header,
+#formModal .modal-footer,
+#detailModal .modal-header {
+    flex-shrink: 0;
+}
+#formModal .modal-body,
+#detailModal .modal-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+}
+
 #kbUploadModal .modal {
     display: flex; flex-direction: column;
     max-height: 90vh;
@@ -6253,9 +6299,8 @@ function buildForm(category, data) {
     </div>`;
 
     const existingImages = (data && data.images) ? data.images : [];
-    let ei = '';
-    if (existingImages.length) { ei = `<div class="form-image-list" id="formExistingImages">`; for (const img of existingImages) { ei += `<div class="form-image-item" id="formImg_${img.id}"><img src="/uploads/${img.filename}" alt=""><button type="button" class="form-image-remove" onclick="removeExistingImage(${data.id},${img.id})" title="Remove">✕</button></div>`; } ei += `</div>`; }
-    h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload" style="margin-top:${existingImages.length?'0.4rem':'0'};"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="font-size:0.72rem;color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
+    const ei = `<div id="formImagesExistingWrap">${existingImagesHtml(data ? data.id : 0, existingImages)}</div>`;
+    h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="font-size:0.72rem;color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
     h += `</div></div></div>`; return h;
 }
 
@@ -6269,7 +6314,205 @@ function onCategoryChange() { const cat=document.getElementById('formCategory').
 function openAddModal() { editingPart=null;document.getElementById('formModalTitle').textContent='Add Part';document.getElementById('formSaveBtn').textContent='Save Part';document.getElementById('formContent').innerHTML=buildForm('',null);openModal('formModal'); }
 function openEditModal(part) { editingPart=part;document.getElementById('formModalTitle').textContent='Edit Part';document.getElementById('formSaveBtn').textContent='Update Part';document.getElementById('formContent').innerHTML=buildForm(part.category,part);openModal('formModal'); }
 function previewMultiImages(input) { const c=document.getElementById('formNewPreviews');c.innerHTML='';if(!input.files)return;for(const f of input.files){const r=new FileReader();r.onload=(e)=>{const d=document.createElement('div');d.className='form-image-item';d.innerHTML=`<img src="${e.target.result}">`;c.appendChild(d);};r.readAsDataURL(f);} }
-async function removeExistingImage(partId,imgId) { if(!confirm('Remove this image?'))return;try{const r=await fetch(`/api/parts/${partId}/images/${imgId}`,{method:'DELETE'});if(!r.ok)throw 0;const el=document.getElementById(`formImg_${imgId}`);if(el)el.remove();if(editingPart&&editingPart.images)editingPart.images=editingPart.images.filter(i=>i.id!==imgId);showToast('Image removed','success');}catch{showToast('Failed to remove image','error');} }
+
+// ══════════════════════════════════════════
+//  PART PHOTOS IN THE EDIT MODAL
+//  Drag to reorder (mouse drag / touch long-press), tap or check to select
+//  several for deletion. Both write straight through to the server, so the
+//  card/table thumbnail can go stale behind the modal — partImagesDirty makes
+//  closeModal refresh the list.
+// ══════════════════════════════════════════
+let partImagesDirty = false;
+
+function existingImagesHtml(partId, images) {
+    if (!partId || !images || !images.length) return '';
+    let h = `<div class="form-image-toolbar">
+        <span class="form-image-hint">Drag to reorder — the first photo is the main one</span>
+        <div class="form-image-toolbar-actions">
+            <button type="button" class="form-image-tool" id="formImagesSelAll" onclick="togglePartImageSelectAll()">Select all</button>
+            <button type="button" class="form-image-tool danger" id="formImagesDelBtn" onclick="deleteSelectedPartImages(${partId})" disabled>Delete selected</button>
+        </div>
+    </div>
+    <div class="form-image-list form-image-sortable" id="formExistingImages" data-part-id="${partId}">`;
+    images.forEach((img, i) => {
+        h += `<div class="form-image-item form-image-sort-item${i === 0 ? ' is-primary' : ''}" id="formImg_${img.id}" data-img-id="${img.id}" title="Drag to reorder · click to select">
+            <img src="/uploads/${esc(img.filename)}" alt="" draggable="false">
+            <label class="form-image-pick" title="Select"><input type="checkbox" data-img-pick="${img.id}"></label>
+            <button type="button" class="form-image-remove" onclick="removeExistingImage(${partId},${img.id})" title="Remove">✕</button>
+        </div>`;
+    });
+    return h + `</div>`;
+}
+
+function rerenderExistingImages(partId, images) {
+    const wrap = document.getElementById('formImagesExistingWrap');
+    if (wrap) wrap.innerHTML = existingImagesHtml(partId, images || []);
+}
+
+// ── Selection ──
+function partImageSelection() {
+    const list = document.getElementById('formExistingImages');
+    if (!list) return [];
+    return [...list.querySelectorAll('input[data-img-pick]:checked')].map(b => Number(b.dataset.imgPick));
+}
+function togglePartImageSelectAll() {
+    const list = document.getElementById('formExistingImages');
+    if (!list) return;
+    const boxes = [...list.querySelectorAll('input[data-img-pick]')];
+    const all = boxes.length > 0 && boxes.every(b => b.checked);
+    boxes.forEach(b => { b.checked = !all; });
+    syncPartImageUi();
+}
+function syncPartImageUi() {
+    const list = document.getElementById('formExistingImages');
+    if (!list) return;
+    [...list.children].forEach((item, i) => {
+        const box = item.querySelector('input[data-img-pick]');
+        item.classList.toggle('is-primary', i === 0);
+        item.classList.toggle('is-picked', !!(box && box.checked));
+    });
+    const boxes = [...list.querySelectorAll('input[data-img-pick]')];
+    const n = boxes.filter(b => b.checked).length;
+    const del = document.getElementById('formImagesDelBtn');
+    if (del) { del.disabled = n === 0; del.textContent = n ? `Delete ${n} selected` : 'Delete selected'; }
+    const sel = document.getElementById('formImagesSelAll');
+    if (sel) sel.textContent = (boxes.length && n === boxes.length) ? 'Clear selection' : 'Select all';
+}
+document.addEventListener('change', (e) => {
+    if (e.target.matches && e.target.matches('input[data-img-pick]')) syncPartImageUi();
+});
+
+// ── Deletion ──
+async function removeExistingImage(partId, imgId) {
+    if (!confirm('Remove this photo?')) return;
+    await deletePartImages(partId, [imgId], 'Photo removed');
+}
+async function deleteSelectedPartImages(partId) {
+    const ids = partImageSelection();
+    if (!ids.length) return;
+    const label = ids.length === 1 ? 'this photo' : `these ${ids.length} photos`;
+    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+    await deletePartImages(partId, ids, ids.length === 1 ? 'Photo deleted' : `${ids.length} photos deleted`);
+}
+async function deletePartImages(partId, ids, msg) {
+    try {
+        const r = await fetch(`/api/parts/${partId}/images/delete`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!r.ok) throw 0;
+        const d = await r.json();
+        if (editingPart && editingPart.id === partId) editingPart.images = d.images;
+        rerenderExistingImages(partId, d.images);
+        partImagesDirty = true;
+        showToast(msg, 'success');
+    } catch { showToast('Failed to delete photos', 'error'); }
+}
+
+// ── Drag-and-drop reordering ──
+let _imgDrag = null;
+
+function _imgDragBegin() {
+    _imgDrag.active = true;
+    _imgDrag.item.classList.add('img-dragging');
+    document.body.classList.add('img-drag-active');
+    try { _imgDrag.item.setPointerCapture(_imgDrag.pointerId); } catch {}
+}
+function _imgDragEnd() {
+    if (!_imgDrag) return;
+    clearTimeout(_imgDrag.timer);
+    _imgDrag.item.classList.remove('img-dragging');
+    document.body.classList.remove('img-drag-active');
+    try { _imgDrag.item.releasePointerCapture(_imgDrag.pointerId); } catch {}
+    _imgDrag = null;
+}
+
+document.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    const item = e.target.closest && e.target.closest('.form-image-sort-item');
+    if (!item) return;
+    const list = item.parentElement;
+    if (!list || !list.classList.contains('form-image-sortable')) return;
+    if (e.target.closest('button, label, input')) return;  // remove button / checkbox
+    _imgDragEnd();
+    _imgDrag = {
+        item, list, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+        active: false, timer: null,
+        order: [...list.children].map(c => c.dataset.imgId)
+    };
+    // Touch: long-press starts a drag, a plain tap toggles selection — so a
+    // finger landing on a photo can still scroll the modal.
+    if (e.pointerType === 'touch') _imgDrag.timer = setTimeout(() => { if (_imgDrag) _imgDragBegin(); }, 300);
+});
+
+document.addEventListener('pointermove', (e) => {
+    if (!_imgDrag || e.pointerId !== _imgDrag.pointerId) return;
+    const moved = Math.hypot(e.clientX - _imgDrag.startX, e.clientY - _imgDrag.startY);
+    if (!_imgDrag.active) {
+        if (moved < 6) return;
+        if (e.pointerType === 'touch') { _imgDragEnd(); return; }  // finger is scrolling, not dragging
+        _imgDragBegin();
+    }
+    // Nearest sibling to the pointer wins; left/right of its centre decides
+    // which side to land on (the list wraps, so rows aren't a simple axis).
+    const item = _imgDrag.item;
+    let best = null, bestDist = Infinity;
+    for (const c of _imgDrag.list.children) {
+        if (c === item) continue;
+        const r = c.getBoundingClientRect();
+        const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+        if (d < bestDist) { bestDist = d; best = c; }
+    }
+    if (!best) return;
+    const r = best.getBoundingClientRect();
+    const ref = e.clientX > r.left + r.width / 2 ? best.nextSibling : best;
+    if (ref === item || ref === item.nextSibling) return;
+    _imgDrag.list.insertBefore(item, ref);
+    syncPartImageUi();
+});
+
+document.addEventListener('pointerup', (e) => {
+    if (!_imgDrag || e.pointerId !== _imgDrag.pointerId) return;
+    const { item, list, order, active } = _imgDrag;
+    const moved = Math.hypot(e.clientX - _imgDrag.startX, e.clientY - _imgDrag.startY);
+    _imgDragEnd();
+    if (active) { savePartImageOrder(list, order); return; }
+    if (moved < 6) {  // a click/tap on the photo toggles its selection
+        const box = item.querySelector('input[data-img-pick]');
+        if (box) { box.checked = !box.checked; syncPartImageUi(); }
+    }
+});
+document.addEventListener('pointercancel', (e) => {
+    if (_imgDrag && e.pointerId === _imgDrag.pointerId) _imgDragEnd();
+});
+// Keep the modal from scrolling out from under an active drag on touch.
+document.addEventListener('touchmove', (e) => {
+    if (_imgDrag && _imgDrag.active) e.preventDefault();
+}, { passive: false });
+
+async function savePartImageOrder(list, prevOrder) {
+    const partId = Number(list.dataset.partId);
+    const order = [...list.children].map(c => c.dataset.imgId);
+    if (order.join(',') === prevOrder.join(',')) return;
+    try {
+        const r = await fetch(`/api/parts/${partId}/images/order`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: order.map(Number) })
+        });
+        if (!r.ok) throw 0;
+        const d = await r.json();
+        if (editingPart && editingPart.id === partId) editingPart.images = d.images;
+        partImagesDirty = true;
+        showToast('Photo order saved', 'success');
+    } catch {
+        prevOrder.forEach(id => {  // roll back to the order the server still has
+            const el = document.getElementById(`formImg_${id}`);
+            if (el) list.appendChild(el);
+        });
+        syncPartImageUi();
+        showToast('Failed to save photo order', 'error');
+    }
+}
 async function savePart() {
     const category=document.getElementById('formCategory').value;
     if(!category){showToast('Please select a category','error');return;}
@@ -6301,7 +6544,7 @@ async function savePart() {
     if(imgInput&&imgInput.files.length>0)for(const file of imgInput.files)fd.append('images',file);
     const isEdit=editingPart&&editingPart.id;
     const savedScroll=isEdit?(window.scrollY||window.pageYOffset||0):0;
-    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');await loadParts();loadStats();if(isEdit)window.scrollTo(0,savedScroll);}catch{showToast('Failed to save part','error');}
+    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;partImagesDirty=false;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');await loadParts();loadStats();if(isEdit)window.scrollTo(0,savedScroll);}catch{showToast('Failed to save part','error');}
 }
 
 // ══════════════════════════════════════════
@@ -11920,6 +12163,9 @@ function closeModal(id) {
     el.classList.remove('active');
     const m = el.querySelector('.modal');
     if (m) { _modalPos.delete(m); m.style.transform = ''; }
+    // Photo deletes/reorders in the edit modal write straight through, so the
+    // thumbnails behind it are stale unless we refresh on the way out.
+    if (id === 'formModal' && partImagesDirty) { partImagesDirty = false; loadParts(); }
 }
 
 // ── Movable windows: drag any modal/window by its title bar ──
