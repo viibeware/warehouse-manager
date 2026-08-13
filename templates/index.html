@@ -1009,9 +1009,6 @@ body.img-drag-active { user-select: none; -webkit-user-select: none; }
 .detail-value { font-size: 0.9rem; color: var(--text-primary); word-break: break-word; }
 .detail-value a { color: var(--accent); text-decoration: none; }
 .detail-value a:hover { text-decoration: underline; }
-.detail-actions {
-    display: flex; gap: 0.5rem; margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px solid var(--border);
-}
 .detail-toggle {
     display: inline-flex; align-items: center; gap: 5px;
     font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
@@ -2379,9 +2376,14 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 #formModal .modal-header,
 #formModal .modal-footer,
-#detailModal .modal-header {
+#detailModal .modal-header,
+#detailModal .modal-footer {
     flex-shrink: 0;
 }
+/* Edit / Print Label / Delete keep their left-to-right reading order rather
+   than being right-aligned like a Cancel/Save pair */
+#detailModal .modal-footer { justify-content: flex-start; flex-wrap: wrap; }
+#detailModal .modal-footer:empty { display: none; }
 #formModal .modal-body,
 #detailModal .modal-body {
     flex: 1; min-height: 0; overflow-y: auto;
@@ -3352,6 +3354,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
         </div>
         <div class="modal-body" id="detailModalBody"></div>
+        <div class="modal-footer" id="detailModalFooter"></div>
     </div>
 </div>
 
@@ -6627,8 +6630,20 @@ async function savePart() {
     const imgInput=document.getElementById('formImages');
     if(imgInput&&imgInput.files.length>0)for(const file of imgInput.files)fd.append('images',file);
     const isEdit=editingPart&&editingPart.id;
+    const editedId=isEdit?editingPart.id:null;
     const savedScroll=isEdit?(window.scrollY||window.pageYOffset||0):0;
-    try{const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});if(!r.ok)throw 0;partImagesDirty=false;closeModal('formModal');showToast(isEdit?'Part updated':'Part added','success');await loadParts();loadStats();if(isEdit)window.scrollTo(0,savedScroll);}catch{showToast('Failed to save part','error');}
+    try{
+        const r=await fetch(isEdit?`/api/parts/${editingPart.id}`:'/api/parts',{method:isEdit?'PUT':'POST',body:fd});
+        if(!r.ok)throw 0;
+        partImagesDirty=false;
+        closeModal('formModal');
+        showToast(isEdit?'Part updated':'Part added','success');
+        // The edit form is only ever opened from the detail modal, so an update
+        // lands back on the part it came from rather than dumping to the list.
+        if(isEdit)await openDetail(editedId);
+        await loadParts();loadStats();
+        if(isEdit)window.scrollTo(0,savedScroll);
+    }catch{showToast('Failed to save part','error');}
 }
 
 // ══════════════════════════════════════════
@@ -6704,19 +6719,16 @@ async function openDetail(id) {
         }
         h += '</div>';
 
-        // Actions
+        // Actions live in the pinned footer, not the scrolling body
         window._detailPart = p;
+        let af = '';
         if (currentUserData && currentUserData.can_edit) {
-            h += `<div class="detail-actions">
-                <button class="btn btn-primary btn-sm" onclick="closeModal('detailModal');openEditModal(window._detailPart)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
+            af = `<button class="btn btn-primary btn-sm" onclick="closeModal('detailModal');openEditModal(window._detailPart)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
                 <button class="btn btn-ghost btn-sm" onclick="printLabel(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Label</button>
-                <button class="btn btn-danger btn-sm" onclick="deletePart(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
-            </div>`;
+                <button class="btn btn-danger btn-sm" onclick="deletePart(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>`;
         } else {
             // Viewers can still print
-            h += `<div class="detail-actions">
-                <button class="btn btn-ghost btn-sm" onclick="printLabel(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Label</button>
-            </div>`;
+            af = `<button class="btn btn-ghost btn-sm" onclick="printLabel(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print Label</button>`;
         }
 
         // Image gallery at bottom
@@ -6733,6 +6745,7 @@ async function openDetail(id) {
         }
 
         document.getElementById('detailModalBody').innerHTML = h;
+        document.getElementById('detailModalFooter').innerHTML = af;
         openModal('detailModal');
     } catch { showToast('Failed to load details','error'); }
 }
