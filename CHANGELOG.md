@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.9.5
+- <strong>The part window's buttons no longer scroll away</strong> — Edit, Print Label and Delete sit in a fixed footer at the bottom of the part window, so they stay reachable however far down the fields and photos you are. Viewers still see Print Label there.
+- <strong>Editing a part returns you to the part</strong> — Clicking <em>Update Part</em> used to close everything and drop you back at the list. It now closes the edit form and shows the part again with your changes applied, so you can keep working on it. Adding a new part still closes to the list.
+
 ## v1.9.4
 - <strong>Reorder a part's photos by dragging them</strong> — The Images row in a part's edit form now lets you drag its photos into the order you want. The first photo is the part's main one — the thumbnail on cards and in the table, and the first shot in the detail gallery and lightbox — so dragging a photo to the front promotes it, and it is outlined to show which one that is. Drag with the mouse, or press and hold on a touch screen. The new order saves as soon as you drop, and reverts with a message if the save fails.
 - <strong>Delete several photos at once</strong> — Click (or tap) a photo to select it, or use <em>Select all</em>, then <em>Delete selected</em> to remove them in one go. Each photo keeps its own ✕ button for removing just that one. Deleting a photo no longer leaves a stale thumbnail behind the form — the list refreshes when you close it.
