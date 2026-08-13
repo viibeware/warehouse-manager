@@ -13,7 +13,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.9.3'
+APP_VERSION = '1.9.4'
 
 
 def _compute_build_fingerprint():
@@ -3180,6 +3180,86 @@ def delete_part_image(pid, img_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+def _image_id_list(value, field):
+    """Coerce a JSON body value into a list of ints, or raise ValueError."""
+    if not isinstance(value, list):
+        raise ValueError(f'{field} must be a list of image ids')
+    if len(value) > 500:
+        raise ValueError(f'{field} is too long')
+    try:
+        return [int(v) for v in value]
+    except (TypeError, ValueError):
+        raise ValueError(f'{field} contains an invalid image id')
+
+
+@app.route('/api/parts/<int:pid>/images/delete', methods=['POST'])
+@editor_required
+def delete_part_images(pid):
+    """Delete several of a part's images in one request (multi-select in the
+    edit modal). Ids that don't belong to this part are ignored."""
+    data = request.get_json(silent=True) or {}
+    try:
+        ids = _image_id_list(data.get('ids'), 'ids')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    if not ids:
+        return jsonify({'error': 'No images selected'}), 400
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM parts WHERE id = ?", (pid,)).fetchone():
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    placeholders = ','.join(['?'] * len(ids))
+    rows = conn.execute(
+        f"SELECT id, filename FROM part_images WHERE part_id = ? AND id IN ({placeholders})",
+        [pid] + ids
+    ).fetchall()
+    for r in rows:
+        delete_image(r['filename'])
+    conn.execute(
+        f"DELETE FROM part_images WHERE part_id = ? AND id IN ({placeholders})",
+        [pid] + ids
+    )
+    conn.commit()
+    images = get_part_images(conn, pid)
+    conn.close()
+    return jsonify({'success': True, 'deleted': len(rows), 'images': images})
+
+
+@app.route('/api/parts/<int:pid>/images/order', methods=['PUT'])
+@editor_required
+def reorder_part_images(pid):
+    """Persist a new photo order (drag-and-drop in the edit modal). The first
+    image is the part's primary photo everywhere it's shown, so this also
+    changes the card/table thumbnail."""
+    data = request.get_json(silent=True) or {}
+    try:
+        order = _image_id_list(data.get('order'), 'order')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM parts WHERE id = ?", (pid,)).fetchone():
+        conn.close()
+        return jsonify({'error': 'Not found'}), 404
+    current = [r['id'] for r in conn.execute(
+        "SELECT id FROM part_images WHERE part_id = ? ORDER BY sort_order, id", (pid,)
+    ).fetchall()]
+    known, seen, ordered = set(current), set(), []
+    for img_id in order:
+        if img_id in known and img_id not in seen:
+            seen.add(img_id)
+            ordered.append(img_id)
+    # Anything the client didn't mention (e.g. uploaded by someone else since
+    # the modal was opened) keeps its relative position after the sent ids.
+    ordered += [i for i in current if i not in seen]
+    for pos, img_id in enumerate(ordered):
+        conn.execute("UPDATE part_images SET sort_order = ? WHERE id = ? AND part_id = ?",
+                     (pos, img_id, pid))
+    conn.commit()
+    images = get_part_images(conn, pid)
+    conn.close()
+    return jsonify({'success': True, 'images': images})
 
 
 @app.route('/api/parts/<int:pid>', methods=['DELETE'])
