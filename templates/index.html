@@ -832,12 +832,18 @@ body {
     opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
 }
 .modal-overlay.active { opacity: 1; pointer-events: all; }
+/* Every modal is a flex column: the title bar (and any sub-header) and the
+   footer are pinned, and only .modal-body scrolls. Per-modal rules below only
+   need to override sizing — never re-declare this plumbing. */
 .modal {
     background: var(--bg-secondary); border: 1px solid var(--border);
     border-radius: var(--radius-lg); width: 100%; max-width: 640px;
-    max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+    max-height: 90vh; overflow: hidden; box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
     transform: translateY(20px); transition: transform 0.25s ease;
 }
+/* Pin every direct child by default; .modal-body opts back in to flexing below. */
+.modal > * { flex-shrink: 0; }
 .modal-overlay.active .modal { transform: translateY(0); }
 .modal.wide { max-width: 820px; }
 .modal-header {
@@ -860,11 +866,14 @@ body {
 .modal-close::before { transform: translate(-50%, -50%) rotate(45deg); }
 .modal-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .modal-close:hover { background: var(--danger); color: #fff; }
-.modal-body { padding: 1.25rem; }
+.modal-body { padding: 1.25rem; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .modal-footer {
     padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
     display: flex; justify-content: flex-end; gap: 0.5rem;
 }
+/* Footers filled in by JS (import steps, part detail) render empty on some
+   states — don't leave a stray divider + padding behind. */
+.modal-footer:empty { display: none; }
 
 /* ── FORM ── */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
@@ -2236,7 +2245,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .form-input, .form-select, .form-textarea { width: 100%; min-width: 0; box-sizing: border-box; }
 
 /* ── IMPORT WIZARD ── */
-.import-steps { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.import-steps { display: flex; gap: 0; padding: 0 1.25rem; border-bottom: 1px solid var(--border); }
 .import-step {
     flex: 1; text-align: center; padding: 9px 6px;
     font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
@@ -2305,7 +2314,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 /* ── SETTINGS ── */
 /* ── SETTINGS TABS ── */
 .settings-tabs {
-    display: flex; flex-wrap: nowrap; border-bottom: 1px solid var(--border); margin: -1.25rem -1.25rem 1rem;
+    display: flex; flex-wrap: nowrap; border-bottom: 1px solid var(--border);
     padding: 0 1.25rem;
     overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
@@ -2342,71 +2351,24 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 
 /* Settings modal: fixed height so switching tabs never jumps the modal, and
-   allowed to widen up to 90vw. Tab content scrolls inside the body. */
+   allowed to widen up to 80vw. Tab content scrolls inside the body. */
 #settingsModal .modal {
-    display: flex; flex-direction: column;
-    width: 100%; max-width: 80vw;
+    max-width: 80vw;
     height: 80vh; max-height: 80vh;
-    overflow: hidden;
-}
-#settingsModal .modal-body {
-    flex: 1; min-height: 0; overflow-y: auto;
 }
 
-/* Work-order form modal: sticky header + footer, only the body scrolls */
-#woFormModal .modal {
-    display: flex; flex-direction: column;
-    max-height: 90vh;
-    overflow: hidden;
-}
-#woFormModal .modal-header,
-#woFormModal .modal-footer {
-    flex-shrink: 0;
-}
-#woFormModal .modal-body {
-    flex: 1; min-height: 0; overflow-y: auto;
-}
-/* Part form + part detail: title bar (and the form's buttons) stay put, only
-   the body scrolls */
-#formModal .modal,
-#detailModal .modal {
-    display: flex; flex-direction: column;
-    max-height: 90vh;
-    overflow: hidden;
-}
-#formModal .modal-header,
-#formModal .modal-footer,
-#detailModal .modal-header,
-#detailModal .modal-footer {
-    flex-shrink: 0;
-}
 /* Edit / Print Label / Delete keep their left-to-right reading order rather
    than being right-aligned like a Cancel/Save pair */
 #detailModal .modal-footer { justify-content: flex-start; flex-wrap: wrap; }
-#detailModal .modal-footer:empty { display: none; }
-#formModal .modal-body,
-#detailModal .modal-body {
-    flex: 1; min-height: 0; overflow-y: auto;
-}
 
-#kbUploadModal .modal {
-    display: flex; flex-direction: column;
-    max-height: 90vh;
-    overflow: hidden;
-}
-#kbUploadModal .modal-header,
-#kbUploadModal .modal-footer {
-    flex-shrink: 0;
-}
-#kbUploadModal .modal-body {
-    flex: 1; min-height: 0; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 1rem;
-}
+#kbUploadModal .modal-body { display: flex; flex-direction: column; gap: 1rem; }
 /* Footer stacks the error message above the action buttons */
-#kbUploadModal .modal-footer {
+#kbUploadModal .modal-footer,
+#kbEditModal .modal-footer {
     flex-direction: column; align-items: stretch; gap: 0.5rem;
 }
-#kbUploadModal .modal-footer > div:empty { display: none; }
+#kbUploadModal .modal-footer > div:empty,
+#kbEditModal .modal-footer > div:empty { display: none; }
 .settings-tab:hover { color: var(--text-secondary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .settings-tab-content { display: none; }
@@ -2789,13 +2751,11 @@ body:has(.sidebar.open) .hamburger-icon {
 
     /* Admin (User Management) modal — full height + stacked card rows */
     #adminModal .modal {
-        display: flex; flex-direction: column;
         height: 100vh; max-height: 100vh;
         max-width: 100%; width: 100%;
         border-radius: 0; border: none;
     }
-    #adminModal .modal-header { flex-shrink: 0; }
-    #adminModal .modal-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    #adminModal .modal-body { overflow-x: hidden; }
     #adminModal .admin-table,
     #adminModal .admin-table thead,
     #adminModal .admin-table tbody,
@@ -2874,9 +2834,7 @@ body:has(.sidebar.open) .hamburger-icon {
    several can stay open at once and be moved apart. They live below standard
    modals (200), the lightbox (500) and the palette (600). */
 .kb-win { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: 6vh 1rem 1rem; pointer-events: none; }
-.kb-win .modal { pointer-events: auto; display: flex; flex-direction: column; width: 100%; max-width: 880px; max-height: 84vh; overflow: hidden; box-shadow: var(--shadow-lg); }
-.kb-win .modal-header, .kb-win .modal-footer { flex-shrink: 0; }
-.kb-win .modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+.kb-win .modal { pointer-events: auto; max-width: 880px; max-height: 84vh; }
 /* Fixed metadata sub-header above the scrolling detail body */
 .kbdetail-head { flex-shrink: 0; padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
 /* Organized record-detail block (fixed sub-header) — fields flow in a row,
@@ -2895,9 +2853,8 @@ body:has(.sidebar.open) .hamburger-icon {
 .kb-detail-pdf iframe { display: block; width: 100%; height: 68vh; border: 0; background: #fff; }
 .kb-detail-content { white-space: pre-wrap; line-height: 1.5; font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.6rem; }
 /* Glossary modal: fixed header + search, scrolling term list */
-#glossaryModal .modal { display: flex; flex-direction: column; max-height: 82vh; overflow: hidden; }
-#glossaryModal .modal-header, #glossaryModal .glossary-search-wrap { flex-shrink: 0; }
-#glossaryModal .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding-top: 0.5rem; }
+#glossaryModal .modal { max-height: 82vh; }
+#glossaryModal .modal-body { padding-top: 0.5rem; }
 .glossary-search-wrap { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1.25rem; border-bottom: 1px solid var(--border); color: var(--text-muted); }
 .glossary-search-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: 0.95rem; color: var(--text-primary); }
 .glossary-count { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); white-space: nowrap; }
@@ -2966,13 +2923,9 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
 .wp-warn { background: rgba(245,158,11,0.12); color: var(--engine, #f59e0b); border: 1px solid rgba(245,158,11,0.35); border-radius: var(--radius); padding: 8px 11px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 0.9rem; }
 /* WordPress import modal: fixed header/sub-header + footer, scrollable middle, up to 80vh */
 #kbWpImportModal .kbwp-modal {
-    display: flex; flex-direction: column;
-    width: 100%; max-width: 720px;
-    height: 80vh; max-height: 80vh; overflow: hidden;
+    max-width: 720px;
+    height: 80vh; max-height: 80vh;
 }
-#kbWpImportModal .modal-header,
-#kbWpImportModal .kbwp-subhead,
-#kbWpImportModal .kbwp-footer { flex-shrink: 0; }
 #kbWpImportModal .kbwp-subhead { padding: 0.9rem 1.25rem 0; border-bottom: 1px solid var(--border); }
 #kbWpImportModal .kbwp-subhead .wp-steps { margin-bottom: 0.8rem; }
 #kbWpImportModal .kbwp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 1.1rem 1.25rem; }
@@ -3431,16 +3384,17 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <h2>Settings</h2>
             <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
         </div>
-        <div class="modal-body" style="min-height:420px;">
-            <div class="settings-tabs">
-                <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
-                <button class="settings-tab" onclick="switchSettingsTab('access', this)">Your Access</button>
-                <button class="settings-tab" id="settingsModulesTab" style="display:none;" onclick="switchSettingsTab('modules', this)">Modules</button>
-                <button class="settings-tab" id="settingsSidebarTab" style="display:none;" onclick="switchSettingsTab('sidebar', this)">Sidebar</button>
-                <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Options</button>
-                <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
-                <button class="settings-tab" id="settingsAboutTab" style="display:none;" onclick="switchSettingsTab('about', this)">About</button>
-            </div>
+        <!-- Pinned sub-header: the tab strip stays put while tab content scrolls -->
+        <div class="settings-tabs">
+            <button class="settings-tab active" onclick="switchSettingsTab('general', this)">General</button>
+            <button class="settings-tab" onclick="switchSettingsTab('access', this)">Your Access</button>
+            <button class="settings-tab" id="settingsModulesTab" style="display:none;" onclick="switchSettingsTab('modules', this)">Modules</button>
+            <button class="settings-tab" id="settingsSidebarTab" style="display:none;" onclick="switchSettingsTab('sidebar', this)">Sidebar</button>
+            <button class="settings-tab" id="settingsAdminTab" style="display:none;" onclick="switchSettingsTab('admin', this)">Options</button>
+            <button class="settings-tab" id="settingsDataTab" style="display:none;" onclick="switchSettingsTab('data', this)">Data</button>
+            <button class="settings-tab" id="settingsAboutTab" style="display:none;" onclick="switchSettingsTab('about', this)">About</button>
+        </div>
+        <div class="modal-body">
 
             <!-- General Tab -->
             <div class="settings-tab-content active" id="settingsTabGeneral">
@@ -3924,13 +3878,14 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <h2>Import Data</h2>
             <button class="modal-close" onclick="closeSubModal('importModal')">&times;</button>
         </div>
+        <!-- Pinned sub-header: the step tracker stays put while the step scrolls -->
+        <div class="import-steps" id="importSteps">
+            <div class="import-step active" data-step="1"><span class="import-step-num">1</span>Upload</div>
+            <div class="import-step" data-step="2"><span class="import-step-num">2</span>Map Fields</div>
+            <div class="import-step" data-step="3"><span class="import-step-num">3</span>Preview</div>
+            <div class="import-step" data-step="4"><span class="import-step-num">4</span>Import</div>
+        </div>
         <div class="modal-body">
-            <div class="import-steps" id="importSteps">
-                <div class="import-step active" data-step="1"><span class="import-step-num">1</span>Upload</div>
-                <div class="import-step" data-step="2"><span class="import-step-num">2</span>Map Fields</div>
-                <div class="import-step" data-step="3"><span class="import-step-num">3</span>Preview</div>
-                <div class="import-step" data-step="4"><span class="import-step-num">4</span>Import</div>
-            </div>
             <div id="importStepContent"></div>
         </div>
         <div class="modal-footer" id="importFooter"></div>
@@ -4077,7 +4032,9 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                        accept=".png,.jpg,.jpeg,.gif,.webp">
                 <span class="form-hint">Choose a file to replace the featured image. Saved when you click Save Changes.</span>
             </div>
-            <div id="kbEditError" style="color:var(--danger);font-size:0.82rem;margin-bottom:0.5rem;"></div>
+        </div>
+        <div class="modal-footer">
+            <div id="kbEditError" style="color:var(--danger);font-size:0.82rem;"></div>
             <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
                 <button class="btn btn-ghost btn-sm" onclick="closeModal('kbEditModal')">Cancel</button>
                 <button class="btn btn-primary btn-sm" onclick="submitKbEdit()">Save Changes</button>
@@ -4554,7 +4511,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <h2 id="woAuditTitle">Audit Trail</h2>
             <button class="modal-close" onclick="closeModal('woAuditModal')">&times;</button>
         </div>
-        <div class="modal-body" id="woAuditBody" style="max-height:65vh;overflow-y:auto;"></div>
+        <div class="modal-body" id="woAuditBody"></div>
     </div>
 </div>
 
@@ -5085,6 +5042,10 @@ function switchSettingsTab(tab, btn) {
     };
     const el = document.getElementById(tabMap[tab]);
     if (el) el.classList.add('active');
+    // The tab strip is pinned outside the scrolling body, so a new tab would
+    // otherwise inherit the previous tab's scroll offset.
+    const sbody = document.querySelector('#settingsModal .modal-body');
+    if (sbody) sbody.scrollTop = 0;
     if (tab === 'access') renderYourAccessCard();
     if (tab === 'modules') { refreshModuleToggles(); zcRefreshAdminPanel(); }
     if (tab === 'admin') refreshBrandingPreview();
@@ -6934,7 +6895,13 @@ function visibleHeaders() { if(importState.headChartEnabled||importState.hcVirtu
 function visibleSampleRows() { if(importState.headChartEnabled||importState.hcVirtualCount===0)return importState.sampleRows; const n=importState.hcVirtualCount; return importState.sampleRows.map(r=>r.slice(0,r.length-n)); }
 function openImportModal() { resetImportState();openModal('importModal');setImportStep(1); }
 function updateStepIndicators(n) { document.querySelectorAll('#importSteps .import-step').forEach(el=>{const s=parseInt(el.dataset.step);el.classList.toggle('active',s===n);el.classList.toggle('done',s<n);}); }
-function setImportStep(n) { importState.step=n;updateStepIndicators(n);renderImportStep(); }
+function setImportStep(n) {
+    importState.step=n;updateStepIndicators(n);renderImportStep();
+    // The step tracker is pinned now, so nothing scrolls the new step into
+    // view for us — start each step at the top of the scrolling body.
+    const body=document.querySelector('#importModal .modal-body');
+    if (body) body.scrollTop=0;
+}
 function renderImportStep() {
     const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),step=importState.step;
     if (step===1) {

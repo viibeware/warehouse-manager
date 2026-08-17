@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.9.6
+- <strong>Every window now has a fixed title bar and a fixed button row</strong> — Previously only a handful of windows kept their title and buttons in place while you scrolled; the rest scrolled the whole panel, so on anything long the title, the close button and the Save / Cancel buttons all disappeared off the edges. Now every window in the app works the same way: the title bar stays pinned at the top, the buttons stay pinned at the bottom whenever a window has them, and only the middle scrolls. This covers Settings, User Management, Add / Edit User, Import, Categories, Knowledge Base categories and documents, the WordPress importer, the Glossary, all the work-order windows, the audit trail, Display Settings, Turnstile, API Keys, Email (SMTP) and the change-password window.
+- <strong>Settings keeps its tabs in view</strong> — The General / Modules / Options / Data tab strip used to scroll away with the settings below it, so switching tabs meant scrolling back up first. It is now fixed beneath the title bar. The Import window's four-step tracker is pinned the same way.
+- <strong>Knowledge Base document editing matches everything else</strong> — Cancel and Save Changes moved out of the scrolling area into a fixed footer, matching the Add Document window.
+- <strong>No more empty button bar</strong> — Windows whose buttons are filled in as you go — the Import window while a dry run or an import is working — no longer leave a stray divider line and blank strip at the bottom when there is nothing to show.
+
 ## v1.9.5
 - <strong>The part window's buttons no longer scroll away</strong> — Edit, Print Label and Delete sit in a fixed footer at the bottom of the part window, so they stay reachable however far down the fields and photos you are. Viewers still see Print Label there.
 - <strong>Editing a part returns you to the part</strong> — Clicking <em>Update Part</em> used to close everything and drop you back at the list. It now closes the edit form and shows the part again with your changes applied, so you can keep working on it. Adding a new part still closes to the list.
