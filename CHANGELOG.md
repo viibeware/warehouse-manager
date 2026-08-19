@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.11.1
+- <strong>Work orders now open collapsed</strong> — Every card in <em>Active Orders</em> and the <em>Archive</em> used to arrive fully expanded, so a handful of orders filled the screen and finding the one you wanted meant scrolling past everyone else's parts lists and note threads. Cards now start collapsed, showing the work order number, customer, IMS number, status and priority, location, sales person, date, and the vehicle and request details. Click a card &mdash; or the chevron on the right &mdash; to open its attachments, parts and notes thread. Opening a work order on its own page still shows it expanded.
+
 ## v1.11.0
 - <strong>Removed the "Built by VIIBEWARE" credit from About</strong> — <em>Settings → About</em> no longer carries the byline and logo beneath the tagline. The app name, version, tagline, license and the Built With stack are unchanged.
 - <strong>Now licensed under MIT</strong> — Warehouse Manager was released under the GNU Affero General Public License v3.0, which required anyone running a modified copy as a network service to publish their changes. It is now under the MIT License instead, which drops that obligation: you can run, modify, and redistribute it, including inside a closed-source or commercial product, as long as the copyright notice comes along. Releases up to and including v1.10.0 remain AGPLv3, and anyone who already received a copy under those terms keeps the rights it gave them. Shown in <em>Settings → About</em>.
