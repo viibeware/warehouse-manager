@@ -13,7 +13,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
-APP_VERSION = '1.9.6'
+APP_VERSION = '1.9.7'
 
 
 def _compute_build_fingerprint():
@@ -1543,6 +1543,50 @@ def migrate_v44(conn):
     ''')
 
 
+def migrate_v45(conn):
+    """Seed the universal warehouse/bin location list from the locations
+    already typed into parts, so an existing install starts with its own
+    values as suggestions instead of an empty list."""
+    # parts.location is never written here — every existing value is preserved
+    # byte-for-byte, and every one of them comes back as a selectable
+    # suggestion. A value splits into warehouse + bin only on the canonical
+    # LOCATION_SEP, which can only be present if this feature wrote it; free
+    # text with its own punctuation ('A-12', 'Row 4 / Shelf 2') is kept whole
+    # as a bare warehouse, so it regenerates as the identical string instead of
+    # being guessed apart and mangled.
+    #
+    # The one intended departure from byte-identical round-tripping: warehouse
+    # and bin names de-duplicate case-insensitively, first spelling wins. So
+    # existing 'Main · A-12' plus 'main · b-01' yields one warehouse Main with
+    # both bins, and the second is offered back as 'Main · b-01'. That is the
+    # point of a canonical list — it collapses Main/main/MAIN instead of
+    # carrying three warehouses — and the part keeps its typed value until
+    # somebody deliberately re-picks from the list.
+    import json as json_mod
+    row = conn.execute("SELECT value FROM app_settings WHERE key = 'part_locations'").fetchone()
+    if row:
+        return  # already configured — never clobber an admin's list
+    warehouses = []   # ordered [{'name': str, 'bins': [str, ...]}]
+    index = {}        # name -> entry, for grouping bins under their warehouse
+    for (loc,) in conn.execute(
+        "SELECT DISTINCT location FROM parts WHERE location IS NOT NULL AND TRIM(location) != '' ORDER BY location"
+    ):
+        name, bin_name = _split_location(loc)
+        if not name:
+            continue
+        entry = index.get(name.casefold())
+        if entry is None:
+            entry = {'name': name, 'bins': []}
+            index[name.casefold()] = entry
+            warehouses.append(entry)
+        if bin_name and not any(b.casefold() == bin_name.casefold() for b in entry['bins']):
+            entry['bins'].append(bin_name)
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('part_locations', ?)",
+        (json_mod.dumps(warehouses),)
+    )
+
+
 # ┌──────────────────────────────────────────────┐
 # │  MIGRATIONS REGISTRY — append new ones here  │
 # └──────────────────────────────────────────────┘
@@ -1591,6 +1635,7 @@ MIGRATIONS = [
     (42, migrate_v42),
     (43, migrate_v43),
     (44, migrate_v44),
+    (45, migrate_v45),
 ]
 
 
@@ -6001,7 +6046,7 @@ def batch_labels_pdf():
 #  APP SETTINGS (key/value, JSON-encoded values)
 # ══════════════════════════════════════════
 
-SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled', 'customers_config', 'zonechart_config'}
+SETTINGS_KEYS = {'wo_locations', 'wo_salespeople', 'wo_priorities', 'smtp_config', 'turnstile_config', 'branding', 'smtp_notifications_enabled', 'public_url', 'setup_complete', 'display_timezone', 'display_time_format', 'modules_enabled', 'customers_config', 'zonechart_config', 'part_locations'}
 
 # App-wide feature modules. Each can be toggled on/off by an admin from
 # Settings → Modules; a disabled module is hidden from the sidebar and its
@@ -6045,6 +6090,113 @@ def _modules_enabled(conn):
 
 def _module_enabled(conn, name):
     return _modules_enabled(conn).get(name, True)
+
+
+# ── Universal warehouse / bin locations (Inventory) ──
+# Stored as one app_settings blob under 'part_locations': an ordered list of
+# {'name': <warehouse>, 'bins': [<bin>, ...]}. Parts keep storing a single
+# free-text parts.location string; this list only drives the suggestions the
+# add/edit form offers, so a typed value is never rejected or rewritten.
+LOCATION_SEP = ' · '
+
+
+def _split_location(value):
+    """Split a stored location into (warehouse, bin).
+
+    Only LOCATION_SEP splits. Free text with its own punctuation ('A-12',
+    'Row 4 / Shelf 2') comes back as (whole_string, '') so it survives a
+    round-trip through the list unchanged — see migrate_v45."""
+    s = str(value or '').strip()
+    if not s:
+        return ('', '')
+    if LOCATION_SEP in s:
+        head, _, tail = s.partition(LOCATION_SEP)
+        return (head.strip(), tail.strip())
+    return (s, '')
+
+
+def _join_location(warehouse, bin_name):
+    w = str(warehouse or '').strip()
+    b = str(bin_name or '').strip()
+    return f"{w}{LOCATION_SEP}{b}" if w and b else (w or b)
+
+
+def _normalize_part_locations(raw):
+    """Coerce client input into the stored shape — ordered, blanks dropped,
+    warehouses and the bins within each de-duplicated case-insensitively
+    (first spelling wins)."""
+    out, seen = [], {}
+    for item in (raw or []):
+        if isinstance(item, str):
+            name, bins = item, []
+        elif isinstance(item, dict):
+            name, bins = item.get('name'), (item.get('bins') or [])
+        else:
+            continue
+        name = str(name or '').strip()
+        if not name:
+            continue
+        entry = seen.get(name.casefold())
+        if entry is None:
+            entry = {'name': name, 'bins': []}
+            seen[name.casefold()] = entry
+            out.append(entry)
+        for b in bins:
+            b = str(b or '').strip()
+            if b and not any(x.casefold() == b.casefold() for x in entry['bins']):
+                entry['bins'].append(b)
+    return out
+
+
+def _part_location_suggestions(warehouses):
+    """Flatten the tree into the exact strings the form offers.
+
+    The bare warehouse name is always offered alongside its bins — both because
+    filing at warehouse level is legitimate, and because it's what guarantees
+    every pre-existing typed value reappears as a suggestion after migrate_v45
+    folds it into a warehouse that later gained bins."""
+    out = []
+    for w in (warehouses or []):
+        name = str(w.get('name') or '').strip()
+        if not name:
+            continue
+        out.append(name)
+        for b in (w.get('bins') or []):
+            joined = _join_location(name, b)
+            if joined != name:
+                out.append(joined)
+    return out
+
+
+def _add_part_location(conn, value):
+    """Fold a single typed 'Warehouse · Bin' (or bare warehouse) into the
+    stored list. Returns True if the list actually changed."""
+    name, bin_name = _split_location(value)
+    if not name:
+        return False
+    warehouses = _normalize_part_locations(_get_setting(conn, 'part_locations', []))
+    entry = next((w for w in warehouses if w['name'].casefold() == name.casefold()), None)
+    if entry is None:
+        entry = {'name': name, 'bins': []}
+        warehouses.append(entry)
+    elif not bin_name:
+        return False  # warehouse already known and nothing new to add
+    if bin_name and not any(b.casefold() == bin_name.casefold() for b in entry['bins']):
+        entry['bins'].append(bin_name)
+    elif bin_name:
+        return False
+    _set_setting(conn, 'part_locations', warehouses)
+    return True
+
+
+def _inventory_guard():
+    """403 when the Inventory module is switched off, matching _kb_guard()."""
+    conn = get_db()
+    enabled = _module_enabled(conn, 'inventory')
+    conn.close()
+    if not enabled:
+        return (jsonify({'error': 'Inventory module is disabled'}), 403)
+    return None
 
 
 # ── Sidebar customization: admin-defined external links + section ordering ──
@@ -6200,6 +6352,75 @@ def update_wo_settings():
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+
+# ── Universal part locations (warehouses + bins) ──
+
+@app.route('/api/settings/part-locations', methods=['GET'])
+@login_required
+def get_part_locations():
+    """The warehouse/bin tree plus the flattened suggestion strings. Read by
+    everyone — the add/edit part form needs it, not just admins."""
+    g = _inventory_guard()
+    if g is not None:
+        return g
+    conn = get_db()
+    warehouses = _normalize_part_locations(_get_setting(conn, 'part_locations', []))
+    conn.close()
+    return jsonify({
+        'warehouses': warehouses,
+        'suggestions': _part_location_suggestions(warehouses),
+        'separator': LOCATION_SEP,
+    })
+
+
+@app.route('/api/settings/part-locations', methods=['PUT'])
+@admin_required
+def update_part_locations():
+    """Replace the whole tree — the Settings editor saves all at once."""
+    g = _inventory_guard()
+    if g is not None:
+        return g
+    data = request.get_json() or {}
+    warehouses = _normalize_part_locations(data.get('warehouses'))
+    conn = get_db()
+    _set_setting(conn, 'part_locations', warehouses)
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'warehouses': warehouses,
+        'suggestions': _part_location_suggestions(warehouses),
+    })
+
+
+@app.route('/api/settings/part-locations/add', methods=['POST'])
+@editor_required
+def add_part_location():
+    """Fold one typed location into the list — backs the '+ Add to the list'
+    offer in the part form. Editors get this (admin-only would make the offer
+    fail for exactly the people filing parts); replacing the whole tree stays
+    admin-only above."""
+    g = _inventory_guard()
+    if g is not None:
+        return g
+    data = request.get_json() or {}
+    value = str(data.get('location') or '').strip()
+    if not value:
+        return jsonify({'error': 'A location is required.'}), 400
+    if len(value) > 200:
+        return jsonify({'error': 'That location is too long.'}), 400
+    conn = get_db()
+    changed = _add_part_location(conn, value)
+    conn.commit()
+    warehouses = _normalize_part_locations(_get_setting(conn, 'part_locations', []))
+    conn.close()
+    return jsonify({
+        'success': True,
+        'added': changed,
+        'warehouses': warehouses,
+        'suggestions': _part_location_suggestions(warehouses),
+    })
 
 
 @app.route('/api/settings/modules', methods=['GET'])

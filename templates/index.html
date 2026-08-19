@@ -638,6 +638,12 @@ body {
 }
 .toggle-pill.yes { background: rgba(16,185,129,0.15); color: var(--yes); }
 .toggle-pill.no { background: rgba(239,68,68,0.12); color: var(--no); }
+/* Posted-to-web "Yes" pill rendered as a link to the product page (table view) */
+a.toggle-pill.link {
+    display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;
+    text-decoration: none; cursor: pointer; transition: background var(--transition);
+}
+a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: underline; }
 
 /* ── SOLD ── */
 .card-sold-overlay {
@@ -725,8 +731,6 @@ body {
 .parts-table .table-badge.engine { background: var(--engine-dim); color: var(--engine); }
 .parts-table .table-badge.head { background: var(--head-dim); color: var(--head); }
 .parts-table .table-badge.transmission { background: var(--transmission-dim); color: var(--transmission); }
-.parts-table .table-toggle-yes { color: var(--yes); font-weight: 600; }
-.parts-table .table-toggle-no { color: var(--text-muted); }
 .parts-table .table-img {
     width: 34px; height: 34px; border-radius: 4px; object-fit: cover;
     border: 1px solid var(--border); vertical-align: middle;
@@ -2364,11 +2368,63 @@ a.wo-number.clickable:hover { text-decoration: none; }
 #kbUploadModal .modal-body { display: flex; flex-direction: column; gap: 1rem; }
 /* Footer stacks the error message above the action buttons */
 #kbUploadModal .modal-footer,
-#kbEditModal .modal-footer {
+#kbEditModal .modal-footer,
+#partLocationsModal .modal-footer {
     flex-direction: column; align-items: stretch; gap: 0.5rem;
 }
 #kbUploadModal .modal-footer > div:empty,
-#kbEditModal .modal-footer > div:empty { display: none; }
+#kbEditModal .modal-footer > div:empty,
+#partLocationsModal .modal-footer > div:empty { display: none; }
+
+/* Location codes are short and must stay on one line — see renderTable() */
+.parts-table td.loc-cell { white-space: nowrap; }
+
+/* ── WAREHOUSE / BIN LOCATIONS EDITOR ── */
+.wh-block {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; background: var(--bg-card);
+}
+.wh-head { display: flex; align-items: center; gap: 0.5rem; }
+.wh-head .form-input { flex: 1; font-weight: 600; }
+.wh-bins {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    margin-top: 0.55rem; padding-left: 0.1rem;
+}
+.wh-bins:empty { display: none; }
+.wh-bin {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 6px 3px 10px;
+    font-family: var(--mono); font-size: 0.7rem; color: var(--text-primary);
+}
+.wh-bin input {
+    background: none; border: none; outline: none; color: inherit;
+    font-family: inherit; font-size: inherit; width: 6.5em; min-width: 3em;
+}
+.wh-x {
+    width: 16px; height: 16px; flex-shrink: 0; padding: 0; line-height: 1;
+    border: none; border-radius: 50%; cursor: pointer;
+    background: transparent; color: var(--text-muted);
+    font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center;
+}
+.wh-x:hover { background: var(--danger); color: #fff; }
+.wh-empty { color: var(--text-muted); font-size: 0.82rem; padding: 1.2rem 0; text-align: center; }
+
+/* Inline "not in your list" hint under the part form's Location field. Inline
+   rather than a floating dropdown — .modal-body is the scroll container, so an
+   absolutely-positioned panel would be clipped at the body's edge. */
+.loc-hint {
+    display: none; align-items: center; flex-wrap: wrap; gap: 0.45rem;
+    margin-top: 0.35rem; font-size: 0.74rem; color: var(--text-muted);
+}
+.loc-hint.show { display: flex; }
+.loc-hint .loc-add {
+    background: var(--accent-dim); color: var(--accent); border: none;
+    border-radius: 999px; padding: 2px 9px; cursor: pointer;
+    font-family: var(--font); font-size: 0.72rem; font-weight: 600;
+}
+.loc-hint .loc-add:hover { filter: brightness(1.12); }
+.loc-hint.ok { color: var(--yes); }
 .settings-tab:hover { color: var(--text-secondary); }
 .settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .settings-tab-content { display: none; }
@@ -3474,6 +3530,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                         <div class="settings-desc">Parts inventory, categories, search, labels, and import/export.</div>
                     </div>
                     <div class="module-row-controls">
+                        <button class="btn btn-ghost btn-sm" id="moduleInventoryLocationsBtn" style="display:none;" onclick="closeModal('settingsModal'); openPartLocationsModal();">Locations</button>
                         <button class="btn btn-ghost btn-sm" id="moduleInventoryManageBtn" style="display:none;" onclick="closeModal('settingsModal'); openCategoryManager();">Manage</button>
                         <label class="toggle-switch">
                             <input type="checkbox" id="moduleInventoryToggle" onchange="saveModule('inventory', this.checked)">
@@ -3893,6 +3950,37 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
 </div>
 
 <!-- ═══ CATEGORY MANAGER MODAL ═══ -->
+<!-- Suggestions for the part form's Location field. One global datalist, kept
+     in sync by renderLocationDatalist(); the browser renders its popup outside
+     the modal, so it is never clipped by the scrolling .modal-body. -->
+<datalist id="partLocationOptions"></datalist>
+
+<!-- ═══ PART LOCATIONS MANAGER (warehouses + bins, admin) ═══ -->
+<div class="modal-overlay" id="partLocationsModal">
+    <div class="modal" style="max-width:620px;">
+        <div class="modal-header">
+            <h2>Warehouse Locations</h2>
+            <button class="modal-close" onclick="closeSubModal('partLocationsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+                Warehouses and the bins inside them. These are offered as suggestions on the
+                Location field when adding or editing a part &mdash; typing something new is
+                still allowed. Changes are not saved until you click Save.
+            </div>
+            <div id="partLocationsList"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:0.6rem;" onclick="addWarehouseRow()">+ Add Warehouse</button>
+        </div>
+        <div class="modal-footer">
+            <div id="partLocationsError" style="color:var(--danger);font-size:0.82rem;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                <button class="btn btn-ghost" onclick="closeSubModal('partLocationsModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="savePartLocations()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="catManagerModal">
     <div class="modal wide">
         <div class="modal-header">
@@ -5181,6 +5269,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCategories();
     loadKbCategories();
     loadWoSettings();
+    loadPartLocations();
     loadStats();
     loadWoCounts();
     loadGlobalNotificationsState();
@@ -5549,6 +5638,7 @@ function applyModuleVisibility() {
     setDisp('navCustomersLink', m.customers);
     setDisp('navZoneChartLink', m.zone_chart);
     // Manage buttons in the Modules tab: shown only when the module is enabled.
+    setDisp('moduleInventoryLocationsBtn', m.inventory);
     setDisp('moduleInventoryManageBtn', m.inventory);
     setDisp('moduleWorkOrdersManageBtn', m.work_orders);
     setDisp('moduleKnowledgeBaseManageBtn', m.knowledge_base);
@@ -6147,9 +6237,22 @@ function renderTable(parts) {
             const val = cd[c.key] || p[c.key] || '';
             if (c.key==='sold') cell = isSold ? '<span class="sold-tag">SOLD</span>' : '';
             else if (c.radio) { const v=val||'untested'; cell=`<span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span>`; }
-            else if (c.toggle) { const on=!!(val && val !== '0'); cell=`<span class="${on?'table-toggle-yes':'table-toggle-no'}">${on?'Yes':'No'}</span>`; }
+            else if (c.toggle) {
+                // Toggles read as pills here, same as the radio columns (Spins /
+                // Shifts) beside them. A posted part with a saved product URL
+                // links straight out to it; stopPropagation keeps the row's
+                // openDetail from firing underneath the link.
+                const on=!!(val && val !== '0');
+                const purl = (c.key==='posted_to_web' && on) ? (cd.posted_to_web_url||'') : '';
+                cell = purl
+                    ? `<a class="toggle-pill yes link" href="${esc(purl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="${esc(purl)}">Yes <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`
+                    : `<span class="toggle-pill ${on?'yes':'no'}">${on?'Yes':'No'}</span>`;
+            }
             else cell = esc(val);
-            h += `<td onclick="openDetail(${p.id})">${cell}</td>`;
+            // Location codes must not break mid-token — "Main · A-12" wrapping
+            // to "Main · A-" / "12" is unreadable at a glance.
+            const tdCls = c.key==='location' ? ' class="loc-cell"' : '';
+            h += `<td${tdCls} onclick="openDetail(${p.id})">${cell}</td>`;
         }
         // Needs-audit column — clickable to toggle/edit when user can edit
         let auditCell;
@@ -6323,6 +6426,16 @@ function buildForm(category, data) {
             }
         } else if (f.type==='textarea') {
             h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><textarea class="form-textarea" id="field_${fieldId}" rows="3">${esc(val)}</textarea></div>`;
+        } else if (f.key==='location') {
+            // Typeahead over the universal warehouse/bin list. A native
+            // <datalist> rather than a custom dropdown: .modal-body is the
+            // scroll container, so a floating panel would clip at its edge.
+            // Free text still saves — the list is a suggestion, not a rule.
+            h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label>`
+               + `<input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"`
+               + ` list="partLocationOptions" autocomplete="off" placeholder="Start typing a warehouse or bin…"`
+               + ` oninput="onLocationInput()" onchange="onLocationInput()">`
+               + `<div class="loc-hint" id="locationHint"></div></div>`;
         } else {
             h += `<div class="form-group${fc}"><label class="form-label">${esc(f.label)}</label><input class="form-input" type="text" id="field_${fieldId}" value="${esc(val)}"></div>`;
         }
@@ -12060,6 +12173,151 @@ async function sendWorkOrderUpdate(wid) {
 }
 
 // ──────── WO Lists (admin) ────────
+// ══════════════════════════════════════════
+//  UNIVERSAL WAREHOUSE / BIN LOCATIONS
+// ══════════════════════════════════════════
+// One app-wide list of warehouses, each owning its bins. Parts still store a
+// single free-text location string ("Main · A-12"); this list only drives the
+// suggestions the add/edit form offers, so nothing a user types is ever
+// rejected or rewritten.
+
+let partLocations = { warehouses: [], suggestions: [], separator: ' · ' };
+
+async function loadPartLocations() {
+    try {
+        const res = await fetch('/api/settings/part-locations');
+        if (!res.ok) return;                 // module off, or not permitted
+        partLocations = await res.json();
+    } catch {}
+    renderLocationDatalist();
+}
+
+// The <datalist> is a single global element reused by whichever part form is
+// open; refreshed whenever the underlying list changes.
+function renderLocationDatalist() {
+    const dl = document.getElementById('partLocationOptions');
+    if (!dl) return;
+    dl.innerHTML = (partLocations.suggestions || [])
+        .map(s => `<option value="${esc(s)}"></option>`).join('');
+}
+
+function _isKnownLocation(value) {
+    const v = (value || '').trim().toLowerCase();
+    if (!v) return true;                     // blank is fine, just not a suggestion
+    return (partLocations.suggestions || []).some(s => s.toLowerCase() === v);
+}
+
+// Show the "not in your list" nudge under the Location field. Never blocks the
+// save — the offer to add is a convenience, and viewers don't get it at all.
+function onLocationInput() {
+    const input = document.getElementById('field_location');
+    const hint = document.getElementById('locationHint');
+    if (!input || !hint) return;
+    const val = input.value.trim();
+    hint.classList.remove('ok');
+    if (!val || _isKnownLocation(val)) { hint.className = 'loc-hint'; hint.innerHTML = ''; return; }
+    hint.className = 'loc-hint show';
+    hint.innerHTML = (currentUserData && currentUserData.can_edit)
+        ? `<span>Not in your location list.</span><button type="button" class="loc-add" onclick="addTypedLocation()">+ Add “${esc(val)}” to the list</button>`
+        : `<span>Not in your location list.</span>`;
+}
+
+async function addTypedLocation() {
+    const input = document.getElementById('field_location');
+    const hint = document.getElementById('locationHint');
+    if (!input) return;
+    const val = input.value.trim();
+    if (!val) return;
+    try {
+        const res = await fetch('/api/settings/part-locations/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ location: val }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Could not add that location', 'error'); return; }
+        partLocations.warehouses = data.warehouses || [];
+        partLocations.suggestions = data.suggestions || [];
+        renderLocationDatalist();
+        if (hint) { hint.className = 'loc-hint show ok'; hint.innerHTML = `<span>✓ Added to your location list.</span>`; }
+        showToast('Location added', 'success');
+    } catch { showToast('Connection error', 'error'); }
+}
+
+// ── Settings → Modules → Inventory → Locations ──
+
+async function openPartLocationsModal() {
+    await loadPartLocations();
+    document.getElementById('partLocationsError').textContent = '';
+    renderPartLocationRows();
+    openModal('partLocationsModal');
+}
+
+function renderPartLocationRows() {
+    const el = document.getElementById('partLocationsList');
+    const whs = partLocations.warehouses || [];
+    if (!whs.length) {
+        el.innerHTML = `<div class="wh-empty">No warehouses yet — add one to start building the list.</div>`;
+        return;
+    }
+    el.innerHTML = whs.map(w => _warehouseBlockHtml(w.name, w.bins || [])).join('');
+}
+
+function _binChipHtml(value) {
+    return `<span class="wh-bin"><input type="text" value="${esc(value)}" placeholder="bin"
+        oninput="this.size=Math.max(3,this.value.length)"><button type="button" class="wh-x"
+        onclick="this.parentElement.remove()" title="Remove bin">✕</button></span>`;
+}
+
+function _warehouseBlockHtml(name, bins) {
+    return `<div class="wh-block">
+        <div class="wh-head">
+            <input class="form-input" type="text" value="${esc(name || '')}" placeholder="Warehouse name (e.g. Main)">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addBinRow(this)">+ Bin</button>
+            <button type="button" class="wh-x" onclick="this.closest('.wh-block').remove()" title="Remove warehouse">✕</button>
+        </div>
+        <div class="wh-bins">${(bins || []).map(_binChipHtml).join('')}</div>
+    </div>`;
+}
+
+function addWarehouseRow() {
+    const el = document.getElementById('partLocationsList');
+    if (el.querySelector('.wh-empty')) el.innerHTML = '';
+    el.insertAdjacentHTML('beforeend', _warehouseBlockHtml('', []));
+    const inputs = el.querySelectorAll('.wh-block:last-child .wh-head input');
+    if (inputs.length) inputs[0].focus();
+}
+
+function addBinRow(btn) {
+    const bins = btn.closest('.wh-block').querySelector('.wh-bins');
+    bins.insertAdjacentHTML('beforeend', _binChipHtml(''));
+    const last = bins.querySelector('.wh-bin:last-child input');
+    if (last) last.focus();
+}
+
+async function savePartLocations() {
+    const err = document.getElementById('partLocationsError');
+    err.textContent = '';
+    const warehouses = [...document.querySelectorAll('#partLocationsList .wh-block')].map(block => ({
+        name: block.querySelector('.wh-head input').value.trim(),
+        bins: [...block.querySelectorAll('.wh-bins input')].map(i => i.value.trim()).filter(Boolean),
+    })).filter(w => w.name);
+    try {
+        const res = await fetch('/api/settings/part-locations', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ warehouses }),
+        });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error || 'Failed to save'; return; }
+        partLocations.warehouses = data.warehouses || [];
+        partLocations.suggestions = data.suggestions || [];
+        renderLocationDatalist();
+        closeSubModal('partLocationsModal');
+        showToast('Locations saved', 'success');
+    } catch { err.textContent = 'Connection error'; }
+}
+
 async function openWoListsModal() {
     try {
         woSettings = await (await fetch('/api/settings/work-order')).json();
@@ -12507,6 +12765,7 @@ function setModalPos(modalEl, x, y) {
 // Used by closeSubModal() so users land back on Settings when they X-out / Cancel.
 const SETTINGS_SUB_MODALS = {
     woListsModal: 'modules',
+    partLocationsModal: 'modules',
     smtpModal: 'admin',
     turnstileModal: 'admin',
     apiKeysModal: 'admin',
