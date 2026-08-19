@@ -25,6 +25,14 @@
     --font: 'Inter', -apple-system, sans-serif;
     --mono: 'Inter', -apple-system, sans-serif;
     --transition: 0.2s ease;
+    /* ── Type scale ──────────────────────────────────────────────────
+       Three tiers, and that is the whole scale. --fs-body is set on
+       <body> and inherited by every module, so components carry no
+       font-size of their own. --fs-micro is the uppercase caption /
+       badge tier. --fs-page-title is the per-view heading. */
+    --fs-body: 0.9rem;
+    --fs-micro: 0.62rem;
+    --fs-page-title: 1.35rem;
     --radius: 8px;
     --radius-lg: 12px;
     --accent: #4a8eff;
@@ -171,11 +179,27 @@
     text-shadow: 0 0 8px rgba(0, 240, 255, .35);
 }
 
-html { font-size: 1.2rem; }
+/* Root is the browser default (16px). Every rem size in the app resolves
+   against this, so changing it rescales the whole UI, not just type. */
+html { font-size: 1rem; }
 body {
     font-family: var(--font); background: var(--bg-primary); color: var(--text-primary);
     line-height: 1.5; min-height: 100vh; display: flex;
+    /* Body text for the whole app. Components inherit this — Work Orders,
+       Inventory, Knowledge Base and the Zone Chart all read at one size.
+       Don't add font-size to a component; if something genuinely needs to
+       differ it belongs in the label/badge tier below (var(--fs-micro))
+       or the page-title tier (var(--fs-page-title)). */
+    font-size: var(--fs-body);
 }
+/* Form controls don't inherit font-size from their container, so the ones
+   that would otherwise fall back to the browser default restate it. */
+input, select, textarea, button { font-size: var(--fs-body); }
+/* Headings sit at body size and are distinguished by weight, not scale.
+   Without this the browser's em-based h1–h6 defaults would quietly
+   reintroduce the per-element sizes this scale exists to remove; the few
+   views that want a real page heading opt into var(--fs-page-title). */
+h1, h2, h3, h4, h5, h6 { font-size: inherit; }
 
 /* ══════════════════════════════════════════ */
 /*  SIDEBAR                                  */
@@ -198,16 +222,18 @@ body {
     display: flex; flex-direction: column;
 }
 .sidebar-logo-name {
-    font-family: 'Inter', -apple-system, sans-serif; font-weight: 800; font-size: 0.95rem;
+    font-family: 'Inter', -apple-system, sans-serif;
+    /* Branding, so it sits a step above --fs-body deliberately. */
+    font-size: 1rem; font-weight: 800;
     color: var(--text-primary); line-height: 1.1; letter-spacing: -0.02em;
 }
 .sidebar-logo-version {
-    font-family: var(--mono); font-size: 0.55rem; color: var(--text-muted);
+    font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted);
     letter-spacing: 0.03em; margin-top: 2px;
 }
 .sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0.5rem 0.5rem 0.75rem; display: flex; flex-direction: column; gap: 2px; }
 .sidebar-section-label {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
     padding: 0.75rem 0.75rem 0.35rem;
 }
@@ -227,10 +253,11 @@ body {
     width: 100%; text-align: left; background: none; border: none;
     border-radius: var(--radius); cursor: pointer;
     transition: color var(--transition), background var(--transition);
-    /* Sits a step above the nav items beneath it (0.7rem), so the two tiers
-       read as a hierarchy rather than one flat list. Type matches the
-       Dashboard link (.nav-item at 0.8rem) so the top-level entries align. */
-    font-family: var(--font); font-size: 0.8rem; font-weight: 500;
+    /* Same size and weight as the items beneath it — the caret and the
+       divider above already carry the hierarchy, so type doesn't need to.
+       Restated because these buttons also carry .sidebar-section-label,
+       whose micro size would otherwise win on specificity. */
+    font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
     text-transform: none; letter-spacing: 0; color: var(--text-secondary);
     /* Symmetric padding (overrides .sidebar-section-label's 0.75/0.35 split)
        so the hover highlight centers on the text instead of hanging low. */
@@ -251,7 +278,7 @@ body {
 .nav-section.collapsed .nav-section-body { grid-template-rows: 0fr; }
 .nav-section-inner { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
 /* Gap between heading and first item only while expanded (collapsed stays tight). */
-.nav-section:not(.collapsed) .nav-section-header { margin-bottom: 1rem; }
+.nav-section:not(.collapsed) .nav-section-header { margin-bottom: 0.5rem; }
 /* Applied while restoring saved collapsed state on load so it snaps instantly
    instead of animating shut on every page load. */
 .nav-section.nav-no-anim .nav-section-body,
@@ -265,7 +292,7 @@ body {
     border: 1px solid var(--border);
     border-radius: 50%;
     color: var(--text-muted);
-    font-family: var(--font); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--font); font-size: var(--fs-micro); font-weight: 600;
     line-height: 1; cursor: help;
     transition: color var(--transition), border-color var(--transition), background var(--transition);
 }
@@ -288,7 +315,7 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    font-family: var(--font); font-size: 0.86rem; font-weight: 400;
+    font-family: var(--font); font-weight: 400;
     text-transform: none; letter-spacing: 0;
     line-height: 1.5;
     text-align: left;  /* override the <button>'s inherited center alignment */
@@ -313,7 +340,6 @@ body {
     margin: 0.85rem 0;
 }
 .section-help-tip .wo-tooltip-email-block {
-    font-size: 0.82rem;
 }
 .section-help-tip .wo-email-info-list {
     padding-left: 1.1rem; margin: 0.3rem 0;
@@ -323,7 +349,7 @@ body {
     font-weight: 600; color: var(--accent); margin-bottom: 0.35rem;
 }
 .section-help-tip .wo-email-info-note {
-    margin-top: 0.3rem; font-size: 0.76rem; color: var(--text-muted); font-style: italic;
+    margin-top: 0.3rem; color: var(--text-muted); font-style: italic;
 }
 .section-help-tip strong { color: var(--accent); font-weight: 600; }
 .section-help-tip em { font-style: normal; color: var(--text-secondary); }
@@ -332,7 +358,6 @@ body {
 /* Larger flavor for a page-heading (next to an <h2>) */
 .section-help.page-help {
     width: 20px; height: 20px;
-    font-size: 0.78rem;
 }
 .section-help.page-help .section-help-tip { left: 28px; }
 /* Small arrow notch pointing back at the ? icon (vertically aligned with
@@ -346,16 +371,20 @@ body {
     border-left: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
+/* One type size and one weight for every entry in the sidebar — nav items,
+   section headers, custom links and the footer name all sit at 0.9rem/400 so
+   the whole rail reads as a single flat list. Anything that needs emphasis
+   (active, hover) uses color, not size or weight. */
 .nav-item {
     display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem;
-    border-radius: var(--radius); color: var(--text-secondary); font-size: 0.7rem;
-    font-weight: 500; cursor: pointer; transition: all var(--transition);
+    border-radius: var(--radius); color: var(--text-secondary);
+    font-weight: 400; cursor: pointer; transition: all var(--transition);
     border: none; background: none; width: 100%; text-align: left; font-family: var(--font);
 }
-/* Dashboard, Customers, and UPS Zone Chart sit above the module sections
-   rather than inside one, so they take the header tier's size (0.8rem)
-   instead of the nav-item tier's 0.7rem. */
-.nav-item[data-view="dashboard"], #navCustomersLink, #navZoneChartLink { font-size: 0.8rem; }
+/* Dashboard, Customers and UPS Zone Chart sit above the module sections
+   rather than inside one. They used to take a larger tier than the items
+   below them; the sidebar is one uniform size now, so they inherit
+   .nav-item like everything else in the rail. */
 /* ── UPS Zone Chart view ──
    Ported from the standalone ZoneChart app; all selectors are zc-prefixed and
    colors come from the app's theme variables so every WM theme applies. */
@@ -370,7 +399,7 @@ body {
 .zc-tabs::-webkit-scrollbar { display: none; }
 .zc-tab {
     appearance: none; border: 0; background: none; font-family: var(--font);
-    font-weight: 500; font-size: 0.78rem; color: var(--text-secondary);
+    font-weight: 500; color: var(--text-secondary);
     padding: 0.45rem 0.65rem 0.55rem; border-bottom: 2px solid transparent;
     border-radius: var(--radius) var(--radius) 0 0; cursor: pointer; white-space: nowrap;
     transition: all var(--transition);
@@ -387,7 +416,7 @@ body {
 #zcMap .inset-frame { fill: none; stroke: var(--border); stroke-dasharray: 3 3; }
 #zcMap .inset-label { font-family: var(--font); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; fill: var(--text-muted); }
 .zc-hint {
-    position: absolute; top: 10px; right: 12px; font-size: 0.66rem; color: var(--text-muted);
+    position: absolute; top: 10px; right: 12px; font-size: var(--fs-micro); color: var(--text-muted);
     background: var(--bg-card); opacity: 0.92; padding: 4px 9px; border-radius: 20px;
     border: 1px solid var(--border); pointer-events: none; transition: opacity 0.5s;
 }
@@ -395,33 +424,33 @@ body {
 .zc-reset[hidden] { display: none; }
 .zc-tooltip {
     position: absolute; pointer-events: none; background: var(--text-primary); color: var(--bg-card);
-    border-radius: var(--radius); padding: 8px 11px; font-size: 0.72rem; line-height: 1.35;
+    border-radius: var(--radius); padding: 8px 11px; line-height: 1.35;
     max-width: 230px; z-index: 5;
 }
 .zc-tooltip[hidden] { display: none; }
-.zc-tooltip .tt-zip { font-weight: 700; font-size: 0.76rem; }
+.zc-tooltip .tt-zip { font-weight: 700; }
 .zc-tooltip .tt-zone { opacity: 0.85; }
 .zc-legend-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0.6rem 0.85rem 0.7rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
 .zc-legend { display: flex; gap: 4px; flex-wrap: wrap; }
-.zc-legend-item { display: flex; flex-direction: column; align-items: center; min-width: 50px; font-size: 0.6rem; color: var(--text-secondary); gap: 3px; }
+.zc-legend-item { display: flex; flex-direction: column; align-items: center; min-width: 50px; font-size: var(--fs-micro); color: var(--text-secondary); gap: 3px; }
 .zc-legend-item .swatch { width: 100%; height: 11px; border-radius: 3px; border: 1px solid var(--border); }
-.zc-legend-item .lg-zone { font-weight: 600; color: var(--text-primary); font-size: 0.64rem; }
+.zc-legend-item .lg-zone { font-weight: 600; color: var(--text-primary); font-size: var(--fs-micro); }
 .zc-legend-item .lg-days { color: var(--text-muted); }
 .zc-rail { display: flex; flex-direction: column; gap: 0.85rem; }
 .zc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0.85rem 1rem; }
-.zc-eyebrow { display: block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.zc-eyebrow { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
 .zc-origin-head { display: flex; align-items: center; justify-content: space-between; }
 .zc-origin-zip { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.06em; margin-top: 2px; color: var(--text-primary); }
-.zc-origin-place { color: var(--text-secondary); font-size: 0.72rem; }
+.zc-origin-place { color: var(--text-secondary); }
 .zc-origin-editor { margin-top: 0.6rem; padding-top: 0.35rem; border-top: 1px dashed var(--border); }
 .zc-origin-editor[hidden] { display: none; }
 .zc-search-row { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
 .zc-search-row .form-input { flex: 1; min-width: 0; }
-.zc-msg { margin: 0.45rem 0 0; font-size: 0.7rem; color: var(--text-secondary); min-height: 1em; }
+.zc-msg { margin: 0.45rem 0 0; color: var(--text-secondary); min-height: 1em; }
 .zc-msg.error { color: var(--danger); }
 .zc-waybill { border-style: dashed; }
 .zc-waybill-head { display: flex; justify-content: space-between; align-items: baseline; }
-.zc-wb-route { font-size: 0.66rem; color: var(--text-muted); letter-spacing: 0.08em; }
+.zc-wb-route { font-size: var(--fs-micro); color: var(--text-muted); letter-spacing: 0.08em; }
 .zc-wb-dest { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0.5rem 0 0.25rem; }
 .zc-wb-zip { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-primary); }
 .zc-wb-stamp {
@@ -430,17 +459,17 @@ body {
     transition: transform 0.15s;
 }
 .zc-wb-stamp[data-empty="true"] { opacity: 0.35; }
-.zc-wb-stamp-label { display: block; font-size: 0.52rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
+.zc-wb-stamp-label { display: block; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; }
 .zc-wb-stamp-num { font-weight: 700; font-size: 1.7rem; line-height: 0.95; }
 .zc-wb-services { list-style: none; margin: 0.6rem 0 0; padding: 0; }
-.zc-wb-services li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0.4rem 0; border-top: 1px solid var(--border); font-size: 0.74rem; }
+.zc-wb-services li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0.4rem 0; border-top: 1px solid var(--border); }
 .zc-wb-services .svc { color: var(--text-secondary); }
 .zc-wb-services li.active .svc { color: var(--text-primary); font-weight: 600; }
 .zc-wb-services .eta { font-weight: 600; white-space: nowrap; color: var(--text-primary); }
-.zc-wb-services .eta .zn { display: inline-block; min-width: 20px; text-align: center; border-radius: 5px; padding: 0 5px; font-size: 0.64rem; font-weight: 700; margin-left: 7px; }
+.zc-wb-services .eta .zn { display: inline-block; min-width: 20px; text-align: center; border-radius: 5px; padding: 0 5px; font-size: var(--fs-micro); font-weight: 700; margin-left: 7px; }
 .zc-wb-services .eta.na { color: var(--text-muted); font-weight: 400; }
-.zc-wb-note { margin: 0.6rem 0 0; font-size: 0.66rem; color: var(--text-muted); }
-.zc-fine-print { font-size: 0.64rem; color: var(--text-muted); margin: 0 0.25rem; }
+.zc-wb-note { margin: 0.6rem 0 0; font-size: var(--fs-micro); color: var(--text-muted); }
+.zc-fine-print { font-size: var(--fs-micro); color: var(--text-muted); margin: 0 0.25rem; }
 .zc-drawer {
     position: fixed; inset: auto 0 0 var(--sidebar-w); height: min(62vh, 560px);
     background: var(--bg-card); border-top: 1px solid var(--border);
@@ -449,7 +478,7 @@ body {
 }
 .zc-drawer[hidden] { display: none; }
 .zc-drawer-head { display: flex; align-items: center; gap: 12px; padding: 0.7rem 1.1rem; border-bottom: 1px solid var(--border); }
-.zc-drawer-head strong { font-size: 0.85rem; flex: 1; color: var(--text-primary); }
+.zc-drawer-head strong { flex: 1; color: var(--text-primary); }
 .zc-table-scroll { overflow: auto; flex: 1; }
 /* Zone chart admin (Settings → Modules) */
 .zc-progress-track { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; }
@@ -458,27 +487,45 @@ body {
     .zc-layout { grid-template-columns: 1fr; }
     .zc-drawer { left: 0; }
 }
-/* Admin-defined external links: top-level tier like Dashboard. The trailing
-   arrow marks them as leaving the app. */
-.nav-custom-link { font-size: 0.8rem; text-decoration: none; }
+/* Admin-defined external links. Size comes from .nav-item like everything
+   else in the rail; the trailing arrow marks them as leaving the app. */
+.nav-custom-link { text-decoration: none; }
 .nav-custom-link .nav-ext { margin-left: auto; opacity: 0.45; flex-shrink: 0; }
 /* "Section"/"Link" chip in the Settings → Sidebar order list */
 .sidebar-order-kind {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
     border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px;
     flex-shrink: 0; min-width: 52px; text-align: center;
 }
 .nav-item:hover { background: var(--nav-hover); color: var(--text-primary); }
-.nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+/* Active state is accent color + tint only — no weight bump, so the rail
+   keeps one weight throughout and nothing shifts width when you navigate. */
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
 .nav-item svg { flex-shrink: 0; }
+/* Count chips (All Parts · 168). A pill rather than loose digits, so the
+   number reads as a badge against its label instead of as a second word.
+   0.7rem is the one deliberate step outside --fs-body in the rail: at body
+   size the pill crowds the label, and at --fs-micro it reads as a caption
+   rather than a value. */
 .nav-item .nav-count {
-    margin-left: auto; font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted);
+    margin-left: auto; flex-shrink: 0;
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 500;
+    line-height: 1; padding: 3px 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+    color: var(--text-muted);
+    transition: background var(--transition), color var(--transition);
+}
+.nav-item:hover .nav-count { color: var(--text-secondary); }
+/* On the current view the pill picks up the accent alongside the label. */
+.nav-item.active .nav-count {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
 }
 .nav-item .nav-flag-badge {
     min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
     background: var(--danger); color: #fff;
-    border-radius: 999px; font-family: var(--mono); font-size: 0.66rem;
+    border-radius: 999px; font-family: var(--mono); font-size: var(--fs-micro);
     font-weight: 700; line-height: 18px; text-align: center;
     box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--danger) 40%, transparent);
 }
@@ -499,13 +546,13 @@ body {
 .user-avatar {
     width: 30px; height: 30px; border-radius: 50%; background: var(--accent-dim);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-size: 0.65rem; font-weight: 700; color: var(--accent);
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700; color: var(--accent);
     flex-shrink: 0;
 }
 .sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar-user-name { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user-name { font-weight: 400; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-user-role {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
 }
 .danger-nav { color: var(--text-muted) !important; }
@@ -524,6 +571,9 @@ body {
     flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--bg-secondary);
     position: sticky; top: 0; z-index: 50;
 }
+/* Each module's Add button sits at the end of its toolbar. Never let it
+   shrink — the search box takes the slack when the toolbar reflows. */
+.toolbar-add-btn { flex-shrink: 0; }
 .search-box { flex: 1; min-width: 200px; position: relative; }
 .search-box svg {
     position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
@@ -532,20 +582,20 @@ body {
 .search-box input {
     width: 100%; padding: 9px 14px 9px 38px; background: var(--bg-input);
     border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text-primary); font-family: var(--font); font-size: 0.88rem;
+    color: var(--text-primary); font-family: var(--font); font-size: var(--fs-body);
     outline: none; transition: border var(--transition);
 }
 .search-box input:focus { border-color: var(--border-focus); }
 .search-box input::placeholder { color: var(--text-muted); }
 
 .sort-label {
-    font-family: var(--mono); font-size: 0.65rem; font-weight: 500;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 500;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); white-space: nowrap;
 }
 .sort-select {
     padding: 7px 26px 7px 10px; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text-primary); font-family: var(--font);
-    font-size: 0.82rem; outline: none; cursor: pointer; transition: border var(--transition);
+    font-size: var(--fs-body); outline: none; cursor: pointer; transition: border var(--transition);
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a8190' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 8px center;
@@ -576,7 +626,7 @@ body {
 .btn {
     display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px;
     border: none; border-radius: var(--radius); font-family: var(--font);
-    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+ font-weight: 600; cursor: pointer;
     transition: all var(--transition); white-space: nowrap;
 }
 .btn-primary { background: var(--accent); color: #fff; }
@@ -587,7 +637,7 @@ body {
 .btn-success:hover { filter: brightness(0.92); }
 .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
 .btn-ghost:hover { color: var(--text-primary); border-color: var(--text-muted); }
-.btn-sm { padding: 7px 14px; font-size: 0.78rem; }
+.btn-sm { padding: 7px 14px; font-size: var(--fs-body); }
 
 /* ══════════════════════════════════════════ */
 /*  CONTENT AREA                             */
@@ -616,24 +666,24 @@ body {
 .card-image .placeholder-icon { color: var(--text-muted); opacity: 0.4; }
 .card-badge {
     position: absolute; top: 10px; left: 10px; padding: 3px 10px;
-    border-radius: 20px; font-family: var(--mono); font-size: 0.65rem;
+    border-radius: 20px; font-family: var(--mono); font-size: var(--fs-micro);
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .card-badge.engine { background: rgba(245,158,11,0.85); color: #000; }
 .card-badge.head { background: rgba(16,185,129,0.85); color: #000; }
 .card-badge.transmission { background: rgba(167,139,250,0.85); color: #000; }
 .card-body { padding: 0.85rem 1rem; }
-.card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.card-title { font-weight: 600; margin-bottom: 0.4rem; }
 .card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 0.75rem; }
-.meta-item { font-size: 0.78rem; color: var(--text-secondary); }
+.meta-item { color: var(--text-secondary); }
 .meta-label {
-    color: var(--text-muted); font-family: var(--mono); font-size: 0.65rem;
+    color: var(--text-muted); font-family: var(--mono); font-size: var(--fs-micro);
     text-transform: uppercase; letter-spacing: 0.04em;
 }
 .meta-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-toggles { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
 .toggle-pill {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 2px 7px; border-radius: 10px; letter-spacing: 0.03em;
 }
 .toggle-pill.yes { background: rgba(16,185,129,0.15); color: var(--yes); }
@@ -652,7 +702,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 .card-sold-banner {
     position: absolute; top: 12px; right: -30px;
     background: var(--danger); color: #fff;
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     letter-spacing: 0.1em; text-transform: uppercase;
     padding: 3px 40px; transform: rotate(35deg);
     box-shadow: 0 2px 6px rgba(239,68,68,0.4);
@@ -665,7 +715,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 .card-audit-badge {
     position: absolute; bottom: 10px; left: 10px; padding: 3px 10px;
     background: var(--engine); color: #000;
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     letter-spacing: 0.05em; border-radius: 10px; cursor: pointer;
     box-shadow: 0 2px 4px rgba(0,0,0,0.35);
     transition: transform var(--transition);
@@ -675,7 +725,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 
 /* ── RADIO PILLS ── */
 .radio-pill {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 2px 7px; border-radius: 10px; letter-spacing: 0.03em;
 }
 .radio-pill.val-yes { background: rgba(16,185,129,0.15); color: var(--yes); }
@@ -686,11 +736,11 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 .parts-table-wrap {
     border: 1px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto;
 }
-.parts-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 700px; }
+.parts-table { width: 100%; border-collapse: collapse; min-width: 700px; }
 .parts-table th {
     position: sticky; top: 0; z-index: 2;
     background: var(--bg-secondary); padding: 9px 11px; text-align: left;
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
     border-bottom: 1px solid var(--border); white-space: nowrap;
 }
@@ -719,18 +769,35 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 .parts-table .row-sold td { background: rgba(255,50,50,0.10); }
 .parts-table .row-sold:hover td { background: rgba(255,50,50,0.18); }
 .parts-table .sold-tag {
-    font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     color: #ff4444; letter-spacing: 0.06em;
     background: rgba(255,50,50,0.12); padding: 2px 8px; border-radius: 8px;
 }
 .parts-table .table-badge {
     display: inline-block; padding: 2px 7px; border-radius: 10px;
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em;
 }
 .parts-table .table-badge.engine { background: var(--engine-dim); color: var(--engine); }
 .parts-table .table-badge.head { background: var(--head-dim); color: var(--head); }
 .parts-table .table-badge.transmission { background: var(--transmission-dim); color: var(--transmission); }
+/* Audit column. Both states are chips and neither may wrap — the column is
+   narrow, and "+ Audit" breaking after the + reads as two separate controls
+   stacked on top of each other rather than one button. */
+.audit-cell { text-align: center; white-space: nowrap; }
+.audit-flag {
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
+    color: var(--engine); white-space: nowrap;
+}
+.audit-flag.is-clickable { cursor: pointer; }
+.audit-add-btn {
+    background: transparent; border: 1px dashed var(--border);
+    color: var(--text-muted); padding: 2px 8px; border-radius: 10px;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    transition: color var(--transition), border-color var(--transition);
+}
+.audit-add-btn:hover { color: var(--engine); border-color: var(--engine); }
 .parts-table .table-img {
     width: 34px; height: 34px; border-radius: 4px; object-fit: cover;
     border: 1px solid var(--border); vertical-align: middle;
@@ -748,14 +815,14 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
     background: var(--bg-secondary); border: 1px solid var(--border);
     border-radius: var(--radius); animation: slideIn 0.2s ease;
 }
-.bulk-bar-count { font-family: var(--mono); font-size: 0.82rem; color: var(--text-primary); font-weight: 600; }
+.bulk-bar-count { font-family: var(--mono); color: var(--text-primary); font-weight: 600; }
 .bulk-bar-actions { display: flex; gap: 0.5rem; }
 
 /* ── EMPTY / LOADING / PAGINATION ── */
 .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
 .empty-state svg { margin-bottom: 0.75rem; opacity: 0.3; }
-.empty-state h3 { font-size: 1rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
-.empty-state p { font-size: 0.85rem; }
+.empty-state h3 { color: var(--text-secondary); margin-bottom: 0.2rem; }
+.empty-state p { }
 /* Floating "update available" banner — pinned bottom-right so it doesn't
    block the active card / modal flow. Persistent until the user clicks
    Reload or Later. */
@@ -781,11 +848,11 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .version-update-banner-title {
-    font-size: 0.88rem; font-weight: 600; color: var(--text-primary);
+ font-weight: 600; color: var(--text-primary);
     margin-bottom: 0.15rem;
 }
 .version-update-banner-sub {
-    font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
+ color: var(--text-secondary); line-height: 1.4;
 }
 .version-update-banner-actions {
     display: flex; gap: 0.4rem; justify-content: flex-end;
@@ -811,20 +878,20 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
     gap: 0.85rem;
     z-index: 15;
     border-radius: inherit;
-    font-size: 0.9rem; color: var(--text-secondary);
+ color: var(--text-secondary);
 }
 .modal-busy-text { font-weight: 500; color: var(--text-primary); }
-.modal-busy-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: -4px; }
+.modal-busy-sub { color: var(--text-muted); margin-top: -4px; }
 .pagination { display: flex; justify-content: center; align-items: center; gap: 0.4rem; margin-top: 1.5rem; }
 .pagination button {
     padding: 7px 12px; border: 1px solid var(--border); background: var(--bg-card);
     color: var(--text-secondary); border-radius: var(--radius);
-    font-family: var(--mono); font-size: 0.78rem; cursor: pointer; transition: all var(--transition);
+    font-family: var(--mono); font-size: var(--fs-body); cursor: pointer; transition: all var(--transition);
 }
 .pagination button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .pagination button:disabled { opacity: 0.3; cursor: default; }
 .pagination button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.pagination .page-info { font-size: 0.78rem; color: var(--text-muted); font-family: var(--mono); }
+.pagination .page-info { color: var(--text-muted); font-family: var(--mono); }
 
 /* ══════════════════════════════════════════ */
 /*  MODALS                                   */
@@ -854,7 +921,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
     padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
 }
-.modal-header h2 { font-size: 1rem; font-weight: 600; }
+.modal-header h2 { font-weight: 600; }
 .modal-close {
     width: 30px; height: 30px; flex-shrink: 0; padding: 0;
     border: none; background: var(--bg-input);
@@ -884,20 +951,20 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
 .form-group.full-width { grid-column: 1 / -1; }
 .form-label {
-    font-family: var(--mono); font-size: 0.65rem; font-weight: 500;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 500;
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);
 }
 .form-input, .form-select, .form-textarea {
     padding: 8px 11px; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text-primary);
-    font-family: var(--font); font-size: 0.85rem; outline: none;
+    font-family: var(--font); font-size: var(--fs-body); outline: none;
     transition: border var(--transition);
 }
 .form-textarea { resize: vertical; min-height: 65px; }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
 .form-select { cursor: pointer; }
 .form-select option { background: var(--bg-secondary); }
-.form-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.form-hint { color: var(--text-muted); margin-top: 2px; }
 
 /* ── TOGGLE ── */
 .toggle-row {
@@ -917,7 +984,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 }
 .toggle-switch input:checked + .toggle-track { background: rgba(16,185,129,0.3); }
 .toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); background: var(--yes); }
-.toggle-label-text { font-size: 0.82rem; color: var(--text-secondary); }
+.toggle-label-text { color: var(--text-secondary); }
 
 /* ── RADIO GROUP ── */
 .radio-group {
@@ -926,7 +993,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 }
 .radio-option {
     flex: 1; text-align: center; padding: 7px 10px;
-    font-family: var(--font); font-size: 0.82rem; font-weight: 500;
+    font-family: var(--font); font-weight: 500;
     color: var(--text-secondary); background: transparent;
     border: none; border-radius: 6px; cursor: pointer; transition: all var(--transition);
 }
@@ -944,7 +1011,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 }
 .file-upload:hover { border-color: var(--accent); background: var(--accent-dim); }
 .file-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.file-upload-text { font-size: 0.82rem; color: var(--text-secondary); }
+.file-upload-text { color: var(--text-secondary); }
 .file-upload-text strong { color: var(--accent); }
 .category-prompt { text-align: center; padding: 1.5rem 1rem; color: var(--text-muted); }
 
@@ -970,7 +1037,7 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
 }
 .form-image-remove {
     position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
-    background: var(--danger); color: #fff; border: none; font-size: 0.65rem; cursor: pointer;
+    background: var(--danger); color: #fff; border: none; font-size: var(--fs-micro); cursor: pointer;
     display: flex; align-items: center; justify-content: center;
 }
 
@@ -980,11 +1047,11 @@ a.toggle-pill.link:hover { background: rgba(16,185,129,0.28); text-decoration: u
     display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
     flex-wrap: wrap; margin-top: 0.4rem;
 }
-.form-image-hint { font-size: 0.7rem; color: var(--text-muted); }
+.form-image-hint { color: var(--text-muted); }
 .form-image-toolbar-actions { display: flex; gap: 0.35rem; }
 .form-image-tool {
     background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border);
-    border-radius: 5px; font-size: 0.7rem; padding: 0.22rem 0.5rem; cursor: pointer;
+    border-radius: 5px; padding: 0.22rem 0.5rem; cursor: pointer;
     font-family: inherit; transition: all 0.15s;
 }
 .form-image-tool:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
@@ -1016,15 +1083,15 @@ body.img-drag-active { user-select: none; -webkit-user-select: none; }
     white-space: nowrap; pointer-events: none; z-index: 10;
 }
 .detail-label {
-    font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+    font-family: var(--mono); font-size: var(--fs-micro); text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;
 }
-.detail-value { font-size: 0.9rem; color: var(--text-primary); word-break: break-word; }
+.detail-value { color: var(--text-primary); word-break: break-word; }
 .detail-value a { color: var(--accent); text-decoration: none; }
 .detail-value a:hover { text-decoration: underline; }
 .detail-toggle {
     display: inline-flex; align-items: center; gap: 5px;
-    font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 3px 10px; border-radius: 12px;
 }
 .detail-toggle.yes { background: rgba(16,185,129,0.15); color: var(--yes); }
@@ -1068,13 +1135,13 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
 .lightbox-nav.next { right: 18px; }
 .lightbox-counter {
     position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-    font-family: var(--mono); font-size: 0.78rem; color: rgba(255,255,255,0.6);
+    font-family: var(--mono); color: rgba(255,255,255,0.6);
 }
 
 /* ── ADMIN TABLE ── */
-.admin-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.admin-table { width: 100%; border-collapse: collapse; }
 .admin-table th {
-    text-align: left; padding: 9px 11px; font-family: var(--mono); font-size: 0.65rem;
+    text-align: left; padding: 9px 11px; font-family: var(--mono); font-size: var(--fs-micro);
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); border-bottom: 1px solid var(--border);
 }
@@ -1087,7 +1154,7 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
 .table-actions { display: flex; gap: 0.35rem; }
 .table-btn {
     padding: 4px 9px; border: 1px solid var(--border); background: var(--bg-input);
-    color: var(--text-secondary); border-radius: 6px; font-size: 0.75rem;
+    color: var(--text-secondary); border-radius: 6px; font-size: var(--fs-body);
     cursor: pointer; transition: all var(--transition); font-family: var(--font);
 }
 .table-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -1098,16 +1165,16 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     cursor: not-allowed;
 }
 .self-badge {
-    font-family: var(--mono); font-size: 0.58rem; background: var(--accent-dim);
+    font-family: var(--mono); font-size: var(--fs-micro); background: var(--accent-dim);
     color: var(--accent); padding: 1px 5px; border-radius: 8px; margin-left: 5px;
 }
 .role-badge {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .role-perm-grid {
     width: 100%; border-collapse: collapse;
-    font-size: 0.76rem; margin-top: 0.3rem;
+ margin-top: 0.3rem;
     border: 1px solid var(--border); border-radius: var(--radius);
     overflow: hidden;
 }
@@ -1117,13 +1184,13 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
 .role-perm-grid tr:last-child td { border-bottom: none; }
 .role-perm-grid th {
     background: var(--bg-input); font-family: var(--mono);
-    font-size: 0.62rem; font-weight: 700;
+    font-size: var(--fs-micro); font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.04em;
     color: var(--text-muted); text-align: center;
 }
 .role-perm-grid th.perm-label, .role-perm-grid td.perm-label {
     text-align: left; color: var(--text-secondary); font-family: var(--font);
-    font-size: 0.76rem; text-transform: none; letter-spacing: 0;
+    font-size: var(--fs-body); text-transform: none; letter-spacing: 0;
     font-weight: 400;
 }
 .role-perm-grid td { text-align: center; color: var(--text-muted); font-family: var(--mono); }
@@ -1145,13 +1212,13 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;
 }
 .role-access-head .role-badge {
-    font-size: 0.68rem; padding: 3px 10px; border-radius: 10px;
+ padding: 3px 10px; border-radius: 10px;
 }
 .role-access-email {
-    font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
 }
 .role-access-summary {
-    font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;
+ color: var(--text-secondary); line-height: 1.45;
 }
 .role-access-groups {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1161,14 +1228,14 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     display: flex; flex-direction: column; gap: 0.35rem;
 }
 .role-access-group-title {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.06em;
     color: var(--text-muted);
 }
 .role-access-list {
     list-style: none; padding: 0; margin: 0;
     display: flex; flex-direction: column; gap: 4px;
-    font-size: 0.82rem; color: var(--text-primary); line-height: 1.4;
+ color: var(--text-primary); line-height: 1.4;
 }
 .role-access-list li {
     position: relative; padding-left: 22px;
@@ -1201,11 +1268,11 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
 }
 .dashboard-header h1 {
-    font-family: 'Inter', sans-serif; font-size: 1.35rem; font-weight: 700;
+    font-family: 'Inter', sans-serif; font-size: var(--fs-page-title); font-weight: 700;
     color: var(--text-primary); letter-spacing: -0.02em;
 }
 .dashboard-header .sub {
-    font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;
+ color: var(--text-muted); margin-top: 3px;
     font-family: var(--mono);
 }
 /* "Customize" popover: per-user widget visibility checkboxes. */
@@ -1214,7 +1281,7 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     display: inline-flex; align-items: center; gap: 0.4rem;
     padding: 0.45rem 0.7rem; background: none;
     border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text-secondary); font-family: var(--font); font-size: 0.74rem;
+    color: var(--text-secondary); font-family: var(--font); font-size: var(--fs-body);
     font-weight: 500; cursor: pointer;
     transition: color var(--transition), border-color var(--transition), background var(--transition);
 }
@@ -1226,14 +1293,14 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
 }
 .dash-customize-title {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
     padding: 0.25rem 0.5rem 0.45rem;
 }
 .dash-customize-row {
     display: flex; align-items: center; gap: 0.55rem;
     padding: 0.42rem 0.5rem; border-radius: var(--radius);
-    font-size: 0.8rem; color: var(--text-primary); cursor: pointer;
+ color: var(--text-primary); cursor: pointer;
     transition: background var(--transition);
 }
 .dash-customize-row:hover { background: var(--nav-hover); }
@@ -1248,18 +1315,18 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
 .dashboard-widget.full { grid-column: 1 / -1; }
 .widget-header {
     display: flex; justify-content: space-between; align-items: center;
-    font-family: var(--mono); font-size: 0.66rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.06em;
     color: var(--text-muted); margin-bottom: 0.7rem;
     padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
 }
 .widget-header a {
-    font-size: 0.64rem; color: var(--accent); text-decoration: none;
+    font-size: var(--fs-micro); color: var(--accent); text-decoration: none;
     font-family: var(--mono); cursor: pointer;
 }
 .widget-header a:hover { text-decoration: underline; }
 .widget-subheader {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); margin: 0.8rem 0 0.35rem;
     padding-bottom: 0.35rem; border-bottom: 1px dashed var(--border);
@@ -1296,21 +1363,21 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
 }
 .widget-row-text { min-width: 0; }
 .widget-row-title {
-    font-size: 0.84rem; color: var(--text-primary); font-weight: 500;
+ color: var(--text-primary); font-weight: 500;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.widget-row-title .wo-number { font-family: var(--mono); font-size: 0.76rem; margin-right: 0.35rem; }
+.widget-row-title .wo-number { font-family: var(--mono); margin-right: 0.35rem; }
 .widget-row-sub {
-    font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;
+ color: var(--text-muted); margin-top: 2px;
     display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
 }
 .widget-row-meta {
-    font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted);
+    font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted);
     text-align: right; white-space: nowrap;
 }
 .widget-empty {
     text-align: center; padding: 1.5rem 0.5rem;
-    color: var(--text-muted); font-size: 0.82rem;
+    color: var(--text-muted);
 }
 .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
 .summary-item {
@@ -1326,7 +1393,7 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     color: var(--accent); line-height: 1;
 }
 .summary-label {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); margin-top: 0.4rem;
 }
@@ -1342,7 +1409,7 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     border: 1px solid color-mix(in srgb, var(--engine) 40%, transparent);
     border-radius: var(--radius);
     color: var(--text-primary);
-    font-size: 0.82rem; line-height: 1.4;
+ line-height: 1.4;
 }
 .wo-notifs-banner svg { color: var(--engine); flex-shrink: 0; }
 .wo-notifs-banner strong { color: var(--engine); }
@@ -1352,12 +1419,12 @@ a.detail-toggle.link:hover { background: rgba(16,185,129,0.28); text-decoration:
     display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; gap: 0.5rem; flex-wrap: wrap;
 }
 .wo-header h2 {
-    font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text-primary);
+    font-family: 'Inter', sans-serif; font-size: var(--fs-page-title); font-weight: 700; color: var(--text-primary);
 }
 .wo-status-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .wo-status-filter {
     padding: 5px 11px; border: 1px solid var(--border); background: var(--bg-input);
-    color: var(--text-secondary); border-radius: 20px; font-size: 0.75rem;
+    color: var(--text-secondary); border-radius: 20px;
     cursor: pointer; font-family: var(--font); transition: all var(--transition);
 }
 .wo-status-filter:hover { color: var(--text-primary); }
@@ -1462,22 +1529,31 @@ a.wo-number.clickable:hover { text-decoration: none; }
     margin: -0.85rem -1rem 0.35rem -1rem;
     padding: 0.85rem 1rem 0 1rem;
 }
-.wo-number { font-family: var(--mono); font-size: 0.78rem; color: var(--text-primary); font-weight: 600; }
-.wo-customer { font-size: 0.9rem; color: var(--text-primary); font-weight: 500; }
+.wo-number { font-family: var(--mono); color: var(--text-primary); font-weight: 600; }
+.wo-customer { color: var(--text-primary); font-weight: 500; }
 .wo-meta-row {
-    display: flex; gap: 0.85rem; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap;
+    display: flex; gap: 0.85rem; color: var(--text-muted); flex-wrap: wrap;
 }
-.wo-meta-row.wo-vehicle-row { margin-top: 1rem; }
+/* Vehicle reads as a labelled section like Request Details below it, so the
+   rule and the top margin live on the block and the row itself sits flush. */
+.wo-vehicle-block {
+    margin-top: 0.9rem; padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+}
+.wo-meta-row.wo-vehicle-row { margin-top: 0; }
 .wo-meta-row span strong { color: var(--text-secondary); font-weight: 500; }
+/* VIN keeps the mono face for legibility, but its label carries no extra
+   weight — the whole run reads at the same weight as the vehicle beside it. */
+.wo-meta-row .wo-vin { font-family: var(--mono); font-weight: 400; }
 .wo-status-badge {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .wo-status-badge.requested { background: var(--accent-dim); color: var(--accent); }
 .wo-status-badge.flagged { background: rgba(239,68,68,0.15); color: var(--danger); }
 .wo-status-badge.delivered { background: rgba(16,185,129,0.15); color: var(--yes); }
 .wo-priority-badge {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     padding: 2px 7px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
     background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border);
 }
@@ -1634,7 +1710,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 /* "Not Delivered" pill for archived records that never reached delivery */
 .wo-not-delivered-badge {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     padding: 2px 7px; border-radius: 10px; text-transform: uppercase;
     letter-spacing: 0.05em;
     background: rgba(245, 158, 11, 0.15);
@@ -1674,49 +1750,39 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-flag-note {
     margin-top: 0.5rem; padding: 0.5rem 0.65rem; background: rgba(239,68,68,0.08);
-    border-left: 3px solid var(--danger); border-radius: 4px; font-size: 0.78rem; color: var(--text-secondary);
+    border-left: 3px solid var(--danger); border-radius: 4px; color: var(--text-secondary);
 }
 .wo-notes-block {
     margin-top: 0.55rem; padding: 0.3rem 0;
-    font-size: 0.82rem; color: var(--text-secondary);
+ color: var(--text-secondary);
 }
-.wo-notes-block .notes-label {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+/* Section headings on a work-order card. Request Details, Vehicle and Notes
+   and Activity all read as the same small uppercase mono label, so the card
+   scans as three labelled sections rather than one run-on block. */
+.wo-notes-block .notes-label,
+.wo-vehicle-block .vehicle-label {
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); margin-bottom: 3px;
 }
+/* Never clamped. A request cut off at three lines hides exactly the detail
+   the person pulling the order needs, and the card already collapses. */
 .wo-notes-block .notes-text { white-space: pre-wrap; word-break: break-word; }
-/* Clamp notes inside cards so they don't dominate the list; modal shows full text */
-.wo-card .wo-notes-block .notes-text {
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-    overflow: hidden;
-}
 
 /* Threaded notes block on WO cards + detail modal */
 .wo-notes-thread {
     margin-top: 0.55rem; padding-top: 0.55rem;
-    font-size: 0.82rem;
 }
 .wo-notes-thread-label {
-    font-family: var(--mono); font-size: 0.58rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); margin-bottom: 6px;
 }
-/* Scrollable list — roughly five notes visible before scrolling. Newest
-   notes always at the top (render path sorts roots desc + replies asc). */
-.wo-notes-thread-list {
-    max-height: 320px;
-    overflow-y: auto;
-    padding-right: 4px;  /* keep the scrollbar off the note cards */
-}
-.wo-notes-thread-list::-webkit-scrollbar { width: 8px; }
-.wo-notes-thread-list::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
-    border-radius: 6px;
-}
-.wo-notes-thread-list::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--text-muted) 55%, transparent);
-}
+/* Every note and reply shows in full — no inner scroller. The old 320px cap
+   hid how much history a work order carried and forced a second scroll to
+   read a long note. Newest notes stay at the top (the render path sorts
+   roots desc + replies asc). */
+.wo-notes-thread-list { padding-right: 4px; }
 .wo-note {
     display: flex; flex-direction: column; gap: 3px;
     padding: 0.5rem 0.65rem;
@@ -1735,27 +1801,26 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-note-head {
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-    font-size: 0.74rem;
 }
 .wo-note-author { font-weight: 600; color: var(--text-primary); }
 .wo-note-time {
-    font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
 }
 .wo-note-text {
-    color: var(--text-primary); font-size: 0.82rem; line-height: 1.4;
+    color: var(--text-primary); line-height: 1.4;
     white-space: pre-wrap; word-break: break-word;
 }
 .wo-note-actions { display: flex; gap: 6px; margin-top: 2px; }
 .wo-note-reply-btn {
     background: transparent; border: 1px solid var(--border);
-    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    color: var(--text-secondary); font-family: var(--font); font-size: var(--fs-body);
     padding: 3px 9px; border-radius: 10px; cursor: pointer;
     transition: all var(--transition);
 }
 .wo-note-reply-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .wo-note-delete-btn {
     background: transparent; border: 1px solid var(--border);
-    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    color: var(--text-secondary); font-family: var(--font); font-size: var(--fs-body);
     padding: 3px 9px; border-radius: 10px; cursor: pointer;
     transition: all var(--transition);
 }
@@ -1765,7 +1830,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-note-edit-btn {
     background: transparent; border: 1px solid var(--border);
-    color: var(--text-secondary); font-family: var(--font); font-size: 0.7rem;
+    color: var(--text-secondary); font-family: var(--font); font-size: var(--fs-body);
     padding: 3px 9px; border-radius: 10px; cursor: pointer;
     transition: all var(--transition);
 }
@@ -1784,7 +1849,6 @@ a.wo-number.clickable:hover { text-decoration: none; }
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    font-size: 0.75rem;
     transition: border-color var(--transition);
     max-width: 220px;
 }
@@ -1802,12 +1866,12 @@ a.wo-number.clickable:hover { text-decoration: none; }
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     max-width: 130px;
 }
-.wo-note-att-size { color: var(--text-muted); font-family: var(--mono); font-size: 0.62rem; }
+.wo-note-att-size { color: var(--text-muted); font-family: var(--mono); }
 .wo-note-att-remove {
     position: absolute; top: 3px; right: 3px;
     width: 18px; height: 18px;
     display: inline-flex; align-items: center; justify-content: center;
-    padding: 0; font-size: 0.75rem; line-height: 1;
+    padding: 0; line-height: 1;
     background: rgba(0, 0, 0, 0.6); color: #fff;
     border: none; border-radius: 50%; cursor: pointer;
     opacity: 0; transition: opacity var(--transition), background var(--transition);
@@ -1827,7 +1891,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     margin-top: 0.6rem;
 }
 .wo-attachments-label {
-    font-family: var(--mono); font-size: 0.64rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); margin-bottom: 0.35rem;
 }
@@ -1842,13 +1906,12 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border-radius: var(--radius);
     color: var(--text-primary);
     text-decoration: none;
-    font-size: 0.78rem;
     transition: border-color var(--transition), background var(--transition);
     max-width: 260px;
 }
 .wo-attachment:hover { border-color: var(--accent); background: var(--accent-dim); }
 .wo-attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wo-attachment-size { color: var(--text-muted); font-family: var(--mono); font-size: 0.66rem; }
+.wo-attachment-size { color: var(--text-muted); font-family: var(--mono); }
 .wo-attachment-img {
     padding: 0; overflow: hidden; cursor: pointer; width: 88px; height: 88px;
 }
@@ -1867,13 +1930,12 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border: 1px solid var(--border);
     border-radius: 6px;
     margin-bottom: 0.35rem;
-    font-size: 0.78rem;
 }
 .wo-form-attachment-row .wo-form-att-name {
     flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .wo-form-attachment-row .wo-form-att-size {
-    color: var(--text-muted); font-family: var(--mono); font-size: 0.66rem;
+    color: var(--text-muted); font-family: var(--mono);
 }
 .wo-form-attachment-row .wo-form-att-remove {
     width: 26px; height: 26px;
@@ -1904,7 +1966,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     background: var(--accent-dim);
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     border-radius: var(--radius);
-    font-size: 0.76rem; color: var(--text-secondary); line-height: 1.4;
+ color: var(--text-secondary); line-height: 1.4;
 }
 .wo-note-disclaimer svg { color: var(--accent); }
 
@@ -1918,7 +1980,6 @@ a.wo-number.clickable:hover { text-decoration: none; }
     grid-template-columns: 58px 48px 1fr auto;
     gap: 0.6rem; align-items: center;
     padding: 3px 6px;
-    font-size: 0.78rem;
     border-radius: 4px;
 }
 .wo-part-acts { display: inline-flex; gap: 4px; align-items: center; }
@@ -1929,7 +1990,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     margin-bottom: 2px;
 }
 .wo-parts-head .hd {
-    font-family: var(--mono); font-size: 0.56rem;
+    font-family: var(--mono); font-size: var(--fs-micro);
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
     text-align: center;
 }
@@ -1942,11 +2003,10 @@ a.wo-number.clickable:hover { text-decoration: none; }
     100% { box-shadow: inset 0 0 0 999px rgba(16, 185, 129, 0); }
 }
 .wo-part-pulled-ts {
-    font-family: var(--mono); font-size: 0.62rem;
+    font-family: var(--mono);
     color: var(--text-muted); margin-top: 2px;
 }
 .wo-part-details-text {
-    font-size: 0.72rem;
     color: var(--text-secondary);
     margin-top: 2px;
     white-space: pre-wrap; word-break: break-word;
@@ -1964,7 +2024,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 .wo-part-qty {
-    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
     text-align: right; font-weight: 600;
 }
 .wo-part-desc { color: var(--text-primary); word-break: break-word; }
@@ -1984,13 +2044,13 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-note-parts-list .wo-note-part-row {
     display: flex; align-items: center; gap: 0.5rem;
-    padding: 3px 2px; font-size: 0.8rem;
+    padding: 3px 2px;
 }
 .wo-note-parts-list .wo-note-part-row input[type="checkbox"] {
     flex-shrink: 0; cursor: pointer;
 }
 .wo-note-parts-empty {
-    padding: 0.35rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+    padding: 0.35rem; color: var(--text-muted); font-style: italic;
 }
 
 /* Per-part photo blocks (card summary and detail-modal editor) */
@@ -2004,7 +2064,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border-radius: 4px; border: 1px solid var(--border);
 }
 .wo-part-photo-more {
-    font-family: var(--mono); font-size: 0.62rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
     padding: 0 4px;
 }
 .wo-part-photos-full {
@@ -2032,19 +2092,19 @@ a.wo-number.clickable:hover { text-decoration: none; }
     width: 22px; height: 22px; padding: 0;
     background: rgba(0, 0, 0, 0.55); color: #fff;
     border: none; border-radius: 4px; cursor: pointer;
-    font-size: 0.75rem; line-height: 22px;
+    font-size: var(--fs-body); line-height: 22px;
     display: flex; align-items: center; justify-content: center;
     transition: all var(--transition);
 }
 .wo-photo-act-btn:hover { background: rgba(0, 0, 0, 0.8); }
 .wo-photo-act-btn.danger:hover { background: var(--danger); }
 .wo-photo-comment {
-    padding: 4px 6px; font-size: 0.7rem;
+    padding: 4px 6px;
     color: var(--text-primary); word-break: break-word;
     line-height: 1.3; max-height: 60px; overflow: auto;
 }
 .wo-photo-meta {
-    padding: 0 6px 4px; font-family: var(--mono); font-size: 0.58rem;
+    padding: 0 6px 4px; font-family: var(--mono);
     color: var(--text-muted);
 }
 .wo-photo-add-btn {
@@ -2052,7 +2112,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     display: inline-flex; align-items: center; gap: 4px;
     padding: 4px 10px; background: var(--bg-input);
     border: 1px dashed var(--border); border-radius: var(--radius);
-    color: var(--text-secondary); font-size: 0.75rem; cursor: pointer;
+    color: var(--text-secondary); font-size: var(--fs-body); cursor: pointer;
     transition: all var(--transition);
 }
 .wo-photo-add-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -2071,15 +2131,15 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wo-search-box input {
     width: 100%; padding: 7px 10px 7px 32px; background: #fff;
     border: 1px solid var(--border); border-radius: var(--radius);
-    color: #111; font-family: var(--font); font-size: 0.85rem;
+    color: #111; font-family: var(--font); font-size: var(--fs-body);
     outline: none; transition: border var(--transition);
 }
 .wo-search-box input:focus { border-color: var(--border-focus); }
-.wo-sort-label { font-family: var(--mono); font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wo-sort-label { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .wo-sort-select {
     padding: 6px 10px; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text-primary);
-    font-family: var(--font); font-size: 0.8rem; cursor: pointer;
+    font-family: var(--font); font-size: var(--fs-body); cursor: pointer;
 }
 .wo-sort-dir-btn {
     width: 32px; height: 32px; background: var(--bg-input); border: 1px solid var(--border);
@@ -2095,16 +2155,16 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-note-item {
     padding: 0.5rem 0.65rem; background: var(--bg-input); border-radius: 6px;
-    margin-bottom: 0.4rem; font-size: 0.8rem;
+    margin-bottom: 0.4rem;
 }
 .wo-note-item.flag { border-left: 3px solid var(--danger); }
 .wo-note-item.general { border-left: 3px solid var(--accent); }
 .wo-note-meta {
-    font-family: var(--mono); font-size: 0.62rem; color: var(--text-muted); margin-bottom: 3px;
+    font-family: var(--mono); color: var(--text-muted); margin-bottom: 3px;
     display: flex; align-items: center; gap: 0.35rem;
 }
 .wo-note-badge {
-    font-family: var(--mono); font-size: 0.55rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .wo-note-badge.flag { background: rgba(239,68,68,0.15); color: var(--danger); }
@@ -2116,7 +2176,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wo-list-row input[type="color"] { flex: 0 0 44px; }
 .wo-list-row .wo-default-radio {
     display: inline-flex; align-items: center; gap: 0.3rem;
-    font-size: 0.7rem; color: var(--text-muted);
+ color: var(--text-muted);
     padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px;
     cursor: pointer; flex-shrink: 0;
     transition: color var(--transition), border-color var(--transition), background var(--transition);
@@ -2140,7 +2200,6 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .wo-part-row .wo-part-details {
     grid-column: 1 / -1;     /* span all three columns on its own line */
-    font-size: 0.85rem;
 }
 .wo-part-row .wo-list-remove {
     width: 32px; height: 32px;
@@ -2150,7 +2209,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     color: #fff;
     border: 1px solid var(--danger);
     border-radius: 4px;      /* squared-off — slight rounding to match inputs */
-    font-weight: 700; font-size: 0.95rem; line-height: 1;
+    font-weight: 700; line-height: 1;
     cursor: pointer;
     transition: background var(--transition), border-color var(--transition);
 }
@@ -2159,7 +2218,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border-color: var(--danger-hover, #dc2626);
 }
 .wo-parts-empty {
-    padding: 0.5rem 0.6rem; font-size: 0.75rem; color: var(--text-muted);
+    padding: 0.5rem 0.6rem; color: var(--text-muted);
     border: 1px dashed var(--border); border-radius: var(--radius); text-align: center;
 }
 /* Informational block in the WO form explaining what triggers a salesperson email */
@@ -2171,32 +2230,32 @@ a.wo-number.clickable:hover { text-decoration: none; }
     border-radius: var(--radius);
 }
 .wo-email-info-title {
-    font-family: var(--font); font-size: 0.86rem; font-weight: 600;
+    font-family: var(--font); font-weight: 600;
     color: var(--accent); margin-bottom: 0.4rem;
 }
-.wo-email-info-desc { font-size: 0.86rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.5rem; }
+.wo-email-info-desc { color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.5rem; }
 .wo-email-info-list {
     list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-direction: column; gap: 4px;
 }
 .wo-email-info-list li {
     position: relative;
     padding-left: 16px;
-    font-size: 0.86rem; color: var(--text-primary); line-height: 1.5;
+ color: var(--text-primary); line-height: 1.5;
 }
 .wo-email-info-list li::before {
     content: ''; position: absolute; left: 4px; top: 10px;
     width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
 }
 .wo-email-info-list li strong { color: var(--accent); font-weight: 600; }
-.wo-email-info-note { font-size: 0.82rem; color: var(--text-muted); font-style: italic; line-height: 1.45; }
+.wo-email-info-note { color: var(--text-muted); font-style: italic; line-height: 1.45; }
 .wo-parts-table {
-    width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.82rem;
+    width: 100%; border-collapse: collapse; margin-top: 0.35rem;
 }
 .wo-parts-table th, .wo-parts-table td {
     text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border);
 }
 .wo-parts-table th {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
 }
 .wo-parts-table td.qty { width: 70px; font-family: var(--mono); color: var(--text-secondary); }
@@ -2206,7 +2265,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wo-audit-entry {
     display: grid; grid-template-columns: 150px 1fr; gap: 0.75rem;
     padding: 0.55rem 0.75rem; background: var(--bg-input); border-radius: var(--radius);
-    border-left: 3px solid var(--border); font-size: 0.82rem;
+    border-left: 3px solid var(--border);
 }
 .wo-audit-entry.created { border-left-color: var(--accent); }
 .wo-audit-entry.edited { border-left-color: var(--engine); }
@@ -2214,27 +2273,27 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wo-audit-entry.note_added { border-left-color: var(--transmission); }
 .wo-audit-entry.deleted { border-left-color: var(--danger); }
 .wo-audit-when {
-    font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
 }
 .wo-audit-main { min-width: 0; }
 .wo-audit-who {
-    font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 2px;
+ color: var(--text-secondary); margin-bottom: 2px;
 }
 .wo-audit-who strong { color: var(--text-primary); font-weight: 600; }
 .wo-audit-action {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
     margin-left: 0.4rem;
 }
 .wo-audit-desc { color: var(--text-primary); word-break: break-word; }
 .wo-audit-empty {
-    text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.85rem;
+    text-align: center; padding: 2rem 1rem; color: var(--text-muted);
 }
 
 /* ── GENERIC TABS (reused inside modals) ── */
 .wm-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0.85rem; }
 .wm-tab {
-    padding: 9px 14px; font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    padding: 9px 14px; font-family: var(--mono); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
     background: transparent; border: none; border-bottom: 2px solid transparent;
     margin-bottom: -1px; cursor: pointer; transition: all var(--transition);
@@ -2252,7 +2311,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .import-steps { display: flex; gap: 0; padding: 0 1.25rem; border-bottom: 1px solid var(--border); }
 .import-step {
     flex: 1; text-align: center; padding: 9px 6px;
-    font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em;
     color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
@@ -2262,29 +2321,29 @@ a.wo-number.clickable:hover { text-decoration: none; }
     display: inline-flex; align-items: center; justify-content: center;
     width: 18px; height: 18px; border-radius: 50%;
     background: var(--bg-input); border: 1px solid var(--border);
-    font-size: 0.6rem; margin-right: 4px; vertical-align: middle;
+    font-size: var(--fs-micro); margin-right: 4px; vertical-align: middle;
 }
 .import-step.active .import-step-num { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 .import-step.done .import-step-num { background: rgba(16,185,129,0.15); border-color: var(--yes); color: var(--yes); }
 .import-mapping-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.4rem 0.65rem; align-items: center; }
 .import-mapping-grid .map-header {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);
     padding-bottom: 0.2rem; border-bottom: 1px solid var(--border);
 }
 .map-arrow { color: var(--text-muted); text-align: center; }
-.map-field-label { font-size: 0.82rem; color: var(--text-primary); }
+.map-field-label { color: var(--text-primary); }
 .map-select {
     padding: 6px 9px; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: 6px; color: var(--text-primary); font-family: var(--font);
-    font-size: 0.8rem; outline: none; width: 100%; cursor: pointer;
+    font-size: var(--fs-body); outline: none; width: 100%; cursor: pointer;
 }
 .map-select:focus { border-color: var(--border-focus); }
 .preview-table-wrap { max-height: 350px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-.preview-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 500px; }
+.preview-table { width: 100%; border-collapse: collapse; min-width: 500px; }
 .preview-table th {
     position: sticky; top: 0; z-index: 2; background: var(--bg-card); padding: 7px 9px; text-align: left;
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
     border-bottom: 1px solid var(--border);
 }
@@ -2300,11 +2359,11 @@ a.wo-number.clickable:hover { text-decoration: none; }
     background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.85rem;
 }
 .import-summary-num { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--accent); }
-.import-summary-text { font-size: 0.85rem; color: var(--text-secondary); }
+.import-summary-text { color: var(--text-secondary); }
 .import-warnings {
     margin-top: 0.6rem; padding: 0.6rem 0.85rem;
     background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
-    border-radius: var(--radius); font-size: 0.78rem; color: var(--engine); max-height: 110px; overflow-y: auto;
+    border-radius: var(--radius); color: var(--engine); max-height: 110px; overflow-y: auto;
 }
 .import-warnings div { padding: 2px 0; }
 .import-result { text-align: center; padding: 1.5rem 1rem; }
@@ -2313,7 +2372,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     display: flex; align-items: center; justify-content: center; background: rgba(16,185,129,0.12);
 }
 .import-result h3 { font-size: 1.1rem; margin-bottom: 0.2rem; }
-.import-result p { font-size: 0.85rem; color: var(--text-secondary); }
+.import-result p { color: var(--text-secondary); }
 
 /* ── SETTINGS ── */
 /* ── SETTINGS TABS ── */
@@ -2345,9 +2404,9 @@ a.wo-number.clickable:hover { text-decoration: none; }
     content: ''; position: absolute; left: 0.7rem; top: 1.5rem;
     width: 0.6rem; height: 2px; background: var(--border);
 }
-.module-sub-row .settings-label { font-size: 0.84rem; color: var(--text-secondary); }
+.module-sub-row .settings-label { color: var(--text-secondary); }
 .settings-tab {
-    padding: 0.7rem 1rem; font-family: var(--font); font-size: 0.85rem; font-weight: 600;
+    padding: 0.7rem 1rem; font-family: var(--font); font-weight: 600;
     letter-spacing: 0; color: var(--text-muted);
     cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent;
     margin-bottom: -1px; transition: all var(--transition);
@@ -2395,7 +2454,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     display: inline-flex; align-items: center; gap: 5px;
     background: var(--bg-input); border: 1px solid var(--border);
     border-radius: 999px; padding: 3px 6px 3px 10px;
-    font-family: var(--mono); font-size: 0.7rem; color: var(--text-primary);
+    font-family: var(--mono); color: var(--text-primary);
 }
 .wh-bin input {
     background: none; border: none; outline: none; color: inherit;
@@ -2405,23 +2464,23 @@ a.wo-number.clickable:hover { text-decoration: none; }
     width: 16px; height: 16px; flex-shrink: 0; padding: 0; line-height: 1;
     border: none; border-radius: 50%; cursor: pointer;
     background: transparent; color: var(--text-muted);
-    font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center;
+ display: inline-flex; align-items: center; justify-content: center;
 }
 .wh-x:hover { background: var(--danger); color: #fff; }
-.wh-empty { color: var(--text-muted); font-size: 0.82rem; padding: 1.2rem 0; text-align: center; }
+.wh-empty { color: var(--text-muted); padding: 1.2rem 0; text-align: center; }
 
 /* Inline "not in your list" hint under the part form's Location field. Inline
    rather than a floating dropdown — .modal-body is the scroll container, so an
    absolutely-positioned panel would be clipped at the body's edge. */
 .loc-hint {
     display: none; align-items: center; flex-wrap: wrap; gap: 0.45rem;
-    margin-top: 0.35rem; font-size: 0.74rem; color: var(--text-muted);
+    margin-top: 0.35rem; color: var(--text-muted);
 }
 .loc-hint.show { display: flex; }
 .loc-hint .loc-add {
     background: var(--accent-dim); color: var(--accent); border: none;
     border-radius: 999px; padding: 2px 9px; cursor: pointer;
-    font-family: var(--font); font-size: 0.72rem; font-weight: 600;
+    font-family: var(--font); font-weight: 600;
 }
 .loc-hint .loc-add:hover { filter: brightness(1.12); }
 .loc-hint.ok { color: var(--yes); }
@@ -2436,8 +2495,8 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 
 .settings-row:last-child { border-bottom: none; }
-.settings-label { font-size: 0.88rem; color: var(--text-primary); }
-.settings-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.settings-label { color: var(--text-primary); }
+.settings-desc { color: var(--text-muted); margin-top: 2px; }
 
 /* ── THEME PICKER ── */
 .theme-picker {
@@ -2465,7 +2524,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     width: 20px; height: 20px; border-radius: 50%;
 }
 .swatch-label {
-    font-size: 0.78rem; font-weight: 500; color: var(--text-primary); text-align: center;
+ font-weight: 500; color: var(--text-primary); text-align: center;
 }
 
 .about-pane { display: flex; flex-direction: column; gap: 1rem; }
@@ -2480,19 +2539,19 @@ a.wo-number.clickable:hover { text-decoration: none; }
     background: transparent;
 }
 .about-hero-name {
-    font-family: 'Inter', sans-serif; font-size: 1.02rem; font-weight: 700;
+    font-family: 'Inter', sans-serif; font-weight: 700;
     color: var(--text-primary); line-height: 1.2; letter-spacing: -0.02em;
 }
 .about-hero-version {
-    font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+    font-family: var(--mono); color: var(--text-muted);
     font-weight: 500; margin-top: 2px;
 }
 .about-tagline {
-    font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.6rem;
+ color: var(--text-secondary); margin-top: 0.6rem;
     line-height: 1.45; max-width: 30ch;
 }
 .about-built-by {
-    margin-top: 0.7rem; font-size: 0.74rem; color: var(--text-muted);
+    margin-top: 0.7rem; color: var(--text-muted);
     display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
 }
 .viibeware-credit {
@@ -2502,20 +2561,20 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .viibeware-credit img { height: 14px; width: auto; }
 .viibeware-name {
-    font-weight: 700; letter-spacing: 0.08em; font-size: 0.72rem; color: var(--text-muted);
+    font-weight: 700; letter-spacing: 0.08em; color: var(--text-muted);
     transition: color var(--transition);
 }
 .viibeware-credit:hover,
 .viibeware-credit:hover .viibeware-name { color: var(--text-primary); }
 .about-license {
-    margin-top: 0.55rem; font-size: 0.7rem; color: var(--text-muted);
+    margin-top: 0.55rem; color: var(--text-muted);
     line-height: 1.5; max-width: 30ch;
 }
 .about-license a { color: var(--accent); text-decoration: none; }
 .about-license a:hover { text-decoration: underline; }
 .about-hero-stack { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
 .about-stack-label {
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700;
     letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
 }
 .tech-stack {
@@ -2541,11 +2600,11 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .tech-tile:hover .tech-icon { background-color: var(--accent); }
 .tech-tile-name {
-    font-size: 0.68rem; font-weight: 500; color: var(--text-muted);
+ font-weight: 500; color: var(--text-muted);
     text-align: center; line-height: 1.15;
 }
 .about-sub {
-    font-family: 'Inter', sans-serif; font-size: 0.92rem; font-weight: 700;
+    font-family: 'Inter', sans-serif; font-weight: 700;
     color: var(--text-primary); margin: 0.25rem 0 0.2rem; letter-spacing: -0.01em;
 }
 @media (max-width: 640px) {
@@ -2555,11 +2614,11 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .changelog-entry { margin-bottom: 1rem; }
 .changelog-version {
-    font-family: var(--mono); font-size: 0.78rem; font-weight: 700; color: var(--accent); margin-bottom: 0.25rem;
+    font-family: var(--mono); font-weight: 700; color: var(--accent); margin-bottom: 0.25rem;
 }
 .changelog-list { list-style: none; padding: 0; }
 .changelog-list li {
-    font-size: 0.78rem; color: var(--text-secondary); padding: 0.15rem 0 0.15rem 0.85rem;
+ color: var(--text-secondary); padding: 0.15rem 0 0.15rem 0.85rem;
     position: relative;
 }
 .changelog-list li::before {
@@ -2616,19 +2675,19 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .cat-field-inputs input, .cat-field-inputs select {
     padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border);
     border-radius: 6px; color: var(--text-primary); font-family: var(--font);
-    font-size: 0.78rem; outline: none;
+    font-size: var(--fs-body); outline: none;
 }
 .cat-field-inputs input:focus, .cat-field-inputs select:focus { border-color: var(--border-focus); }
 .cat-field-inputs input.field-label { flex: 1; min-width: 100px; }
 .cat-field-inputs select.field-type { width: 90px; }
 .cat-field-inputs input.field-radio-opts { flex: 1; min-width: 120px; }
-.cat-field-check { display: flex; align-items: center; gap: 3px; font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+.cat-field-check { display: flex; align-items: center; gap: 3px; font-size: var(--fs-micro); color: var(--text-muted); white-space: nowrap; }
 .cat-field-check input { width: 13px; height: 13px; accent-color: var(--accent); }
 .cat-field-remove {
     width: 22px; height: 22px; border-radius: 50%; border: none;
     background: transparent; color: var(--text-muted); cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.85rem; transition: all 0.15s; flex-shrink: 0;
+ transition: all 0.15s; flex-shrink: 0;
 }
 .cat-field-remove:hover { background: rgba(239,68,68,0.15); color: var(--danger); }
 .cat-manager-item {
@@ -2639,10 +2698,10 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .cat-manager-swatch {
     width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
 }
-.cat-manager-name { flex: 1; font-weight: 500; font-size: 0.88rem; }
-.cat-manager-count { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
+.cat-manager-name { flex: 1; font-weight: 500; }
+.cat-manager-count { font-family: var(--mono); color: var(--text-muted); }
 .cat-manager-badge {
-    font-family: var(--mono); font-size: 0.58rem; color: var(--text-muted);
+    font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted);
     background: var(--bg-card); padding: 1px 6px; border-radius: 8px;
 }
 
@@ -2653,7 +2712,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 }
 .toast {
     padding: 0.65rem 1rem; background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius); color: var(--text-primary); font-size: 0.82rem;
+    border-radius: var(--radius); color: var(--text-primary);
     box-shadow: var(--shadow-lg); animation: slideIn 0.3s ease;
     display: flex; align-items: center; gap: 0.4rem;
 }
@@ -2702,19 +2761,19 @@ a.wo-number.clickable:hover { text-decoration: none; }
     width: 30px; height: 30px; border-radius: 50%;
     background: var(--accent-dim); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.92rem; font-weight: 600;
+ font-weight: 600;
     flex-shrink: 0;
 }
 .wm-notif .wm-notif-title {
     grid-area: head;
-    font-weight: 600; font-size: 0.85rem; color: var(--text-primary);
+    font-weight: 600; color: var(--text-primary);
     line-height: 1.3;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
 }
 .wm-notif .wm-notif-body {
     grid-area: body;
-    font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;
+ color: var(--text-secondary); line-height: 1.4;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
     margin-top: 1px;
@@ -2722,7 +2781,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
 .wm-notif .wm-notif-foot {
     grid-area: foot;
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -2735,7 +2794,7 @@ a.wo-number.clickable:hover { text-decoration: none; }
     color: var(--text-muted);
     width: 22px; height: 22px; border-radius: 4px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-size: 1.05rem; line-height: 1;
+ line-height: 1;
     transition: color 120ms ease, background 120ms ease;
 }
 .wm-notif .wm-notif-close:hover { color: var(--text-primary); background: var(--bg-input); }
@@ -2827,12 +2886,12 @@ body:has(.sidebar.open) .hamburger-icon {
     #adminModal .admin-table td {
         padding: 4px 0; border-bottom: none;
         display: flex; align-items: flex-start; gap: 0.6rem;
-        font-size: 0.82rem; box-sizing: border-box; min-width: 0;
+        font-size: var(--fs-body); box-sizing: border-box; min-width: 0;
     }
     #adminModal .admin-table td::before {
         content: attr(data-label);
         flex: 0 0 86px;
-        font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+        font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.05em;
         color: var(--text-muted); padding-top: 3px;
     }
@@ -2847,8 +2906,8 @@ body:has(.sidebar.open) .hamburger-icon {
 
 /* ── Knowledge Base ── */
 .kb-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
-.kb-title { margin: 0; font-size: 1.4rem; }
-.kb-subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem; }
+.kb-title { margin: 0; font-size: var(--fs-page-title); }
+.kb-subtitle { color: var(--text-muted); margin-top: 0.2rem; }
 .kb-header-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .kb-search { min-width: 220px; }
 .kb-docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
@@ -2858,26 +2917,26 @@ body:has(.sidebar.open) .hamburger-icon {
 .kb-thumb-img { background-size: cover; background-position: center; }
 .kb-thumb-file { flex-direction: column; gap: 6px; color: var(--text-secondary); }
 .kb-glyph { font-size: 2.4rem; line-height: 1; }
-.kb-ext { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.05em; color: var(--text-muted); }
+.kb-ext { font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: 0.05em; color: var(--text-muted); }
 .kb-card-body { padding: 0.7rem 0.8rem 0.8rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
-.kb-card-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); text-decoration: none; word-break: break-word; }
+.kb-card-title { font-weight: 600; color: var(--text-primary); text-decoration: none; word-break: break-word; }
 .kb-card-title:hover { color: var(--accent); text-decoration: underline; }
-.kb-card-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kb-card-desc { color: var(--text-secondary); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 /* File-less "article" entries show more of their text since the body IS the content. */
 .kb-card-desc-full { -webkit-line-clamp: 12; }
 .kb-thumb-article { color: var(--text-muted); }
 .kb-thumb-glossary { color: var(--accent); background: var(--accent-dim); }
-.kb-card-meta { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); margin-top: auto; }
+.kb-card-meta { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted); margin-top: auto; }
 .kb-card-actions { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
 /* Admin public/hidden switch — label tracks the card meta line, not the page default. */
 .kb-card-visibility { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; }
 .kb-vis-toggle { width: 32px; height: 17px; }
 .kb-vis-toggle .toggle-track::before { width: 13px; height: 13px; top: 2px; left: 2px; }
 .kb-vis-toggle input:checked + .toggle-track::before { transform: translateX(15px); }
-.kb-vis-label { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); }
+.kb-vis-label { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted); }
 .kb-vis-label.is-hidden { color: var(--text-muted); }
-.btn-xs { padding: 3px 8px; font-size: 0.72rem; }
-.kb-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 0.9rem; }
+.btn-xs { padding: 3px 8px; font-size: var(--fs-body); }
+.kb-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
 /* KB table view (reuses .parts-table chrome) */
 .kb-table { min-width: 760px; }
 .kb-table tr { cursor: default; }
@@ -2885,7 +2944,7 @@ body:has(.sidebar.open) .hamburger-icon {
 .kb-table-title:hover { color: var(--accent); text-decoration: underline; }
 .kb-table-title-plain { color: var(--text-primary); font-weight: 600; }
 /* Detail / article modal */
-.kb-detail-cat { display: inline-block; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--accent-dim); padding: 3px 9px; border-radius: 999px; }
+.kb-detail-cat { display: inline-block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--accent-dim); padding: 3px 9px; border-radius: 999px; }
 /* KB detail = floating, layerable, draggable windows (no opaque backdrop) so
    several can stay open at once and be moved apart. They live below standard
    modals (200), the lightbox (500) and the palette (600). */
@@ -2897,27 +2956,27 @@ body:has(.sidebar.open) .hamburger-icon {
    each a compact label-over-value cell, wrapping as needed to save space. */
 .kb-detail-meta { display: flex; flex-flow: row wrap; gap: 0.55rem 1.6rem; align-items: flex-start; }
 .kb-detail-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
-.kb-detail-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.kb-detail-label { font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
 .kb-chip-clickable { cursor: pointer; transition: filter var(--transition), box-shadow var(--transition); }
 .kb-chip-clickable:hover { filter: brightness(1.08); box-shadow: 0 0 0 1px var(--accent) inset; }
-.kb-detail-val { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 0.88rem; color: var(--text-primary); }
+.kb-detail-val { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; color: var(--text-primary); }
 .kb-detail-val .kb-card-parts, .kb-detail-val .kb-parts-label { margin: 0; }
-.kb-detail-type { font-family: var(--mono); font-size: 0.72rem; color: var(--text-secondary); }
+.kb-detail-type { font-family: var(--mono); color: var(--text-secondary); }
 .kb-detail-media { margin: 0.6rem 0; text-align: center; }
 .kb-detail-img { display: inline-block; max-width: 100%; max-height: 62vh; height: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .kb-detail-pdf { margin: 0.6rem 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kb-detail-pdf iframe { display: block; width: 100%; height: 68vh; border: 0; background: #fff; }
-.kb-detail-content { white-space: pre-wrap; line-height: 1.5; font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.6rem; }
+.kb-detail-content { white-space: pre-wrap; line-height: 1.5; color: var(--text-secondary); margin-top: 0.6rem; }
 /* Glossary modal: fixed header + search, scrolling term list */
 #glossaryModal .modal { max-height: 82vh; }
 #glossaryModal .modal-body { padding-top: 0.5rem; }
 .glossary-search-wrap { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1.25rem; border-bottom: 1px solid var(--border); color: var(--text-muted); }
-.glossary-search-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: 0.95rem; color: var(--text-primary); }
-.glossary-count { font-family: var(--mono); font-size: 0.66rem; color: var(--text-muted); white-space: nowrap; }
-.glossary-letter { position: sticky; top: 0; background: var(--bg-secondary); font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); padding: 0.4rem 0.25rem 0.25rem; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.glossary-search-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: var(--fs-body); color: var(--text-primary); }
+.glossary-count { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted); white-space: nowrap; }
+.glossary-letter { position: sticky; top: 0; background: var(--bg-secondary); font-family: var(--mono); font-weight: 700; color: var(--accent); padding: 0.4rem 0.25rem 0.25rem; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
 .glossary-term { display: grid; grid-template-columns: minmax(90px, 0.32fr) 1fr; gap: 0.85rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--border); }
-.glossary-term dt { font-weight: 600; color: var(--text-primary); font-size: 0.86rem; word-break: break-word; }
-.glossary-term dd { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin: 0; }
+.glossary-term dt { font-weight: 600; color: var(--text-primary); word-break: break-word; }
+.glossary-term dd { color: var(--text-secondary); line-height: 1.4; margin: 0; }
 .glossary-term mark { background: var(--accent-dim); color: var(--accent); border-radius: 3px; padding: 0 2px; }
 /* Draggable modal/window title bars */
 .modal-header { cursor: move; user-select: none; }
@@ -2930,15 +2989,15 @@ body:has(.sidebar.open) .hamburger-icon {
 /* Vehicle-fitment chips on a KB card */
 .kb-card-fitment { display: flex; flex-wrap: wrap; gap: 4px; }
 .kb-fit-chip {
-    font-size: 0.66rem; font-weight: 600; line-height: 1;
+    font-size: var(--fs-micro); font-weight: 600; line-height: 1;
     padding: 3px 7px; border-radius: 999px;
     background: var(--accent-dim); color: var(--accent);
 }
 /* Associated parts on a KB card */
 .kb-card-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.kb-parts-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.kb-parts-label { font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
 .kb-part-link, .kb-part-tag {
-    font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: var(--radius);
+ font-weight: 600; padding: 2px 7px; border-radius: var(--radius);
     border: 1px solid var(--border); color: var(--text-secondary); text-decoration: none;
 }
 .kb-part-link { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -2959,24 +3018,24 @@ body:has(.sidebar.open) .hamburger-icon {
 
 /* WordPress import wizard */
 .wp-steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
-.wp-step { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); padding: 4px 8px; border-radius: 999px; }
-.wp-step-n { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-card); color: var(--text-muted); font-size: 0.66rem; }
+.wp-step { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-muted); padding: 4px 8px; border-radius: 999px; }
+.wp-step-n { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-card); color: var(--text-muted); font-size: var(--fs-micro); }
 .wp-step.active { color: var(--accent); }
 .wp-step.active .wp-step-n { background: var(--accent); color: #fff; }
 .wp-step.done .wp-step-n { background: var(--yes, #10b981); color: #fff; }
-.wp-error { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius); padding: 8px 11px; font-size: 0.82rem; margin-bottom: 0.8rem; }
-.wp-help { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.4; }
+.wp-error { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius); padding: 8px 11px; margin-bottom: 0.8rem; }
+.wp-help { color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.4; }
 .wp-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
 .wp-fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.85rem; margin-bottom: 0.85rem; }
-.wp-fieldset-title { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
+.wp-fieldset-title { font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .wp-preview-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-table.wp-preview { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+table.wp-preview { width: 100%; border-collapse: collapse; }
 table.wp-preview th, table.wp-preview td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; }
-table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
-.wp-result-ok { font-size: 0.95rem; color: var(--text-primary); padding: 0.5rem 0; }
-.wp-errlist { margin: 0.3rem 0 0 1.1rem; font-size: 0.76rem; color: var(--text-muted); max-height: 180px; overflow: auto; }
-.wp-warn { background: rgba(245,158,11,0.12); color: var(--engine, #f59e0b); border: 1px solid rgba(245,158,11,0.35); border-radius: var(--radius); padding: 8px 11px; font-size: 0.8rem; line-height: 1.45; margin-bottom: 0.9rem; }
+table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary); font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.wp-result-ok { color: var(--text-primary); padding: 0.5rem 0; }
+.wp-errlist { margin: 0.3rem 0 0 1.1rem; color: var(--text-muted); max-height: 180px; overflow: auto; }
+.wp-warn { background: rgba(245,158,11,0.12); color: var(--engine, #f59e0b); border: 1px solid rgba(245,158,11,0.35); border-radius: var(--radius); padding: 8px 11px; line-height: 1.45; margin-bottom: 0.9rem; }
 /* WordPress import modal: fixed header/sub-header + footer, scrollable middle, up to 80vh */
 #kbWpImportModal .kbwp-modal {
     max-width: 720px;
@@ -2992,14 +3051,15 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
     display: flex; align-items: center; gap: 0.55rem; width: 100%;
     padding: 0.5rem 0.7rem; margin-bottom: 0.5rem;
     background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text-muted); cursor: pointer; font-family: var(--font); font-size: 0.8rem;
+    color: var(--text-muted); cursor: pointer; font-family: var(--font);
+ font-weight: 400;
     transition: border-color var(--transition), color var(--transition);
 }
 .sidebar-search:hover { border-color: var(--accent); color: var(--text-secondary); }
 .sidebar-search svg { flex-shrink: 0; }
 .sidebar-search-label { flex: 1; text-align: left; }
 .kbd-chip {
-    font-family: var(--mono); font-size: 0.62rem; font-weight: 600; color: var(--text-muted);
+    font-family: var(--mono); font-size: var(--fs-micro); font-weight: 600; color: var(--text-muted);
     background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px;
     padding: 2px 6px; line-height: 1;
 }
@@ -3020,21 +3080,21 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
 }
 .cmdk-overlay.active .cmdk-panel { transform: translateY(0); }
 .cmdk-input-wrap { display: flex; align-items: center; gap: 0.6rem; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; color: var(--text-muted); }
-.cmdk-input-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: 1rem; color: var(--text-primary); }
-.cmdk-esc { font-family: var(--mono); font-size: 0.6rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; }
+.cmdk-input-wrap input { flex: 1; background: none; border: none; outline: none; font-family: var(--font); font-size: var(--fs-body); color: var(--text-primary); }
+.cmdk-esc { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; }
 .cmdk-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.4rem; line-height: 1; padding: 0 2px; transition: color var(--transition); }
 .cmdk-close:hover { color: var(--text-primary); }
 .cmdk-results { overflow-y: auto; padding: 0.4rem; min-height: 0; }
-.cmdk-group-label { font-family: var(--mono); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 0.5rem 0.6rem 0.25rem; }
+.cmdk-group-label { font-family: var(--mono); font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 0.5rem 0.6rem 0.25rem; }
 .cmdk-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: var(--radius); cursor: pointer; }
-.cmdk-item .cmdk-ic { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--bg-card); color: var(--text-secondary); font-size: 0.8rem; }
+.cmdk-item .cmdk-ic { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--bg-card); color: var(--text-secondary); }
 .cmdk-item .cmdk-text { min-width: 0; flex: 1; }
-.cmdk-item .cmdk-label { font-size: 0.88rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmdk-item .cmdk-sub { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-item .cmdk-label { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-item .cmdk-sub { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdk-item.sel, .cmdk-item:hover { background: var(--accent-dim); }
 .cmdk-item.sel .cmdk-label { color: var(--accent); }
-.cmdk-empty { padding: 1.8rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
-.cmdk-hint { padding: 1.4rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+.cmdk-empty { padding: 1.8rem 1rem; text-align: center; color: var(--text-muted); }
+.cmdk-hint { padding: 1.4rem 1rem; text-align: center; color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -3084,12 +3144,6 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     All Parts <span class="nav-count" id="countAll"></span>
                 </button>
                 <div id="sidebarCategoryNav"><!-- dynamic --></div>
-
-                <div class="sidebar-section-label" id="actionsLabel" style="display:none;">Actions</div>
-                <button class="nav-item" id="navAddPart" style="display:none;" onclick="openAddModal()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Part
-                </button>
             </div></div>
         </div>
 
@@ -3101,18 +3155,12 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div class="nav-section-body"><div class="nav-section-inner">
                 <button class="nav-item" data-wo-view="active" onclick="showWorkOrdersView('active')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Work Orders <span class="nav-count" id="countWoActive"></span>
+                    Active Orders <span class="nav-count" id="countWoActive"></span>
                     <span class="nav-flag-badge" id="navWoNotifBadge" style="display:none;" title="Unread work-order notifications"></span>
                 </button>
                 <button class="nav-item" data-wo-view="archive" onclick="showWorkOrdersView('archive')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                     Archive
-                </button>
-
-                <div class="sidebar-section-label" id="woActionsLabel" style="display:none;">Actions</div>
-                <button class="nav-item" id="navNewRequest" style="display:none;" onclick="openNewWorkOrderModal()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New Request
                 </button>
             </div></div>
         </div>
@@ -3132,12 +3180,6 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     Glossary
                 </button>
                 <div id="sidebarKbNav"><!-- dynamic --></div>
-
-                <div class="sidebar-section-label" id="kbActionsLabel" style="display:none;">Actions</div>
-                <button class="nav-item" id="navAddDocument" style="display:none;" onclick="openKbUploadModal()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Document
-                </button>
             </div></div>
         </div>
 
@@ -3203,6 +3245,12 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
         </div>
+        <!-- Add lives in the toolbar rather than the sidebar so it is reachable
+             from every category, not just from a separate Actions entry. -->
+        <button class="btn btn-primary btn-sm toolbar-add-btn" id="partsAddBtn" style="display:none;" onclick="openAddModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Part
+        </button>
     </div>
     <div class="main-content">
         <div id="loadingSpinner" class="loading-spinner" style="display:none;"><div class="spinner"></div></div>
@@ -3232,7 +3280,10 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                         </button>
                     </div>
-                    <button class="btn btn-primary btn-sm" id="kbAddDocBtn" style="display:none;" onclick="openKbUploadModal()">+ Add Document</button>
+                    <button class="btn btn-primary btn-sm toolbar-add-btn" id="kbAddDocBtn" style="display:none;" onclick="openKbUploadModal()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Document
+                    </button>
                 </div>
             </div>
             <div id="kbBulkBar" style="display:none;"></div>
@@ -3608,7 +3659,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                             <div class="settings-desc" id="zcAdminStats">—</div>
                         </div>
                         <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-                            <label style="display:flex;gap:5px;align-items:center;font-size:0.72rem;color:var(--text-secondary);cursor:pointer;">
+                            <label style="display:flex;gap:5px;align-items:center;color:var(--text-secondary);cursor:pointer;">
                                 <input type="checkbox" id="zcForceBox"> Force full re-download
                             </label>
                             <button class="btn btn-ghost btn-sm" id="zcRefreshBtn" onclick="zcStartRefresh()">Refresh charts</button>
@@ -3621,9 +3672,9 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     </div>
                     <div class="settings-desc" id="zcRunSummary"></div>
                     <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-                        <div class="settings-label" style="font-size:0.78rem;">Default origin</div>
+                        <div class="settings-label">Default origin</div>
                         <input class="form-input" id="zcDefaultOrigin" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 43952" style="max-width:110px;">
-                        <label style="display:flex;gap:5px;align-items:center;font-size:0.72rem;color:var(--text-secondary);cursor:pointer;">
+                        <label style="display:flex;gap:5px;align-items:center;color:var(--text-secondary);cursor:pointer;">
                             <input type="checkbox" id="zcLockBox"> Lock to this origin
                         </label>
                         <button class="btn btn-ghost btn-sm" onclick="zcSaveAdminSettings()">Save</button>
@@ -3720,9 +3771,9 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                         <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-start;">
                             <div id="brandingLogoPreviewFrame" style="min-width:200px;min-height:110px;max-width:620px;border:1px dashed var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, #1a3a8a 0%, #2e6bff 100%);padding:14px;">
                                 <img id="brandingLogoPreviewImg" src="" alt="" style="display:none;height:auto;max-width:100%;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.35));">
-                                <span id="brandingLogoPreviewEmpty" style="color:rgba(255,255,255,0.75);font-size:0.78rem;">No logo uploaded</span>
+                                <span id="brandingLogoPreviewEmpty" style="color:rgba(255,255,255,0.75);">No logo uploaded</span>
                             </div>
-                            <div style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">Live preview at <span id="brandingLogoWidthReadout">180</span> px wide</div>
+                            <div style="font-family:var(--mono);font-size:var(--fs-micro);color:var(--text-muted);">Live preview at <span id="brandingLogoWidthReadout">180</span> px wide</div>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.5rem;min-width:200px;">
                             <label class="btn btn-ghost btn-sm" style="cursor:pointer;text-align:center;">
@@ -3730,13 +3781,13 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                                 Upload Logo
                             </label>
                             <button class="btn btn-ghost btn-sm" id="brandingLogoRemoveBtn" style="color:var(--danger);display:none;" onclick="removeBrandingLogo()">Remove Logo</button>
-                            <span style="font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);">PNG or SVG (SVG admin-only, sanitized)</span>
+                            <span style="font-family:var(--mono);font-size:var(--fs-micro);color:var(--text-muted);">PNG or SVG (SVG admin-only, sanitized)</span>
                             <div style="display:flex;flex-direction:column;gap:4px;margin-top:0.4rem;">
-                                <label class="form-label" for="brandingLogoWidth" style="font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Logo width (px)</label>
+                                <label class="form-label" for="brandingLogoWidth" style="font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Logo width (px)</label>
                                 <input type="range" id="brandingLogoWidth" min="40" max="600" step="2" value="180"
                                        oninput="onBrandingWidthInput(this.value)">
                                 <input type="number" id="brandingLogoWidthNum" min="40" max="600" step="1" value="180"
-                                       class="form-input" style="width:100px;padding:6px 8px;font-size:0.85rem;"
+                                       class="form-input" style="width:100px;padding:6px 8px;"
                                        oninput="onBrandingWidthInput(this.value)">
                             </div>
                             <button class="btn btn-primary btn-sm" id="brandingSaveBtn" onclick="saveBrandingSettings()" style="margin-top:0.4rem;">Save</button>
@@ -3856,7 +3907,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
         </div>
         <div class="modal-body">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
-                <span style="font-size:0.82rem;color:var(--text-muted);" id="adminUserCount"></span>
+                <span style="color:var(--text-muted);" id="adminUserCount"></span>
                 <button class="btn btn-primary btn-sm" onclick="openUserForm(null)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add User
@@ -3963,7 +4014,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('partLocationsModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+            <div style="color:var(--text-muted);margin-bottom:0.85rem;">
                 Warehouses and the bins inside them. These are offered as suggestions on the
                 Location field when adding or editing a part &mdash; typing something new is
                 still allowed. Changes are not saved until you click Save.
@@ -3972,7 +4023,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="btn btn-ghost btn-sm" style="margin-top:0.6rem;" onclick="addWarehouseRow()">+ Add Warehouse</button>
         </div>
         <div class="modal-footer">
-            <div id="partLocationsError" style="color:var(--danger);font-size:0.82rem;"></div>
+            <div id="partLocationsError" style="color:var(--danger);"></div>
             <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
                 <button class="btn btn-ghost" onclick="closeSubModal('partLocationsModal')">Cancel</button>
                 <button class="btn btn-primary" onclick="savePartLocations()">Save Changes</button>
@@ -3989,7 +4040,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
         </div>
         <div class="modal-body">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
-                <span style="font-size:0.82rem;color:var(--text-muted);" id="catManagerCount"></span>
+                <span style="color:var(--text-muted);" id="catManagerCount"></span>
                 <button class="btn btn-primary btn-sm" onclick="openCategoryForm(null)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Category
@@ -4018,7 +4069,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                 <input type="hidden" id="kbCatIcon" value="">
                 <div class="icon-picker" id="kbCatIconPicker"></div>
             </div>
-            <div id="kbCatManagerError" style="color:var(--danger);font-size:0.8rem;margin-bottom:0.5rem;"></div>
+            <div id="kbCatManagerError" style="color:var(--danger);margin-bottom:0.5rem;"></div>
             <div style="display:flex;gap:0.5rem;margin-bottom:1.1rem;">
                 <button class="btn btn-primary btn-sm" id="kbCatSaveBtn" onclick="saveKbCategory()">+ Add Category</button>
                 <button class="btn btn-ghost btn-sm" id="kbCatCancelBtn" onclick="resetKbCatForm()" style="display:none;">Cancel</button>
@@ -4071,7 +4122,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             </div>
         </div>
         <div class="modal-footer">
-            <div id="kbUploadError" style="color:var(--danger);font-size:0.82rem;"></div>
+            <div id="kbUploadError" style="color:var(--danger);"></div>
             <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
                 <button class="btn btn-ghost btn-sm" onclick="closeModal('kbUploadModal')">Cancel</button>
                 <button class="btn btn-primary btn-sm" id="kbUploadSubmitBtn" onclick="submitKbUpload()">Upload</button>
@@ -4090,7 +4141,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
         <div class="modal-body">
             <div class="form-group">
                 <label class="form-label">File</label>
-                <div id="kbEditFileName" style="font-family:var(--mono);font-size:0.8rem;color:var(--text-muted);"></div>
+                <div id="kbEditFileName" style="font-family:var(--mono);color:var(--text-muted);"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Category</label>
@@ -4122,7 +4173,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             </div>
         </div>
         <div class="modal-footer">
-            <div id="kbEditError" style="color:var(--danger);font-size:0.82rem;"></div>
+            <div id="kbEditError" style="color:var(--danger);"></div>
             <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
                 <button class="btn btn-ghost btn-sm" onclick="closeModal('kbEditModal')">Cancel</button>
                 <button class="btn btn-primary btn-sm" onclick="submitKbEdit()">Save Changes</button>
@@ -4329,7 +4380,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     <label class="form-label" style="margin:0;">Custom Fields</label>
                     <button class="btn btn-ghost btn-sm" onclick="addCatField()">+ Add Field</button>
                 </div>
-                <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.5rem;">Drag rows to reorder. Add your own fields or rearrange the defaults. Images are always available on all categories.</div>
+                <div style="color:var(--text-muted);margin-bottom:0.5rem;">Drag rows to reorder. Add your own fields or rearrange the defaults. Images are always available on all categories.</div>
                 <div id="catFieldsList"></div>
             </div>
         </div>
@@ -4383,11 +4434,11 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     <textarea class="form-textarea" id="woFormNotes" rows="4" placeholder="Describe what is being requested…"></textarea>
                 </div>
                 <div class="form-group full-width">
-                    <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">images, PDFs, Word docs — 16 MB each</span></label>
+                    <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);">images, PDFs, Word docs — 16 MB each</span></label>
                     <input type="file" id="woFormAttachmentInput" multiple
                            accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                            onchange="onWoFormFilesPicked(event)"
-                           style="display:block;margin-bottom:0.4rem;font-size:0.8rem;">
+                           style="display:block;margin-bottom:0.4rem;">
                     <div id="woFormAttachmentsExisting"></div>
                     <div id="woFormAttachmentsPending"></div>
                 </div>
@@ -4427,21 +4478,21 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
         <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
             <input type="hidden" id="woGeneralNoteId">
             <input type="hidden" id="woGeneralNoteParentId">
-            <div id="woGeneralNoteReplyContext" style="display:none;padding:0.55rem 0.7rem;border-left:3px solid var(--accent);background:var(--accent-dim);border-radius:4px;font-size:0.76rem;color:var(--text-secondary);"></div>
+            <div id="woGeneralNoteReplyContext" style="display:none;padding:0.55rem 0.7rem;border-left:3px solid var(--accent);background:var(--accent-dim);border-radius:4px;color:var(--text-secondary);"></div>
             <div class="form-group">
                 <label class="form-label" id="woGeneralNoteLabel">Note</label>
                 <textarea class="form-textarea" id="woGeneralNoteText" rows="4" placeholder="Add a note about this work order as you work on it…"></textarea>
             </div>
             <div class="form-group" id="woGeneralNotePartsSection">
-                <label class="form-label">Applies to parts <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">optional</span></label>
+                <label class="form-label">Applies to parts <span style="font-weight:400;color:var(--text-muted);">optional</span></label>
                 <div id="woGeneralNotePartsList" class="wo-note-parts-list"></div>
             </div>
             <div class="form-group">
-                <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);font-size:0.72rem;">images, PDFs, Word docs — 16 MB each, optional</span></label>
+                <label class="form-label">Attachments <span style="font-weight:400;color:var(--text-muted);">images, PDFs, Word docs — 16 MB each, optional</span></label>
                 <input type="file" id="woGeneralNoteFileInput" multiple
                        accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                        onchange="onGeneralNoteFilesPicked(event)"
-                       style="display:block;margin-bottom:0.4rem;font-size:0.8rem;">
+                       style="display:block;margin-bottom:0.4rem;">
                 <div id="woGeneralNoteFilesPending"></div>
             </div>
             <div class="wo-note-disclaimer">
@@ -4464,7 +4515,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" id="woConfirmCloseBtn">&times;</button>
         </div>
         <div class="modal-body">
-            <div id="woConfirmBody" style="font-size:0.88rem;line-height:1.5;color:var(--text-primary);white-space:pre-line;"></div>
+            <div id="woConfirmBody" style="line-height:1.5;color:var(--text-primary);white-space:pre-line;"></div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" id="woConfirmCancelBtn">Cancel</button>
@@ -4533,7 +4584,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div class="form-group">
                 <label class="form-label">Photo</label>
                 <input type="file" id="woPartPhotoFile" class="form-input" accept="image/*" multiple>
-                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">
+                <div style="color:var(--text-muted);margin-top:4px;">
                     Images will be resized to 2048px and saved as JPEG (quality 80).
                 </div>
             </div>
@@ -4611,7 +4662,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('woListsModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Manage the dropdown values available when creating work order requests. Changes are not saved until you click Save.</div>
+            <div style="color:var(--text-muted);margin-bottom:0.85rem;">Manage the dropdown values available when creating work order requests. Changes are not saved until you click Save.</div>
 
             <div class="wm-tabs">
                 <button class="wm-tab active" onclick="switchWoListTab('locations', this)">Locations</button>
@@ -4628,7 +4679,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                 <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addPriorityRow()">+ Add Priority</button>
             </div>
 
-            <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);">
+            <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border);color:var(--text-muted);">
                 Sales people are now managed from the <strong>User Management</strong> screen — flip the <em>Sales Person</em> toggle on any active user and their display name will appear in the work-order dropdown, using their email for notifications.
             </div>
         </div>
@@ -4646,11 +4697,11 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('displaySettingsModal')">&times;</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
-            <div style="font-size:0.78rem;color:var(--text-muted);">These settings control how every timestamp is shown in the app — work-order dates, note timestamps, part-pulled markers, audit-trail entries, and photo captions. All timestamps are stored in UTC on the server and converted for display.</div>
+            <div style="color:var(--text-muted);">These settings control how every timestamp is shown in the app — work-order dates, note timestamps, part-pulled markers, audit-trail entries, and photo captions. All timestamps are stored in UTC on the server and converted for display.</div>
             <div class="form-group">
                 <label class="form-label">Timezone</label>
                 <select class="form-select" id="displayTimezoneSelect"></select>
-                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.25rem;">Pick the IANA name that matches your primary warehouse location.</div>
+                <div style="color:var(--text-muted);margin-top:0.25rem;">Pick the IANA name that matches your primary warehouse location.</div>
             </div>
             <div class="form-group">
                 <label class="form-label">Time format</label>
@@ -4679,7 +4730,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('turnstileModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+            <div style="color:var(--text-muted);margin-bottom:0.85rem;">
                 Add a Cloudflare Turnstile challenge to the login page. Create a site at
                 <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener" style="color:var(--accent);">dash.cloudflare.com → Turnstile</a>
                 and paste the site key and secret below.
@@ -4719,7 +4770,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('apiKeysModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">
+            <div style="color:var(--text-muted);margin-bottom:0.85rem;">
                 These keys let the public-facing Knowledge Base frontend read KB categories and documents over the API.
                 Keys are <strong>read-only</strong> and require the Knowledge Base module to be enabled.
                 Send the key in the <code>X-API-Key</code> header. A key is shown in full <strong>once</strong> — copy it now.
@@ -4736,7 +4787,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <div id="apiKeyReveal" style="display:none;margin-top:0.85rem;padding:0.85rem;border:1px solid var(--accent);border-radius:var(--radius);background:var(--accent-dim);">
                 <div class="settings-label" style="margin-bottom:4px;">New key — copy it now, it won't be shown again</div>
                 <div style="display:flex;gap:0.5rem;align-items:center;">
-                    <code id="apiKeyValue" style="flex:1;font-family:var(--mono);font-size:0.8rem;word-break:break-all;"></code>
+                    <code id="apiKeyValue" style="flex:1;font-family:var(--mono);word-break:break-all;"></code>
                     <button class="btn btn-ghost btn-sm" onclick="copyApiKey()">Copy</button>
                 </div>
             </div>
@@ -4745,7 +4796,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
                     <thead><tr><th>Name</th><th>Prefix</th><th>Last used</th><th>Status</th><th></th></tr></thead>
                     <tbody id="apiKeysTableBody"></tbody>
                 </table>
-                <div id="apiKeysEmpty" style="display:none;color:var(--text-muted);font-size:0.8rem;padding:0.85rem 0;">No API keys yet.</div>
+                <div id="apiKeysEmpty" style="display:none;color:var(--text-muted);padding:0.85rem 0;">No API keys yet.</div>
             </div>
         </div>
     </div>
@@ -4759,7 +4810,7 @@ table.wp-preview th { position: sticky; top: 0; background: var(--bg-secondary);
             <button class="modal-close" onclick="closeSubModal('smtpModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.85rem;">Configure outgoing email for work order status notifications.</div>
+            <div style="color:var(--text-muted);margin-bottom:0.85rem;">Configure outgoing email for work order status notifications.</div>
             <div class="form-grid">
                 <div class="form-group">
                     <label class="form-label">SMTP Host</label>
@@ -5592,14 +5643,13 @@ async function loadCurrentUser() {
         _bootBuild = currentUserData.build || '';
         startVersionWatcher();
         if (currentUserData.can_edit) {
-            document.getElementById('navAddPart').style.display = '';
-            document.getElementById('actionsLabel').style.display = '';
-            document.getElementById('navNewRequest').style.display = '';
-            document.getElementById('woActionsLabel').style.display = '';
-            document.getElementById('navAddDocument').style.display = '';
-            document.getElementById('kbActionsLabel').style.display = '';
-            const kbAddBtn = document.getElementById('kbAddDocBtn');
-            if (kbAddBtn) kbAddBtn.style.display = '';
+            // Each module's Add button lives in that module's own toolbar, so
+            // it is present in every section of the module. Work Orders builds
+            // its header in JS and gates the button there.
+            ['partsAddBtn', 'kbAddDocBtn'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = '';
+            });
         }
         if (currentUserData.role === 'admin') {
             document.getElementById('settingsModulesTab').style.display = '';
@@ -5991,7 +6041,7 @@ async function loadUsers() {
         document.getElementById('adminUserTable').innerHTML = `
             <table class="admin-table"><thead><tr><th>User</th><th>Role</th><th>Sales&nbsp;Person</th><th>Status</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
             ${users.map(u => `<tr>
-                <td data-label="User"><span class="admin-cell-value"><span class="username-cell">${esc(u.display_name || u.username)}</span>${u.display_name && u.display_name !== u.username ? `<br><span style="font-size:0.72rem;color:var(--text-muted);">${esc(u.username)}</span>` : ''}${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</span></td>
+                <td data-label="User"><span class="admin-cell-value"><span class="username-cell">${esc(u.display_name || u.username)}</span>${u.display_name && u.display_name !== u.username ? `<br><span style="color:var(--text-muted);">${esc(u.username)}</span>` : ''}${isSelf(u.id) ? '<span class="self-badge">you</span>' : ''}</span></td>
                 <td data-label="Role"><span class="admin-cell-value"><span class="role-badge ${u.role}">${u.role}</span></span></td>
                 <td data-label="Sales Person"><span class="admin-cell-value">${u.is_sales_person ? '<span class="role-badge" style="background:var(--accent-dim);color:var(--accent);">Yes</span>' : '<span style="color:var(--text-muted);">—</span>'}</span></td>
                 <td data-label="Status"><span class="admin-cell-value"><span class="status-dot ${u.active?'active':'inactive'}"></span>${u.active?'Active':'Disabled'}</span></td>
@@ -6229,7 +6279,7 @@ function renderTable(parts) {
         if (canEdit) h += `<td class="cb-cell"><input type="checkbox" value="${p.id}" onchange="toggleRowSelect(this,${p.id})" onclick="event.stopPropagation()"></td>`;
         h += `<td style="text-align:center;"><button class="flag-btn${isFlagged?' flagged':''}" onclick="toggleFlag(${p.id},this); event.stopPropagation();" title="${isFlagged?'Unflag':'Flag'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="${isFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></button></td>`;
         h += `<td onclick="openDetail(${p.id})">${esc(p[cols[0].key]||'')}</td>`;
-        h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
+        h += `<td onclick="openDetail(${p.id})" style="font-family:var(--mono);color:var(--text-muted);">${esc(p.product_number||'')}</td>`;
         if (showType) h += `<td onclick="openDetail(${p.id})"><span class="table-badge" style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};">${esc(getCatLabel(p.category))}</span></td>`;
         for (let i=1;i<cols.length;i++) {
             const c=cols[i]; let cell='';
@@ -6258,14 +6308,14 @@ function renderTable(parts) {
         let auditCell;
         if (needsAudit) {
             auditCell = canEdit
-                ? `<span onclick="openPartAuditModal(${p.id}, true); event.stopPropagation();" title="${esc(p.audit_note || 'Needs audited — click to edit')}" style="cursor:pointer;color:var(--engine);font-family:var(--mono);font-size:0.72rem;font-weight:700;">⚠ AUDIT</span>`
-                : `<span title="${esc(p.audit_note || 'Needs audited')}" style="color:var(--engine);font-family:var(--mono);font-size:0.72rem;font-weight:700;">⚠ AUDIT</span>`;
+                ? `<span class="audit-flag is-clickable" onclick="openPartAuditModal(${p.id}, true); event.stopPropagation();" title="${esc(p.audit_note || 'Needs audited — click to edit')}">⚠ AUDIT</span>`
+                : `<span class="audit-flag" title="${esc(p.audit_note || 'Needs audited')}">⚠ AUDIT</span>`;
         } else if (canEdit) {
-            auditCell = `<button onclick="openPartAuditModal(${p.id}, false); event.stopPropagation();" title="Mark for audit" style="background:transparent;border:1px dashed var(--border);color:var(--text-muted);padding:2px 8px;border-radius:10px;font-family:var(--mono);font-size:0.62rem;font-weight:600;cursor:pointer;">+ Audit</button>`;
+            auditCell = `<button class="audit-add-btn" onclick="openPartAuditModal(${p.id}, false); event.stopPropagation();" title="Mark for audit">+ Audit</button>`;
         } else {
             auditCell = '';
         }
-        h += `<td onclick="openDetail(${p.id})" style="text-align:center;">${auditCell}</td>`;
+        h += `<td class="audit-cell" onclick="openDetail(${p.id})">${auditCell}</td>`;
         h += `</tr>`;
     }
     h += `</tbody></table></div>`; return h;
@@ -6296,7 +6346,7 @@ async function bulkDelete() {
     showToast(`${d} deleted${f?`, ${f} failed`:''}`,f?'error':'success');
     loadParts();loadStats();
 }
-function showBulkProgress(msg){let el=document.getElementById('bulkProgress');if(!el){el=document.createElement('div');el.id='bulkProgress';el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;';el.innerHTML=`<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;gap:0.85rem;box-shadow:var(--shadow-lg);"><div class="spinner"></div><div id="bulkProgressText" style="font-size:0.88rem;color:var(--text-primary);font-family:var(--mono);"></div></div>`;document.body.appendChild(el);}document.getElementById('bulkProgressText').textContent=msg;}
+function showBulkProgress(msg){let el=document.getElementById('bulkProgress');if(!el){el=document.createElement('div');el.id='bulkProgress';el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;';el.innerHTML=`<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;gap:0.85rem;box-shadow:var(--shadow-lg);"><div class="spinner"></div><div id="bulkProgressText" style="color:var(--text-primary);font-family:var(--mono);"></div></div>`;document.body.appendChild(el);}document.getElementById('bulkProgressText').textContent=msg;}
 function updateBulkProgress(msg){const t=document.getElementById('bulkProgressText');if(t)t.textContent=msg;}
 function hideBulkProgress(){const el=document.getElementById('bulkProgress');if(el)el.remove();}
 
@@ -6461,7 +6511,7 @@ function buildForm(category, data) {
 
     const existingImages = (data && data.images) ? data.images : [];
     const ei = `<div id="formImagesExistingWrap">${existingImagesHtml(data ? data.id : 0, existingImages)}</div>`;
-    h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="font-size:0.72rem;color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
+    h += `<div class="form-group full-width"><label class="form-label">Images</label>${ei}<div class="file-upload"><input type="file" id="formImages" accept="image/*" multiple onchange="previewMultiImages(this)"><div class="file-upload-text"><strong>Click to add images</strong> or drag files here<br><span style="color:var(--text-muted);">PNG, JPG, GIF, WebP — multiple files, max 16MB each</span></div></div><div class="form-image-list" id="formNewPreviews"></div></div>`;
     h += `</div></div></div>`; return h;
 }
 
@@ -6742,7 +6792,7 @@ async function openDetail(id) {
             h += `<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.85rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
                 <img src="/api/parts/${p.id}/qr.png" alt="QR" style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);">
                 <div style="flex:1;">
-                    <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--text-primary);letter-spacing:0.02em;">${esc(p.product_number)}</div>
+                    <div style="font-family:var(--mono);font-weight:700;color:var(--text-primary);letter-spacing:0.02em;">${esc(p.product_number)}</div>
                 </div>
                 <button class="flag-btn${detailFlagged?' flagged':''}" onclick="toggleFlagDetail(${p.id},this)" title="${detailFlagged?'Unflag':'Flag'}" style="padding:6px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="${detailFlagged?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
@@ -6754,8 +6804,8 @@ async function openDetail(id) {
         const canEditAudit = currentUserData && currentUserData.can_edit;
         if (p.needs_audit) {
             const clickAttr = canEditAudit ? `onclick="openPartAuditModal(${p.id}, true)" style="cursor:pointer;"` : 'style="cursor:default;"';
-            h += `<div ${clickAttr} title="${canEditAudit ? 'Click to edit or clear audit' : ''}" style="margin-bottom:0.85rem;padding:0.6rem 0.75rem;background:rgba(245,158,11,0.12);border-left:3px solid var(--engine);border-radius:4px;font-size:0.82rem;color:var(--text-secondary);">
-                <div style="font-family:var(--mono);font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--engine);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">
+            h += `<div ${clickAttr} title="${canEditAudit ? 'Click to edit or clear audit' : ''}" style="margin-bottom:0.85rem;padding:0.6rem 0.75rem;background:rgba(245,158,11,0.12);border-left:3px solid var(--engine);border-radius:4px;color:var(--text-secondary);">
+                <div style="font-family:var(--mono);font-size:var(--fs-micro);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--engine);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">
                     <span>Needs Audited</span>
                     ${canEditAudit ? '<span style="font-weight:500;opacity:0.7;">click to edit ✎</span>' : ''}
                 </div>
@@ -7020,12 +7070,12 @@ function renderImportStep() {
     if (step===1) {
         let impCatOpts = '<option value="">Select type…</option>';
         for (const c of categoriesData) impCatOpts += `<option value="${c.slug}">${esc(c.name)}</option>`;
-        content.innerHTML=`<div class="form-grid" style="grid-template-columns:1fr;"><div class="form-group"><label class="form-label">File</label><div class="file-upload" style="padding:1.5rem;"><input type="file" id="importFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="onImportFileSelect(this)"><div class="file-upload-text" id="importFileText"><strong>Click to select</strong> or drag your file here<br><span style="font-size:0.72rem;color:var(--text-muted);">.xlsx, .xls, .xlsm, or .csv</span></div></div></div><div class="form-group"><label class="form-label">Import As Category</label><select class="form-select" id="importCategory">${impCatOpts}</select></div></div><div id="importUploadStatus" style="margin-top:0.85rem;"></div>`;
+        content.innerHTML=`<div class="form-grid" style="grid-template-columns:1fr;"><div class="form-group"><label class="form-label">File</label><div class="file-upload" style="padding:1.5rem;"><input type="file" id="importFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="onImportFileSelect(this)"><div class="file-upload-text" id="importFileText"><strong>Click to select</strong> or drag your file here<br><span style="color:var(--text-muted);">.xlsx, .xls, .xlsm, or .csv</span></div></div></div><div class="form-group"><label class="form-label">Import As Category</label><select class="form-select" id="importCategory">${impCatOpts}</select></div></div><div id="importUploadStatus" style="margin-top:0.85rem;"></div>`;
         footer.innerHTML=`<button class="btn btn-ghost" onclick="closeSubModal('importModal')">Cancel</button><button class="btn btn-primary" id="importNextBtn" onclick="importStepUpload()" disabled>Upload & Continue</button>`;
     } else if (step===2) { renderMappingStep(); }
     else if (step===3) { content.innerHTML=`<div class="loading-spinner"><div class="spinner"></div></div>`;footer.innerHTML='';runDryRun(); }
 }
-function onImportFileSelect(input) { const btn=document.getElementById('importNextBtn'),t=document.getElementById('importFileText');if(input.files&&input.files[0]){t.innerHTML=`<strong>${esc(input.files[0].name)}</strong><br><span style="font-size:0.72rem;color:var(--text-muted);">${(input.files[0].size/1024).toFixed(1)} KB</span>`;btn.disabled=false;}else btn.disabled=true; }
+function onImportFileSelect(input) { const btn=document.getElementById('importNextBtn'),t=document.getElementById('importFileText');if(input.files&&input.files[0]){t.innerHTML=`<strong>${esc(input.files[0].name)}</strong><br><span style="color:var(--text-muted);">${(input.files[0].size/1024).toFixed(1)} KB</span>`;btn.disabled=false;}else btn.disabled=true; }
 async function importStepUpload() {
     const fileInput=document.getElementById('importFile'),catSelect=document.getElementById('importCategory');
     if(!fileInput.files.length){showToast('Select a file','error');return;} if(!catSelect.value){showToast('Select a category','error');return;}
@@ -7036,7 +7086,7 @@ async function importStepUpload() {
 function renderMappingStep() {
     const content=document.getElementById('importStepContent'),footer=document.getElementById('importFooter'),cat=importState.category,catLabel=getCatLabel(cat);
     let sheetHtml='';if(importState.sheets.length>1){sheetHtml=`<div style="margin-bottom:0.85rem;"><div class="form-group"><label class="form-label">Sheet</label><select class="form-select" onchange="onSheetChange(this.value)">`;for(const s of importState.sheets)sheetHtml+=`<option value="${esc(s.name)}" ${s.name===importState.selectedSheet?'selected':''}>${esc(s.name)}</option>`;sheetHtml+=`</select></div></div>`;}
-    let hcHtml='';if(importState.headChartCol>=0){hcHtml=`<div style="margin-bottom:0.85rem;padding:0.6rem 0.8rem;border:1px solid var(--border);border-radius:6px;background:var(--accent-dim,rgba(74,142,255,0.08));"><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.82rem;"><input type="checkbox" ${importState.headChartEnabled?'checked':''} onchange="toggleHeadChart(this.checked)"><span><strong>Parse engine details from description HTML</strong> — detected <code>headChart</code> in column <code>${esc(importState.headers[importState.headChartCol]||'Description')}</code>. Adds <code>[HC]</code> columns (Engine #, Head #, Litre, Vehicle, Date Stamp, Mileage, Clean Description) you can map below.</span></label></div>`;}
+    let hcHtml='';if(importState.headChartCol>=0){hcHtml=`<div style="margin-bottom:0.85rem;padding:0.6rem 0.8rem;border:1px solid var(--border);border-radius:6px;background:var(--accent-dim,rgba(74,142,255,0.08));"><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" ${importState.headChartEnabled?'checked':''} onchange="toggleHeadChart(this.checked)"><span><strong>Parse engine details from description HTML</strong> — detected <code>headChart</code> in column <code>${esc(importState.headers[importState.headChartCol]||'Description')}</code>. Adds <code>[HC]</code> columns (Engine #, Head #, Litre, Vehicle, Date Stamp, Mileage, Clean Description) you can map below.</span></label></div>`;}
     const vHeaders=visibleHeaders(),vSamples=visibleSampleRows();
     let headerRowHtml=`<div class="form-group" style="margin-bottom:0.85rem;"><label class="form-label">Header Row</label><select class="form-select" id="importHeaderRow" onchange="onHeaderRowChange(parseInt(this.value))" style="max-width:200px;">`;const allR=[vHeaders,...vSamples];for(let i=0;i<Math.min(allR.length,10);i++){const pv=allR[i].slice(0,3).filter(c=>c).join(', ');headerRowHtml+=`<option value="${i}" ${i===importState.headerRow?'selected':''}>Row ${i+1}: ${esc(pv.substring(0,40))}${pv.length>40?'…':''}</option>`;}headerRowHtml+=`</select></div>`;
     const sharedKeys = new Set(['sku','location','fitment_vehicle','sold','sold_date','notes']);
@@ -7047,7 +7097,7 @@ function renderMappingStep() {
     });
     const headers=vHeaders;let colOpts=`<option value="-1">— Skip —</option>`;headers.forEach((h,i)=>{colOpts+=`<option value="${i}">${esc(h||`Column ${i+1}`)}</option>`;});
     let mapHtml=`<div class="import-mapping-grid"><div class="map-header">${esc(catLabel)} Field</div><div class="map-header"></div><div class="map-header">Excel Column</div>`;
-    for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${esc(f.label)}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:0.65rem;color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${esc(f.key)}" onchange="importState.mapping[this.dataset.field]=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
+    for(const f of fields){if(f.key==='notes')continue;const am=importState.mapping[f.key]!==undefined?importState.mapping[f.key]:autoMatchColumn(f,headers);importState.mapping[f.key]=am;mapHtml+=`<div class="map-field-label">${esc(f.label)}${f.type==='toggle'||f.type==='radio'?' <span style="font-size:var(--fs-micro);color:var(--text-muted);">('+f.type+')</span>':''}</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="${esc(f.key)}" onchange="importState.mapping[this.dataset.field]=parseInt(this.value)">${colOpts.replace(`value="${am}"`,'value="'+am+'" selected')}</select>`;}
     const nf=fields.find(f=>f.key==='notes');if(nf){const nm=importState.mapping['notes']!==undefined?importState.mapping['notes']:autoMatchColumn(nf,headers);importState.mapping['notes']=nm;mapHtml+=`<div class="map-field-label">Notes</div><div class="map-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div><select class="map-select" data-field="notes" onchange="importState.mapping['notes']=parseInt(this.value)">${colOpts.replace(`value="${nm}"`,'value="'+nm+'" selected')}</select>`;}
     mapHtml+=`</div>`;
     let sampleHtml='';if(vSamples.length){sampleHtml=`<div style="margin-top:1rem;"><span class="form-label">Sample Data</span><div class="preview-table-wrap" style="margin-top:0.3rem;max-height:160px;"><table class="preview-table"><thead><tr>`;headers.forEach(h=>{sampleHtml+=`<th>${esc(h||'—')}</th>`;});sampleHtml+=`</tr></thead><tbody>`;vSamples.slice(0,5).forEach(row=>{sampleHtml+=`<tr>`;row.slice(0,headers.length).forEach(c=>{sampleHtml+=`<td>${esc((c||'').toString().slice(0,140))}</td>`;});sampleHtml+=`</tr>`;});sampleHtml+=`</tbody></table></div></div>`;}
@@ -7070,8 +7120,8 @@ function renderPreview(data) {
     if(data.preview.length){
         const fields=data.fields,labels=data.field_labels;const radioFields=new Set(['engine_turns','trans_spins','trans_shifts']);const toggleFields=new Set(['sold']);
         html+=`<div class="preview-table-wrap" style="margin-top:0.85rem;"><table class="preview-table"><thead><tr><th style="width:45px;">Row</th>`;for(const f of fields)if(data.preview.some(r=>r[f]!==undefined&&r[f]!==''))html+=`<th>${esc(labels[f]||f)}</th>`;html+=`</tr></thead><tbody>`;
-        for(const row of data.preview.slice(0,50)){html+=`<tr><td style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">${row._row_num||''}</td>`;for(const f of fields){if(!data.preview.some(r=>r[f]!==undefined&&r[f]!==''))continue;const val=row[f];if(radioFields.has(f)){const v=val||'untested';html+=`<td><span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span></td>`;}else if(toggleFields.has(f)){html+=`<td class="${val?'preview-toggle-yes':'preview-toggle-no'}">${val?'Yes':'No'}</td>`;}else html+=`<td>${esc(val||'')}</td>`;}html+=`</tr>`;}
-        html+=`</tbody></table></div>`;if(data.preview.length>50)html+=`<div style="text-align:center;padding:0.4rem;font-size:0.78rem;color:var(--text-muted);">Showing 50 of ${data.total}</div>`;
+        for(const row of data.preview.slice(0,50)){html+=`<tr><td style="color:var(--text-muted);font-family:var(--mono);">${row._row_num||''}</td>`;for(const f of fields){if(!data.preview.some(r=>r[f]!==undefined&&r[f]!==''))continue;const val=row[f];if(radioFields.has(f)){const v=val||'untested';html+=`<td><span class="radio-pill val-${safeCls(v)}">${esc(RADIO_DISPLAY[v]||v)}</span></td>`;}else if(toggleFields.has(f)){html+=`<td class="${val?'preview-toggle-yes':'preview-toggle-no'}">${val?'Yes':'No'}</td>`;}else html+=`<td>${esc(val||'')}</td>`;}html+=`</tr>`;}
+        html+=`</tbody></table></div>`;if(data.preview.length>50)html+=`<div style="text-align:center;padding:0.4rem;color:var(--text-muted);">Showing 50 of ${data.total}</div>`;
     }else html+=`<div class="empty-state" style="padding:1.5rem;"><h3>No rows to import</h3><p>Check your mapping</p></div>`;
     content.innerHTML=html;footer.innerHTML=`<button class="btn btn-ghost" onclick="setImportStep(2)">← Back</button>${data.total>0?`<button class="btn btn-primary" onclick="executeImport()">Import ${data.total} Record${data.total!==1?'s':''}</button>`:''}`;
 }
@@ -8406,7 +8456,7 @@ function _kbRenderEditFeatured(doc) {
                 <button type="button" class="btn btn-ghost btn-sm" onclick="removeKbFeatured()">Remove featured image</button>
              </div>`;
     } else {
-        box.innerHTML = `<div style="font-size:0.82rem;color:var(--text-muted);">No featured image set.</div>`;
+        box.innerHTML = `<div style="color:var(--text-muted);">No featured image set.</div>`;
     }
 }
 
@@ -8900,7 +8950,7 @@ async function showSingleWorkOrder(ident, push=true) {
         <div class="wo-header">
             <h2 style="display:inline-flex;align-items:center;gap:8px;">
                 Work Order
-                <span id="woSingleTitleNum" style="color:var(--text-muted);font-family:var(--mono);font-size:0.9rem;"></span>
+                <span id="woSingleTitleNum" style="color:var(--text-muted);font-family:var(--mono);"></span>
             </h2>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
                 <a class="btn btn-ghost btn-sm" href="/workorders" onclick="event.preventDefault(); showWorkOrdersView('active');" title="Back to active work orders">← All Work Orders</a>
@@ -9132,7 +9182,7 @@ async function refreshLockedAccounts() {
                     <div class="widget-row-title">${label}</div>
                     <div class="widget-row-sub">
                         <span>${u.failed_login_count || 0} failed attempt${u.failed_login_count === 1 ? '' : 's'}</span>
-                        <span style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">locked until ${esc(until)} UTC</span>
+                        <span style="color:var(--text-muted);font-family:var(--mono);">locked until ${esc(until)} UTC</span>
                     </div>
                 </div>
                 <button class="btn btn-ghost btn-sm" onclick="unlockAccount(${u.id}, event)">Unlock</button>
@@ -9187,9 +9237,9 @@ function renderRecentParts(parts) {
         return `<div class="widget-row" onclick="openDetail(${p.id})">
             ${thumb}
             <div class="widget-row-text">
-                <div class="widget-row-title">${esc(p.sku || 'No SKU')} <span style="color:var(--text-muted);font-family:var(--mono);font-size:0.7rem;">· ${esc(p.product_number || '')}</span></div>
+                <div class="widget-row-title">${esc(p.sku || 'No SKU')} <span style="color:var(--text-muted);font-family:var(--mono);">· ${esc(p.product_number || '')}</span></div>
                 <div class="widget-row-sub">
-                    <span style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};padding:1px 6px;border-radius:8px;font-family:var(--mono);font-size:0.6rem;font-weight:600;">${esc(getCatLabel(p.category))}</span>
+                    <span style="background:${getCatColor(p.category)}22;color:${getCatColor(p.category)};padding:1px 6px;border-radius:8px;font-family:var(--mono);font-size:var(--fs-micro);font-weight:600;">${esc(getCatLabel(p.category))}</span>
                     ${p.fitment_vehicle ? `<span>${esc(p.fitment_vehicle)}</span>` : ''}
                 </div>
             </div>
@@ -9250,7 +9300,7 @@ async function loadKbWidget() {
                 <div class="widget-row-title">${esc(d.title)}</div>
                 <div class="widget-row-sub">
                     ${cat ? `<span>${esc(cat)}</span>` : ''}
-                    ${d.ext ? `<span style="font-family:var(--mono);font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);">${esc(d.ext)}</span>` : ''}
+                    ${d.ext ? `<span style="font-family:var(--mono);font-size:var(--fs-micro);text-transform:uppercase;color:var(--text-muted);">${esc(d.ext)}</span>` : ''}
                 </div>
             </div>
             <div class="widget-row-meta">${esc(when)}</div>
@@ -9387,7 +9437,7 @@ async function openCustomerDetail(id) {
         const link = ct.kind === 'email'
             ? `<a href="mailto:${esc(ct.value)}">${esc(ct.value)}</a>`
             : `<a href="tel:${esc(ct.value.replace(/[^0-9+]/g, ''))}">${esc(ct.value)}</a>`;
-        return `${link}${ct.desc ? ` <span style="color:var(--text-muted);font-size:0.78rem;">(${esc(ct.desc)})</span>` : ''}`;
+        return `${link}${ct.desc ? ` <span style="color:var(--text-muted);">(${esc(ct.desc)})</span>` : ''}`;
     };
     const contacts = c.contacts || [];
     const phones = contacts.filter(ct => ct.kind === 'phone').map(contactLine).join('<br>');
@@ -10143,7 +10193,9 @@ async function renderWorkOrdersView() {
             <button class="wo-status-filter ${currentWoStatusFilter==='requested'?'active':''}" onclick="setWoStatusFilter('requested')">Requested</button>
         </div>`;
     const title = isArchive ? 'Work Orders — Archive' : 'Work Orders';
-    const newBtn = (!isArchive && currentUserData && currentUserData.can_edit)
+    // Shown in Archive too — the Add button is available from every section of
+    // the module, and raising a new request from the archive is a normal move.
+    const newBtn = (currentUserData && currentUserData.can_edit)
         ? `<button class="btn btn-primary btn-sm" onclick="openNewWorkOrderModal()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Request
@@ -10292,8 +10344,8 @@ function _setupWoInfiniteScroll() {
 function _renderWoEmptyState(list) {
     list.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
         <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <div style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:0.2rem;">${currentWoSearch ? 'No matches' : 'No work orders'}</div>
-        <div style="font-size:0.8rem;">${currentWoSearch ? `Nothing matches "${esc(currentWoSearch)}"` : (currentWoView==='archive'?'Completed orders will appear here.':'Create a new request to get started.')}</div>
+        <div style="color:var(--text-secondary);margin-bottom:0.2rem;">${currentWoSearch ? 'No matches' : 'No work orders'}</div>
+        <div>${currentWoSearch ? `Nothing matches "${esc(currentWoSearch)}"` : (currentWoView==='archive'?'Completed orders will appear here.':'Create a new request to get started.')}</div>
     </div>`;
 }
 
@@ -10703,7 +10755,7 @@ function renderWorkOrderCard(wo) {
                     ? `<span class="wo-number">${esc(wo.wo_number)}</span>`
                     : `<a class="wo-number clickable" href="/workorders/${encodeURIComponent(wo.wo_number)}" onclick="event.preventDefault(); event.stopPropagation(); showSingleWorkOrder('${esc(wo.wo_number)}')" title="Open this work order on its own page">${esc(wo.wo_number)}</a>`}
                 <span class="wo-customer">${esc(wo.customer_name || '—')}</span>
-                ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy IMS #" style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">IMS: ${esc(wo.quote_invoice)}</span>` : ''}
+                ${wo.quote_invoice ? `<span class="wo-invoice clickable" data-invoice="${esc(wo.quote_invoice)}" onclick="copyInvoiceFromEl(this, event)" title="Click to copy IMS #" style="font-family:var(--mono);color:var(--text-muted);">IMS: ${esc(wo.quote_invoice)}</span>` : ''}
                 <span class="wo-card-top-right">
                     <span class="wo-status-badge ${safeCls(wo.status)}">${esc(wo.status)}</span>
                     ${wo.priority ? `<span class="wo-priority-badge ${prioClass}">${esc(wo.priority)}</span>` : ''}
@@ -10719,9 +10771,12 @@ function renderWorkOrderCard(wo) {
                 ${wo.created_by ? `<span>✍️ <strong>Created by:</strong> ${esc(wo.created_by)}</span>` : ''}
                 <span style="color:var(--text-muted);">${esc(reqDate)}</span>
             </div>
-            <div class="wo-meta-row wo-vehicle-row">
-                <span><strong>Vehicle:</strong> ${esc(wo.vehicle || '—')}</span>
-                ${wo.vin ? `<span style="font-family:var(--mono);font-size:0.72rem;"><strong>VIN:</strong> ${esc(wo.vin)}</span>` : ''}
+            <div class="wo-vehicle-block">
+                <div class="vehicle-label">Vehicle</div>
+                <div class="wo-meta-row wo-vehicle-row">
+                    <span>${esc(wo.vehicle || '—')}</span>
+                    ${wo.vin ? `<span class="wo-vin">VIN: ${esc(wo.vin)}</span>` : ''}
+                </div>
             </div>
             ${notesBlock}
             <div class="wo-card-collapsible">
@@ -11105,7 +11160,7 @@ function renderWorkOrderNotesThread(wo, canReply) {
             <div class="wo-note-head">
                 <span class="wo-note-author">${esc(n.author || 'Unknown')}</span>
                 <span class="wo-note-time">${esc(_fmtNoteTime(n.created_at))}</span>
-                ${isReply ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--text-muted);">↳ reply</span>' : ''}
+                ${isReply ? '<span style="font-family:var(--mono);color:var(--text-muted);">↳ reply</span>' : ''}
             </div>
             ${(n.note || '').trim() ? `<div class="wo-note-text">${esc(n.note)}</div>` : ''}
             ${attachmentsHtml}
@@ -11581,7 +11636,7 @@ function renderWoFormAttachments() {
     if (pendingEl) {
         pendingEl.innerHTML = _woFormPending.map((f, i) => {
             return `<div class="wo-form-attachment-row">
-                <span class="wo-form-att-name">${esc(f.name)} <span style="color:var(--text-muted);font-size:0.7rem;">(pending upload)</span></span>
+                <span class="wo-form-att-name">${esc(f.name)} <span style="color:var(--text-muted);">(pending upload)</span></span>
                 <span class="wo-form-att-size">${_fmtAttachmentSize(f.size)}</span>
                 <button type="button" class="wo-form-att-remove" title="Drop this file" onclick="removeWoFormPending(${i})">×</button>
             </div>`;
@@ -12553,7 +12608,7 @@ async function loadApiKeys() {
         body.innerHTML = keys.map(k => `
             <tr>
                 <td>${esc(k.name || 'Untitled key')}</td>
-                <td><code style="font-family:var(--mono);font-size:0.75rem;">${esc(k.key_prefix || '')}…</code></td>
+                <td><code style="font-family:var(--mono);">${esc(k.key_prefix || '')}…</code></td>
                 <td>${k.last_used_at ? esc(k.last_used_at) : '<span style="color:var(--text-muted);">never</span>'}</td>
                 <td>${k.active ? '<span class="toggle-pill yes">ACTIVE</span>' : '<span class="toggle-pill no">REVOKED</span>'}</td>
                 <td style="text-align:right;">${k.active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="revokeApiKey(${k.id})">Revoke</button>` : ''}</td>
