@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.11.0
+- <strong>Removed the "Built by VIIBEWARE" credit from About</strong> — <em>Settings → About</em> no longer carries the byline and logo beneath the tagline. The app name, version, tagline, license and the Built With stack are unchanged.
+- <strong>Now licensed under MIT</strong> — Warehouse Manager was released under the GNU Affero General Public License v3.0, which required anyone running a modified copy as a network service to publish their changes. It is now under the MIT License instead, which drops that obligation: you can run, modify, and redistribute it, including inside a closed-source or commercial product, as long as the copyright notice comes along. Releases up to and including v1.10.0 remain AGPLv3, and anyone who already received a copy under those terms keeps the rights it gave them. Shown in <em>Settings → About</em>.
+
 ## v1.10.0
 - <strong>Request Details is never cut off</strong> — The request message on a work order used to stop after three lines, which meant the part that mattered most &mdash; the deadline, the substitution the customer will accept, the thing to check before saying no &mdash; was usually the part you could not see. The whole message now shows, however long it is, with its paragraph breaks intact.
 - <strong>Notes and Activity shows every note in full</strong> — The thread used to sit in its own small scrolling box about five notes tall, so a busy work order looked short and long notes had to be scrolled inside the scroll you were already in. Every note and reply now shows in its entirety, one after another down the card. Collapsing the card still hides the lot in one click.
