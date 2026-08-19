@@ -10712,13 +10712,10 @@ function renderWorkOrderCard(wo) {
     if (prioColor) cardCls += ' has-priority-color';
     if (isDeliveredPendingCard) cardCls += ' delivered-pending';
     if (isNotDeliverablePendingCard) cardCls += ' not-deliverable-pending';
-    // Delivered + not-deliverable pending cards start collapsed (users came
-    // here to work the active queue; these are done). Archive view always
-    // starts every card collapsed regardless of status.
-    const startCollapsed = wo.status === 'delivered'
-        || isNotDeliverablePendingCard
-        || currentWoView === 'archive';
-    if (startCollapsed) cardCls += ' wo-collapsed';
+    // Every card starts collapsed so the list reads as a scannable queue;
+    // expand the ones you're actually working. (The single work-order view
+    // re-expands its card after render — you came there to read it.)
+    cardCls += ' wo-collapsed';
     const cardStyle = prioColor ? `style="--prio-color:${prioColor};"` : '';
     const collapseToggle = `<button class="wo-collapse-btn" title="Expand / collapse"
                    onclick="toggleWoCardCollapse(${wo.id}, event)">
