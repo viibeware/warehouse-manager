@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY app.py .
 COPY CHANGELOG.md .
+# The image is a copy of the software, and MIT requires the notice to travel
+# with it. Ships at /app/LICENSE.
+COPY LICENSE .
 COPY templates/ templates/
 COPY static/ static/
 

@@ -2,7 +2,7 @@
 
 A self-hosted web-based inventory management system built for automotive parts — engines, cylinder heads, transmissions, and any custom category you define. Built with Flask + SQLite, deployed via Docker.
 
-![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Docker](https://img.shields.io/badge/docker-ready-blue) ![License](https://img.shields.io/badge/license-AGPLv3-green)
+![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Docker](https://img.shields.io/badge/docker-ready-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Features
 
@@ -277,7 +277,11 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full release history. The in-app Abou
 
 ## License
 
-GNU Affero General Public License v3.0 — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE).
+
+Releases up to and including v1.10.0 were published under the GNU Affero General
+Public License v3.0. That does not retroactively change: anyone who received a
+copy under AGPLv3 keeps the rights it granted them for that copy.
 
 ## Credits
 
