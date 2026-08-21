@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.11.2
+- <strong>Knowledge Base table columns now sort</strong> — The table view listed documents in whatever order they came back in, with no way to reorder them. Every column heading &mdash; Title, Category, Fitment, Parts, Type, Size, Uploaded By, and Public for admins &mdash; is now clickable: click once to sort by it, click again to reverse. Sizes sort by actual file size rather than by the text, titles sort naturally so <em>Sheet 2</em> comes before <em>Sheet 10</em>, and rows with nothing in the column stay at the bottom either way. The card view is unchanged.
+- <strong>The Public toggle is back in the table</strong> — Admins had a <em>Public</em> column heading in the table view with no switch beneath it, which pushed the Edit and Delete buttons under the wrong heading. The toggle now sits in its own cell, works the same as the one on the cards, and the row lines up again.
+
 ## v1.11.1
 - <strong>Work orders now open collapsed</strong> — Every card in <em>Active Orders</em> and the <em>Archive</em> used to arrive fully expanded, so a handful of orders filled the screen and finding the one you wanted meant scrolling past everyone else's parts lists and note threads. Cards now start collapsed, showing the work order number, customer, IMS number, status and priority, location, sales person, date, and the vehicle and request details. Click a card &mdash; or the chevron on the right &mdash; to open its attachments, parts and notes thread. Opening a work order on its own page still shows it expanded.
 
