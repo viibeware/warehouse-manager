@@ -8115,17 +8115,66 @@ document.addEventListener('keydown', (e) => {
     if (chip && !isMac) chip.textContent = 'Ctrl K';
 })();
 
+// ── Table column sorting ──
+// The KB list is fetched whole (no pagination), so sorting is client-side and
+// only re-renders the table; it doesn't affect the card view.
+let kbSortBy = 'title';
+let kbSortDir = 'asc';
+const KB_SORT_DESC_DEFAULT = new Set(['size', 'public']);
+const kbCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function kbSortValue(d, key) {
+    switch (key) {
+        case 'category': return (kbCatName(d.category_id) || '').toLowerCase();
+        case 'fitment': return (d.vehicle_fitment || '').toLowerCase();
+        case 'parts': return (Array.isArray(d.associated_parts) ? d.associated_parts : [])
+            .map(p => p.number || p.url).filter(Boolean).join(', ').toLowerCase();
+        case 'type': return d.doc_type === 'glossary' ? 'glossary' : (d.ext || '').toLowerCase();
+        case 'size': return d.doc_type === 'glossary' ? (d.term_count || 0) : (d.file_size || 0);
+        case 'uploaded_by': return (d.uploaded_by || '').toLowerCase();
+        case 'public': return d.public !== false ? 1 : 0;
+        default: return (d.title || '').toLowerCase();
+    }
+}
+function kbSortedDocs(docs) {
+    const key = kbSortBy, dir = kbSortDir === 'desc' ? -1 : 1;
+    return docs.slice().sort((a, b) => {
+        const va = kbSortValue(a, key), vb = kbSortValue(b, key);
+        if (typeof va === 'number' && typeof vb === 'number') {
+            if (va !== vb) return (va - vb) * dir;
+        } else {
+            // Empty cells stay at the bottom in both directions.
+            if (!va !== !vb) return va ? -1 : 1;
+            const c = kbCollator.compare(va, vb);
+            if (c) return c * dir;
+        }
+        return kbCollator.compare(a.title || '', b.title || '');
+    });
+}
+function setKbSort(key) {
+    if (kbSortBy === key) kbSortDir = kbSortDir === 'asc' ? 'desc' : 'asc';
+    else { kbSortBy = key; kbSortDir = KB_SORT_DESC_DEFAULT.has(key) ? 'desc' : 'asc'; }
+    renderKbTable(_kbDocs);
+}
+function kbSortTh(key, label, attrs) {
+    const active = kbSortBy === key;
+    const arrow = `<span class="th-sort-arrow ${active ? 'active' : ''} ${active ? kbSortDir : ''}" aria-hidden="true">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>`;
+    return `<th ${attrs || ''}><span class="th-sort ${active ? 'active' : ''}" onclick="setKbSort('${key}')" title="Sort by ${esc(label)}">${esc(label)} ${arrow}</span></th>`;
+}
+
 function renderKbTable(docs) {
     const canEdit = currentUserData && currentUserData.can_edit;
     const isAdmin = currentUserData && currentUserData.role === 'admin';
     const head = `<thead><tr>
         ${canEdit ? `<th class="cb-cell"><input type="checkbox" onclick="toggleKbSelectAll(this)" title="Select all"></th>` : ''}
-        <th>Title</th><th>Category</th><th>Fitment</th><th>Parts</th><th>Type</th><th>Size</th><th>Uploaded By</th>
-        ${isAdmin ? '<th title="Visible on the public companion site">Public</th>' : ''}
+        ${kbSortTh('title', 'Title')}${kbSortTh('category', 'Category')}${kbSortTh('fitment', 'Fitment')}${kbSortTh('parts', 'Parts')}${kbSortTh('type', 'Type')}${kbSortTh('size', 'Size')}${kbSortTh('uploaded_by', 'Uploaded By')}
+        ${isAdmin ? kbSortTh('public', 'Public', 'title="Visible on the public companion site"') : ''}
         ${canEdit ? '<th></th>' : ''}
     </tr></thead>`;
     let rows = '';
-    for (const d of docs) {
+    for (const d of kbSortedDocs(docs)) {
         const dl = `/api/kb/documents/${d.id}/download`;
         const sel = kbSelected.has(d.id);
         const cb = canEdit
@@ -8148,6 +8197,7 @@ function renderKbTable(docs) {
             ${cb}
             <td>${titleCell}</td>
             <td>${cat}</td><td>${fit}</td><td>${parts}</td><td>${ext || '—'}</td><td>${size}</td><td>${esc(d.uploaded_by || '—')}</td>
+            ${isAdmin ? `<td>${kbPublicToggle(d)}</td>` : ''}
             ${actions}
         </tr>`;
     }
