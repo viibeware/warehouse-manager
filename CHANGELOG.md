@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.11.3
+- <strong>The app name in the sidebar reads a little larger</strong> — <em>Warehouse Manager</em> at the top of the sidebar sat at the same size as the body text around it, so the wordmark did not quite hold its place as the app's title. It is now a step larger. Nothing else in the sidebar moved.
+
 ## v1.11.2
 - <strong>Knowledge Base table columns now sort</strong> — The table view listed documents in whatever order they came back in, with no way to reorder them. Every column heading &mdash; Title, Category, Fitment, Parts, Type, Size, Uploaded By, and Public for admins &mdash; is now clickable: click once to sort by it, click again to reverse. Sizes sort by actual file size rather than by the text, titles sort naturally so <em>Sheet 2</em> comes before <em>Sheet 10</em>, and rows with nothing in the column stay at the bottom either way. The card view is unchanged.
 - <strong>The Public toggle is back in the table</strong> — Admins had a <em>Public</em> column heading in the table view with no switch beneath it, which pushed the Edit and Delete buttons under the wrong heading. The toggle now sits in its own cell, works the same as the one on the cards, and the row lines up again.
